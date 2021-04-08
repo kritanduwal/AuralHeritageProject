@@ -164,46 +164,46 @@ function loadSource(url)
     request.send();
 }
 
-function loadA1(reverb)
+function loadB1(reverb)
 {
     let request = new XMLHttpRequest();
     request.open("GET", reverb + "1.wav", true);
     request.responseType = "arraybuffer";
     request.onload = function () {
-        ctx.decodeAudioData(request.response, (data) => A1buffer = data);
+        ctx.decodeAudioData(request.response, (data) => B1buffer = data);
     };
     request.send();
 }
 
-function loadA2(reverb)
+function loadB2(reverb)
 {
     let request = new XMLHttpRequest();
     request.open("GET", reverb + "2.wav", true);
     request.responseType = "arraybuffer";
     request.onload = function () {
-        ctx.decodeAudioData(request.response, (data) => A2buffer = data);
+        ctx.decodeAudioData(request.response, (data) => B2buffer = data);
     };
     request.send();
 }
 
-function loadA3(reverb)
+function loadB3(reverb)
 {
     let request = new XMLHttpRequest();
     request.open("GET", reverb + "3.wav", true);
     request.responseType = "arraybuffer";
     request.onload = function () {
-        ctx.decodeAudioData(request.response, (data) => A3buffer = data);
+        ctx.decodeAudioData(request.response, (data) => B3buffer = data);
     };
     request.send();
 }
 
-function loadA4(reverb)
+function loadB4(reverb)
 {
     let request = new XMLHttpRequest();
     request.open("GET", reverb + "4.wav", true);
     request.responseType = "arraybuffer";
     request.onload = function () {
-        ctx.decodeAudioData(request.response, (data) => A4buffer = data);
+        ctx.decodeAudioData(request.response, (data) => B4buffer = data);
     };
     request.send();
 }
