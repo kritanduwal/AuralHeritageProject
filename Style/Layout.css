@@ -1,0 +1,204 @@
+#appbar
+{
+    border-radius: 4px;
+    font-size: var(--font-size);
+    background-color: var(--maincolor);
+    color: var(--text-color);
+    box-shadow: var(--card-shadow);
+}
+
+#drawer
+{
+    flex-direction: column;
+    justify-content: start;
+    align-items: center;
+    text-align: center;
+    display: none;
+    float: right;
+    position: absolute;
+    background-color: var(--maincolor);
+    border-radius: 4px;
+    width: 400px;
+    height: 240px;
+    margin-right: auto;
+    margin-left: auto;
+    left: 0;
+    right: 0;
+    top: 250px;
+    box-shadow: var(--card-shadow);
+    transition: .5s ease all;
+    z-index: 99;
+}
+
+.roombuttonselected
+{
+    background-color: var(--maincolor2);
+    border-radius: 4px;
+    box-shadow: var(--card-shadow);
+    outline: none;
+    border: none;
+    width: 50px;
+    height: 25px;
+    font-family: Roboto;
+    margin-outside: 10px;
+}
+
+.roombutton
+{
+    background-color: var(--maincolor);
+    border-radius: 4px;
+    box-shadow: var(--card-shadow);
+    outline: none;
+    border: none;
+    width: 50px;
+    height: 25px;
+    font-family: Roboto;
+    margin-outside: 10px;
+}
+
+.roombutton:hover
+{
+    background-color: var(--hovercolor);
+}
+
+#roomselect
+{
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    top:40px;
+}
+
+#formatselect
+{
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    top:80px;
+}
+
+#output
+{
+    top: 120px;
+    position: relative;
+    border: none;
+    outline: none;
+}
+
+#olabel
+{
+    position: relative;
+    font-family: Roboto;
+    top: 120px;
+}
+
+body
+{
+    display: flex;
+    height: 100vh;
+}
+
+.app-bar {
+    position: absolute;
+}
+
+.mdc-top-app-bar {
+    z-index: 7;
+}
+
+#RSBui
+{
+    display: flex;
+    box-shadow: var(--card-shadow);
+    border-radius: 4px;
+    width: 478px;
+    height: 255px;
+    position: absolute;
+    top: 700px;
+    margin: auto;
+    left: 0;
+    right: 0;
+    background-image: url("../Images/RSB/Image Rotation 4.png");
+    background-size: 480px;
+    background-repeat: no-repeat;
+}
+
+#CSAui
+{
+    display: flex;
+    box-shadow: var(--card-shadow);
+    border-radius: 4px;
+    width: 478px;
+    height: 280px;
+    position: absolute;
+    top: 700px;
+    margin: auto;
+    left: 0;
+    right: 0;
+    background-image: url("../Images/CSA/Rotation.png");
+    background-size: 478px 255px;
+    background-repeat: no-repeat;
+}
+
+.play
+{
+    background-color: var(--maincolor);
+    color: var(--text-color);
+    border: none;
+    outline: none;
+    border-radius: 4px;
+    box-shadow: var(--card-shadow);
+    height: 50px;
+    width:160px;
+    transition: .25s ease all;
+}
+
+.play:hover
+{
+    background-color: var(--maincolor2);
+    color: var(--maincolor);
+}
+
+.stop
+{
+    background-color: var(--maincolor);
+    color: var(--text-color);
+    border: none;
+    outline: none;
+    border-radius: 4px;
+    box-shadow: var(--card-shadow);
+    height: 50px;
+    width:160px;
+    transition: .25s ease all;
+}
+
+.stop:hover
+{
+    background-color: var(--warning);
+    color: var(--maincolor);
+}
+
+#view
+{
+    position: absolute;
+    margin-left: auto;
+    margin-right: auto;
+    left: 0;
+    right: 0;
+    top: 100px;
+    height: 540px;
+    width: 1500px;
+    border-radius: 4px;
+    box-shadow: var(--card-shadow);
+}
+
+#error
+{
+    display: none;
+    color: var(--warning);
+    font-size: 18px;
+    font-family: Roboto;
+    font-weight: lighter;
+}

@@ -1,0 +1,72 @@
+
+:root{
+    --maincolor: #FFFFFF;
+    --maincolor2: #3F51B5;
+    --text-color: #000000;
+    --hovercolor: #EEEEEE;
+    --font: Roboto;
+    --font-size: 24px;
+    --card-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.17);
+
+    --warning: crimson;
+    --highlightcolor1: chartreuse;
+    --buttonsize: 14px;
+    --buttonfont: 8px;
+    --buttoncolor1: #9ccbe3;
+    --buttoncolor2: #f2bf5a;
+    --buttoncolor3: #a6a6a6;
+    --bordersize: 0.7px;
+
+    /*overflow: hidden;*/
+}
+
+@keyframes filter {
+    from {opacity: 100%; filter: grayscale(0) }
+    to {opacity: 50%; filter: grayscale(50%)}
+}
+
+@keyframes unfilter {
+    from {opacity: 50%; filter: grayscale(50%)}
+    to {opacity: 100%; filter: grayscale(0)}
+}
+
+.bluebutton
+{
+    outline: none;
+    border-radius: 100%;
+    height: var(--buttonsize);
+    width: var(--buttonsize);
+    background-color: var(--buttoncolor1);
+    border: solid;
+    border-width: var(--bordersize);
+    padding: 0;
+    font-size: var(--buttonfont);
+    font-weight: bold;
+}
+
+.yellowsquare
+{
+    outline: none;
+    border-radius: 15%;
+    height: var(--buttonsize);
+    width: var(--buttonsize);
+    background-color: var(--buttoncolor2);
+    border: solid;
+    border-width: var(--bordersize);
+    padding: 0;
+    font-size: var(--buttonfont);
+    font-weight: bold;
+}
+
+.barbutton
+{
+    outline: none;
+    height: var(--buttonsize);
+    width: var(--buttonsize) + 20px;
+    background-color: var(--buttoncolor3);
+    border: solid;
+    border-width: var(--bordersize);
+    padding: 0;
+    font-size: var(--buttonfont);
+    font-weight: bold;
+}
