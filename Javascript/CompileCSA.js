@@ -59,7 +59,7 @@ function compileSelectionCSA()
         setImage("Images/wp1909404.jpg");
         document.getElementById("error").style.display = "flex";
         if(isPlaying) {
-            play();
+            play_AFormat();
         }
         document.getElementById("play").disabled = true;
         document.getElementById("play").classList.remove('play');

@@ -47,6 +47,9 @@ function switchFormat()
         document.getElementById('bformat').classList.add('roombuttonselected');
         document.getElementById('aformat').classList.remove('roombuttonselected');
         document.getElementById('aformat').classList.add('roombutton');
+        format = 'B';
+
+
     }
     else if(format === 'B')
     {
@@ -54,5 +57,8 @@ function switchFormat()
         document.getElementById('aformat').classList.add('roombuttonselected');
         document.getElementById('bformat').classList.remove('roombuttonselected');
         document.getElementById('bformat').classList.add('roombutton');
+        format = 'A';
+
+
     }
 }

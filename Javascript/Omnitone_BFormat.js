@@ -6,14 +6,14 @@ let theta = 0;
 let source;
 let sourceBuffer;
 
-let A1 = ctx.createConvolver();
-let A1buffer;
-let A2 = ctx.createConvolver();
-let A2buffer;
-let A3 = ctx.createConvolver();
-let A3buffer;
-let A4 = ctx.createConvolver();
-let A4buffer;
+let B1 = ctx.createConvolver();
+let B1buffer;
+let B2 = ctx.createConvolver();
+let B2buffer;
+let B3 = ctx.createConvolver();
+let B3buffer;
+let B4 = ctx.createConvolver();
+let B4buffer;
 
 let NegA2 = ctx.createGain();
 NegA2.gain.value = -1.0;
@@ -110,7 +110,7 @@ function omnitoneSetup()
         console.log("output size: " + outputGain.channelCount);
         outputGain.connect(dac);
     }, function (onInitializationError) {
-    	console.error(onInitializationError)
+        console.error(onInitializationError)
     });
 }
 
@@ -126,7 +126,7 @@ function setPos(yaw, pitch)
     //Zr.gain.value =
 }
 
-function play() {
+function play_BFormat() {
     if (isPlaying === true) {
         source.stop();
         isPlaying = false;
@@ -138,7 +138,6 @@ function play() {
         AtoB();
         combineB();
         omnitoneSetup();
-
         source.loop = true;
         source.start();
         isPlaying = true;
@@ -208,4 +207,3 @@ function loadA4(reverb)
     };
     request.send();
 }
-
