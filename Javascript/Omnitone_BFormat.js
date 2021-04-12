@@ -1,11 +1,3 @@
-let ctx = new AudioContext();
-let dac = ctx.destination;
-let foa = Omnitone.createFOARenderer(ctx);
-let theta = 0;
-
-let source;
-let sourceBuffer;
-
 let B1 = ctx.createConvolver();
 let B1buffer;
 let B2 = ctx.createConvolver();
@@ -15,115 +7,32 @@ let B3buffer;
 let B4 = ctx.createConvolver();
 let B4buffer;
 
-let NegA2 = ctx.createGain();
-NegA2.gain.value = -1.0;
-let NegA3 = ctx.createGain();
-NegA3.gain.value = -1.0;
-let NegA4 = ctx.createGain();
-NegA4.gain.value = -1.0;
-
-let W = ctx.createGain(); W.gain.value *= 1.0;
-let X = ctx.createGain(); X.gain.value *= 1.0;
-let Y = ctx.createGain(); Y.gain.value *= 1.0;
-let Z = ctx.createGain(); Z.gain.value *= 1.0;
-
-let Xr = ctx.createGain();
-let Yr = ctx.createGain();
-let Zr = ctx.createGain();
-
-let foainput = ctx.createChannelMerger(4);
-
-let outputGain = ctx.createGain();
-outputGain.gain.value = .30;
-
-let numClicks = 0;
-
-let isPlaying = false;
-
-function initAmbisonic(reverb)
+function initAmbisonicB(reverb)
 {
-    loadA1(reverb);
-    A1.buffer = A1buffer;
-    loadA2(reverb);
-    A2.buffer = A2buffer;
-    loadA3(reverb);
-    A3.buffer = A3buffer;
-    loadA4(reverb);
-    A4.buffer = A4buffer;
+    loadB1(reverb);
+    B1.buffer = B1buffer;
+    loadB2(reverb);
+    B2.buffer = B2buffer;
+    loadB3(reverb);
+    B3.buffer = B3buffer;
+    loadB4(reverb);
+    B4.buffer = B4buffer;
 }
 
 function convolveSource()
 {
-    source.connect(A1);
-    source.connect(A2);
-    source.connect(A3);
-    source.connect(A4);
+    source.connect(B1);
+    source.connect(B2);
+    source.connect(B3);
+    source.connect(B4);
 }
 
-function AtoB()
+function mapB()
 {
-    A2.connect(NegA2);
-    A3.connect(NegA3);
-    A4.connect(NegA4);
-    //W
-    A1.connect(W);
-    A2.connect(W);
-    A3.connect(W);
-    A4.connect(W);
-
-    //X
-    A1.connect(X);
-    A2.connect(X);
-    NegA3.connect(X);
-    NegA4.connect(X);
-
-    //Y
-    A1.connect(Y);
-    NegA2.connect(Y);
-    A3.connect(Y);
-    NegA4.connect(Y);
-
-    //Z
-    A1.connect(Z);
-    NegA2.connect(Z);
-    NegA3.connect(Z);
-    A4.connect(Z);
-}
-
-function combineB()
-{
-    W.connect(foainput, 0, 0);
-    Y.connect(Yr);
-    Yr.connect(foainput, 0, 1);
-    Z.connect(Zr);
-    Zr.connect(foainput, 0, 2);
-    X.connect(Xr);
-    Xr.connect(foainput, 0, 3);
-}
-
-function omnitoneSetup()
-{
-    foa.setRenderingMode('ambisonic');
-    foa.initialize().then(function() {
-        foainput.connect(foa.input);
-        foa.output.connect(outputGain);
-        console.log("output size: " + outputGain.channelCount);
-        outputGain.connect(dac);
-    }, function (onInitializationError) {
-        console.error(onInitializationError)
-    });
-}
-
-function setGain(value)
-{
-    outputGain.gain.value = value/100;
-}
-
-function setPos(yaw, pitch)
-{
-    Xr.gain.linearRampToValueAtTime(Math.cos(yaw) * X.gain.value + Math.sin(yaw) * Y.gain.value, 1);
-    Yr.gain.linearRampToValueAtTime(-Math.sin(yaw) * X.gain.value + Math.cos(yaw) * Y.gain.value, 1);
-    //Zr.gain.value =
+    B1.connect(W);
+    B2.connect(Y);
+    B3.connect(Z);
+    B4.connect(X);
 }
 
 function play_BFormat() {
@@ -135,33 +44,13 @@ function play_BFormat() {
         source.buffer = sourceBuffer;
 
         convolveSource();
-        AtoB();
+        mapB();
         combineB();
         omnitoneSetup();
         source.loop = true;
         source.start();
         isPlaying = true;
     }
-}
-
-function urlExists(url)
-{
-    let http = new XMLHttpRequest();
-    let reverb = url + "1.wav";
-    http.open('GET', reverb, false);
-    http.send();
-    return http.status !== 404;
-}
-
-function loadSource(url)
-{
-    let request = new XMLHttpRequest();
-    request.open("GET", url, true);
-    request.responseType = "arraybuffer";
-    request.onload = function () {
-        ctx.decodeAudioData(request.response, (data) => sourceBuffer = data);
-    };
-    request.send();
 }
 
 function loadB1(reverb)
