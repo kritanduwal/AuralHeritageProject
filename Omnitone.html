@@ -55,6 +55,11 @@
             <input class = 'roombutton' id = bformat type = button value = B onclick = "switchFormat()">
         </div>
 
+        <div id = convselect>
+            <input class = 'roombuttonselected' id = wet type = button value = Wet onclick="switchConvolve()">
+            <input class = 'roombutton' id = dry type = button value = Dry onclick="switchConvolve()">
+        </div>
+
         <label id = olabel for = 'output'>Output</label>
         <input type = "range" id = "output" min = 0 max = 30 value = 30 oninput = setGain(this.value)>
     </div>
@@ -100,6 +105,7 @@
 
     let room = "CSA";
     let format = "A";
+    let convolve = true;
     let reverb;
     let viewer;
     let mictype;

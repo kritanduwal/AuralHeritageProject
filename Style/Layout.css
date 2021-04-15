@@ -76,7 +76,16 @@
     justify-content: center;
     align-items: center;
     position: relative;
-    top:80px;
+    top:70px;
+}
+
+#convselect
+{
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    top:100px;
 }
 
 #output

@@ -62,3 +62,27 @@ function switchFormat()
 
     }
 }
+
+function switchConvolve()
+{
+    if(convolve === true)
+    {
+        document.getElementById('dry').classList.remove('roombutton');
+        document.getElementById('dry').classList.add('roombuttonselected');
+        document.getElementById('wet').classList.remove('roombuttonselected');
+        document.getElementById('wet').classList.add('roombutton');
+        convolve = false;
+
+
+    }
+    else if(convolve === false)
+    {
+        document.getElementById('wet').classList.remove('roombutton');
+        document.getElementById('wet').classList.add('roombuttonselected');
+        document.getElementById('dry').classList.remove('roombuttonselected');
+        document.getElementById('dry').classList.add('roombutton');
+        convolve = true;
+
+
+    }
+}

@@ -21,10 +21,13 @@ function initAmbisonicB(reverb)
 
 function convolveSource()
 {
-    source.connect(B1);
-    source.connect(B2);
-    source.connect(B3);
-    source.connect(B4);
+    if(convolve)
+    {
+        source.connect(B1);
+        source.connect(B2);
+        source.connect(B3);
+        source.connect(B4);
+    }
 }
 
 function mapB()

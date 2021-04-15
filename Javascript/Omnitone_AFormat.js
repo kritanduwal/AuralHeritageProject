@@ -28,10 +28,13 @@ function initAmbisonic(reverb)
 
 function convolveSource()
 {
-    source.connect(A1);
-    source.connect(A2);
-    source.connect(A3);
-    source.connect(A4);
+    if(convolve)
+    {
+        source.connect(A1);
+        source.connect(A2);
+        source.connect(A3);
+        source.connect(A4);
+    }
 }
 
 function AtoB()
