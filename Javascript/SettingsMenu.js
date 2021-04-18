@@ -48,8 +48,6 @@ function switchFormat()
         document.getElementById('aformat').classList.remove('roombuttonselected');
         document.getElementById('aformat').classList.add('roombutton');
         format = 'B';
-
-
     }
     else if(format === 'B')
     {
@@ -58,8 +56,6 @@ function switchFormat()
         document.getElementById('bformat').classList.remove('roombuttonselected');
         document.getElementById('bformat').classList.add('roombutton');
         format = 'A';
-
-
     }
 }
 
@@ -72,8 +68,6 @@ function switchConvolve()
         document.getElementById('wet').classList.remove('roombuttonselected');
         document.getElementById('wet').classList.add('roombutton');
         convolve = false;
-
-
     }
     else if(convolve === false)
     {
@@ -82,7 +76,6 @@ function switchConvolve()
         document.getElementById('dry').classList.remove('roombuttonselected');
         document.getElementById('dry').classList.add('roombutton');
         convolve = true;
-
-
     }
+    compile();
 }

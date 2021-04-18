@@ -1,29 +1,3 @@
-let ctx = new AudioContext();
-let dac = ctx.destination;
-let foa = Omnitone.createFOARenderer(ctx);
-let theta = 0;
-
-let source;
-let sourceBuffer;
-
-let W = ctx.createGain(); W.gain.value *= 1.0;
-let X = ctx.createGain(); X.gain.value *= 1.0;
-let Y = ctx.createGain(); Y.gain.value *= 1.0;
-let Z = ctx.createGain(); Z.gain.value *= 1.0;
-
-let Xr = ctx.createGain();
-let Yr = ctx.createGain();
-let Zr = ctx.createGain();
-
-let foainput = ctx.createChannelMerger(4);
-
-let outputGain = ctx.createGain();
-outputGain.gain.value = .30;
-
-let numClicks = 0;
-
-let isPlaying = false;
-
 function omnitoneSetup()
 {
     foa.setRenderingMode('ambisonic');
