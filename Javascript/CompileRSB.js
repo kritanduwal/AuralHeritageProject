@@ -65,13 +65,19 @@ function compileSelectionRSB()
         document.getElementById("play").classList.add('play');
         document.getElementById("play").style.color = "var(--textcolor)";
         updateSelectedColor(true);
+
+        if(isPlaying)
+        {
+            play();
+            play();
+        }
     }
     else
     {
         setImage("Images/wp1909404.jpg");
         document.getElementById("error").style.display = "flex";
         if(isPlaying) {
-            play_AFormat();
+            play();
         }
         document.getElementById("play").disabled = true;
         document.getElementById("play").classList.remove('play');
