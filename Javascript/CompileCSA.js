@@ -62,7 +62,7 @@ function compileSelectionCSA()
     }
     else
     {
-        setImage("Images/wp1909404.jpg");
+        destroyView();
         document.getElementById("error").style.display = "flex";
         if(isPlaying) {
             play();

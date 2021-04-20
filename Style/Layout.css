@@ -18,7 +18,7 @@
     background-color: var(--maincolor);
     border-radius: 4px;
     width: 400px;
-    height: 240px;
+    height: 250px;
     margin-right: auto;
     margin-left: auto;
     left: 0;
@@ -93,19 +93,35 @@
     position: relative;
     border: none;
     outline: none;
+    -webkit-appearance: none;
+    background-color: var(--maincolor2);
+    border-radius: 4px;
+    box-shadow: var(--card-shadow);
+    height: 10px;
+}
+
+#output::-webkit-slider-thumb
+{
+    -webkit-appearance: none;
+    appearance: none;
+    height: 20px;
+    width: 10px;
+    background-color: var(--text-color);
+    box-shadow: var(--card-shadow);
+
 }
 
 #olabel
 {
     position: relative;
     font-family: Roboto;
-    top: 120px;
+    top: 114px;
 }
 
 body
 {
-    display: flex;
-    height: 100vh;
+    /*display: flex;*/
+    /*height: 100vh;*/
 }
 
 .app-bar {
@@ -118,74 +134,87 @@ body
 
 #RSBui
 {
-    display: flex;
-    box-shadow: var(--card-shadow);
-    border-radius: 4px;
     width: 478px;
     height: 255px;
-    position: absolute;
-    top: 700px;
-    margin: auto;
-    left: 0;
-    right: 0;
     background-image: url("../Images/RSB/Image Rotation 4.png");
     background-size: 480px;
-    background-repeat: no-repeat;
 }
 
 #CSAui
 {
+    width: 478px;
+    height: 280px;
+    background-image: url("../Images/CSA/Rotation.png");
+    background-size: 478px 255px;
+}
+
+.ui
+{
     display: flex;
     box-shadow: var(--card-shadow);
     border-radius: 4px;
-    width: 478px;
-    height: 280px;
-    position: absolute;
-    top: 700px;
-    margin: auto;
+    position: relative;
+    top: 101vh;
+    margin-left: auto;
+    margin-right: auto;
     left: 0;
     right: 0;
-    background-image: url("../Images/CSA/Rotation.png");
-    background-size: 478px 255px;
     background-repeat: no-repeat;
+}
+
+#whitespace
+{
+    position: relative;
+    top: 102vh;
+    height: 41.956px;
 }
 
 .play
 {
+    position: fixed;
+    z-index: 1;
     background-color: var(--maincolor);
     color: var(--text-color);
+    font-size: 72px !important;
+    height: 80px;
     border: none;
     outline: none;
-    border-radius: 4px;
+    border-radius: 50%;
     box-shadow: var(--card-shadow);
-    height: 50px;
-    width:160px;
-    transition: .25s ease all;
+    bottom: 48px;
+    right: 48px;
 }
 
 .play:hover
 {
     background-color: var(--maincolor2);
-    color: var(--maincolor);
+    transition: .25s ease all;
+}
+.material-icons:hover
+{
+    color: var(--maincolor) !important;
 }
 
 .stop
 {
+    position: fixed;
+    z-index: 1;
     background-color: var(--maincolor);
+    font-size: 72px !important;
+    height: 80px;
     color: var(--text-color);
     border: none;
     outline: none;
-    border-radius: 4px;
+    border-radius: 50%;
     box-shadow: var(--card-shadow);
-    height: 50px;
-    width:160px;
-    transition: .25s ease all;
+    bottom: 48px;
+    right: 48px;
 }
 
 .stop:hover
 {
     background-color: var(--warning);
-    color: var(--maincolor);
+    transition: .25s ease all;
 }
 
 #view
@@ -197,9 +226,10 @@ body
     right: 0;
     top: 100px;
     height: 77%;
-    width: 90%;
+    width: 93%;
     border-radius: 4px;
     box-shadow: var(--card-shadow);
+    background-color: var(--text-color);
 }
 
 #error
@@ -207,11 +237,10 @@ body
     position: absolute;
     width: 300px;
     height: 50px;
-    top:50%;
+    top:54%;
     left: 50%;
     margin-left: -150px;
     margin-top: -25px;
-    z-index: 1;
     display: none;
     text-align: center;
     color: var(--warning);
