@@ -39,7 +39,6 @@
                 <input type = "button" id = "play" onclick = "compile(); play();" value = "Play">
             </section>
             <section class = "mdc-top-app-bar__section">
-                <div id = error>error: no such source-receiver combination</div>
             </section>
         </div>
     </header>
@@ -64,7 +63,9 @@
         <input type = "range" id = "output" min = 0 max = 30 value = 30 oninput = setGain(this.value)>
     </div>
 
-    <div id = view></div>
+    <div id = view>
+        <div id = error>error: no such source-receiver combination</div>
+    </div>
     <div id = RSBui>
         <input type = button id = spS1_RSB class = yellowsquare value = "S1" onclick = updateSrcpos("spS1_RSB")>
         <input type = button id = spS3_RSB class = yellowsquare value = "S3" onclick = updateSrcpos("spS3_RSB")>

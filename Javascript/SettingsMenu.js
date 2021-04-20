@@ -4,7 +4,7 @@ function switchRoom()
     {
         room = "CSA";
         mictype = "ZMH3V";
-        srcpos = "spS1_CSA";
+        srcpos = "spS2_CSA";
         srctype = "st1_CSA";
         rcvpos = "rpR1_CSA";
         setImage("Images/wp1909404.jpg");
