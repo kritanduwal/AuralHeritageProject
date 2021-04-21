@@ -46,7 +46,7 @@
     </div>
 
 
-    <div id = 'blurbody' class = 'coverscreen'>
+    <div id = 'blurbody' class = 'coverscreen' style = 'overflow: auto'>
         <div id = disableui class = 'coverscreen'>
             <header id = appbar class="mdc-top-app-bar">
                 <div class="mdc-top-app-bar__row">
@@ -58,8 +58,6 @@
                     </section>
                 </div>
             </header>
-
-            <button id = "play" class="material-icons" onclick = "compile(); play();"> play_circle_filled </button>
 
             <div id = view>
             </div>
@@ -102,6 +100,8 @@
             <div id = whitespace></div>
         </div>
     </div>
+
+    <button id = "play" class="material-icons" onclick = "compile(); play();"> play_circle_filled </button>
 </body>
 <script>
 

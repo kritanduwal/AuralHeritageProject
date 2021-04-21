@@ -20,11 +20,21 @@
 
 @keyframes filter {
     from {opacity: 100%; filter: grayscale(0) }
-    to {opacity: 50%; filter: grayscale(50%)}
+    to {opacity: 40%; filter: grayscale(50%)}
 }
 
 @keyframes unfilter {
-    from {opacity: 50%; filter: grayscale(50%)}
+    from {opacity: 40%; filter: grayscale(50%)}
+    to {opacity: 100%; filter: grayscale(0)}
+}
+
+@keyframes playfilter {
+    from {opacity: 100%; filter: grayscale(0) }
+    to {opacity: 20%; filter: grayscale(50%)}
+}
+
+@keyframes playunfilter {
+    from {opacity: 20%; filter: grayscale(50%)}
     to {opacity: 100%; filter: grayscale(0)}
 }
 

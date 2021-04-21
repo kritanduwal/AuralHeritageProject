@@ -5,7 +5,9 @@ function toggleDrawer()
         document.getElementById('drawer').style.animation = "fadein .8s ease-in forwards";
         document.getElementById('drawer').style.display = "flex";
         document.getElementById('blurbody').style.animation = "filter .8s ease-in forwards";
+        document.getElementById('play').style.animation = "playfilter .8s ease-in forwards";
         document.getElementById('disableui').style.pointerEvents = "none";
+        document.getElementById('play').style.pointerEvents = "none";
         setTimeout(function () {
         document.getElementById('blurbody').onclick = toggleDrawer;
     }, 10);
@@ -14,9 +16,11 @@ function toggleDrawer()
     {
         document.getElementById('drawer').style.animation = "fadeout .8s ease-out forwards";
         document.getElementById('blurbody').style.animation = "unfilter .8s ease-out forwards";
+        document.getElementById('play').style.animation = "playunfilter .8s ease-out forwards";
         setTimeout(function (){
             document.getElementById('drawer').style.display = "none";
             document.getElementById('disableui').style.pointerEvents = "all";
+            document.getElementById('play').style.pointerEvents = "all";
             document.getElementById('blurbody').onclick = null;
         }, 800);
     }

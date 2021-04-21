@@ -7,14 +7,22 @@
     box-shadow: var(--card-shadow);
 }
 
+body
+{
+    margin: 0;
+    padding: 0;
+}
 .coverscreen
 {
-    position: fixed;
+    position: absolute;
     height: 100%;
     width: 100%;
-    overflow: auto;
 }
 
+::-webkit-scrollbar
+{
+    width: 0;
+}
 #drawer
 {
     display: none;
@@ -167,7 +175,7 @@
 #play
 {
     position: fixed;
-    z-index: 2;
+    z-index: 1;
     background-color: var(--maincolor);
     color: var(--text-color);
     font-size: 72px !important;
