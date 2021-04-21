@@ -42,7 +42,7 @@
         </div>
     </header>
 
-    <button id = "play" class="material-icons stop" onclick = "compile(); play();"> play_circle_filled </button>
+    <button id = "play" class="material-icons" onclick = "compile(); play();"> play_circle_filled </button>
 
     <div id = drawer>
         <div id = roomselect>
@@ -60,7 +60,6 @@
             <input class = 'roombutton' id = dry type = button value = Dry onclick="switchConvolve()">
         </div>
 
-        <label id = olabel for = 'output'>Output</label>
         <input type = "range" id = "output" min = 0 max = 30 value = 30 oninput = setGain(this.value)>
     </div>
 
@@ -181,16 +180,15 @@
     {
         if(urlexists)
         {
-            document.getElementById(srcpos).style.backgroundColor = "var(--highlightcolor1)";
-            document.getElementById(srctype).style.backgroundColor = "var(--highlightcolor1)";
-            document.getElementById(rcvpos).style.backgroundColor = "var(--highlightcolor1)";
+            document.documentElement.style.cssText = "--maincolor2: #00f47f";
         }
         else
         {
-            document.getElementById(srcpos).style.backgroundColor = "var(--warning)";
-            document.getElementById(srctype).style.backgroundColor = "var(--warning)";
-            document.getElementById(rcvpos).style.backgroundColor = "var(--warning)";
+            document.documentElement.style.cssText = "--maincolor2: crimson";
         }
+        document.getElementById(srcpos).style.backgroundColor = "var(--maincolor2)";
+        document.getElementById(srctype).style.backgroundColor = "var(--maincolor2)";
+        document.getElementById(rcvpos).style.backgroundColor = "var(--maincolor2)";
     }
 
     function toggleDrawer()

@@ -66,7 +66,7 @@
     justify-content: center;
     align-items: center;
     position: relative;
-    top:40px;
+    top:35px;
 }
 
 #formatselect
@@ -75,7 +75,7 @@
     justify-content: center;
     align-items: center;
     position: relative;
-    top:70px;
+    top:65px;
 }
 
 #convselect
@@ -84,12 +84,12 @@
     justify-content: center;
     align-items: center;
     position: relative;
-    top:100px;
+    top:95px;
 }
 
 #output
 {
-    top: 120px;
+    top: 130px;
     position: relative;
     border: none;
     outline: none;
@@ -106,16 +106,9 @@
     appearance: none;
     height: 20px;
     width: 10px;
-    background-color: var(--text-color);
+    background-color: var(--maincolor);
     box-shadow: var(--card-shadow);
 
-}
-
-#olabel
-{
-    position: relative;
-    font-family: Roboto;
-    top: 114px;
 }
 
 body
@@ -169,7 +162,7 @@ body
     height: 41.956px;
 }
 
-.play
+#play
 {
     position: fixed;
     z-index: 1;
@@ -185,7 +178,7 @@ body
     right: 48px;
 }
 
-.play:hover
+#play:hover
 {
     background-color: var(--maincolor2);
     transition: .25s ease all;
@@ -195,27 +188,6 @@ body
     color: var(--maincolor) !important;
 }
 
-.stop
-{
-    position: fixed;
-    z-index: 1;
-    background-color: var(--maincolor);
-    font-size: 72px !important;
-    height: 80px;
-    color: var(--text-color);
-    border: none;
-    outline: none;
-    border-radius: 50%;
-    box-shadow: var(--card-shadow);
-    bottom: 48px;
-    right: 48px;
-}
-
-.stop:hover
-{
-    background-color: var(--warning);
-    transition: .25s ease all;
-}
 
 #view
 {
@@ -243,7 +215,7 @@ body
     margin-top: -25px;
     display: none;
     text-align: center;
-    color: var(--warning);
+    color: var(--maincolor2);
     font-size: 18px;
     font-family: Roboto;
     font-weight: lighter;

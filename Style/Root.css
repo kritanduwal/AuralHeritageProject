@@ -1,15 +1,13 @@
 
 :root{
     --maincolor: #FFFFFF;
-    --maincolor2: #3F51B5;
+    --maincolor2: crimson;
     --text-color: #000000;
     --hovercolor: #EEEEEE;
     --font: Roboto;
     --font-size: 24px;
     --card-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.17);
 
-    --warning: crimson;
-    --highlightcolor1: chartreuse;
     --buttonsize: 14px;
     --buttonfont: 8px;
     --buttoncolor1: #9ccbe3;
