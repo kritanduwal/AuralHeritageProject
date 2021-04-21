@@ -25,25 +25,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
-<body id = blurbody onload = "loadSource('Source Files/Clarinet.wav')">
-
-    <header id = appbar class="mdc-top-app-bar">
-        <div class="mdc-top-app-bar__row">
-            <section class="mdc-top-app-bar__section mdc-top-app-bar__section--align-start">
-                <button class="material-icons mdc-top-app-bar__navigation-icon mdc-icon-button"
-                        style="color: var(--text-color)"
-                        onclick=toggleDrawer()>menu</button>
-              <span class="mdc-top-app-bar__title">Omnitone</span>
-            </section>
-            <section class = "mdc-top-app-bar__section mdc-top-app-bar__section--align-end">
-            </section>
-            <section class = "mdc-top-app-bar__section">
-            </section>
-        </div>
-    </header>
-
-    <button id = "play" class="material-icons" onclick = "compile(); play();"> play_circle_filled </button>
-
+<body onload = "loadSource('Source Files/Clarinet.wav')">
     <div id = drawer>
         <div id = roomselect>
             <input class = 'roombuttonselected' id = rsb type = button value = RSB onclick="switchRoom()">
@@ -63,45 +45,63 @@
         <input type = "range" id = "output" min = 0 max = 30 value = 30 oninput = setGain(this.value)>
     </div>
 
-    <div id = view>
+
+    <div id = 'blurbody' class = 'coverscreen'>
+        <div id = disableui class = 'coverscreen'>
+            <header id = appbar class="mdc-top-app-bar">
+                <div class="mdc-top-app-bar__row">
+                    <section class="mdc-top-app-bar__section mdc-top-app-bar__section--align-start">
+                        <button class="material-icons mdc-top-app-bar__navigation-icon mdc-icon-button"
+                                style="color: var(--text-color)"
+                                onclick=toggleDrawer()>menu</button>
+                        <span class="mdc-top-app-bar__title">Omnitone</span>
+                    </section>
+                </div>
+            </header>
+
+            <button id = "play" class="material-icons" onclick = "compile(); play();"> play_circle_filled </button>
+
+            <div id = view>
+            </div>
+            <div id = error>error: no such source-receiver combination</div>
+            <div id = RSBui class = 'ui'>
+                <input type = button id = spS1_RSB class = yellowsquare value = "S1" onclick = updateSrcpos("spS1_RSB")>
+                <input type = button id = spS3_RSB class = yellowsquare value = "S3" onclick = updateSrcpos("spS3_RSB")>
+                <input type = button id = spS5_RSB class = yellowsquare value = "S5" onclick = updateSrcpos("spS5_RSB")>
+                <input type = button id = spS7_RSB class = yellowsquare value = "S7" onclick = updateSrcpos("spS7_RSB")>
+
+
+                <input type = button id = st1_RSB class = barbutton value = "NTID" onclick = updateSrctype("st1_RSB")>
+                <input type = button id = st2_RSB class = barbutton value = "YMH" onclick = updateSrctype("st2_RSB")>
+
+
+                <input type = button id = rpR1_RSB class = bluebutton value = "R1" onclick = updateRcvpos("rpR1_RSB")>
+                <input type = button id = rpR2_RSB class = bluebutton value = "R2" onclick = updateRcvpos("rpR2_RSB")>
+                <input type = button id = rpR3_RSB class = bluebutton value = "R3" onclick = updateRcvpos("rpR3_RSB")>
+                <input type = button id = rpR4_RSB class = bluebutton value = "R4" onclick = updateRcvpos("rpR4_RSB")>
+            </div>
+            <div id = CSAui class = 'ui' style = "display: none">
+                <input type = button id = mt1_CSA class = barbutton value = ZMH3V>
+                <input type = button id = mt2_CSA class = barbutton value = RODE>
+
+                <input type = button id = st1_CSA class = barbutton value = "NTID" onclick = updateSrctype("st1_CSA")>
+                <input type = button id = st2_CSA class = barbutton value = "J308" onclick = updateSrctype("st2_CSA")>
+
+                <input type = button id = spS1_CSA class = yellowsquare value = "S1" onclick = updateSrcpos("spS1_CSA")>
+                <input type = button id = spS2_CSA class = yellowsquare value = "S2" onclick = updateSrcpos("spS2_CSA")>
+                <input type = button id = spS3_CSA class = yellowsquare value = "S3" onclick = updateSrcpos("spS3_CSA")>
+                <input type = button id = spS4_CSA class = yellowsquare value = "S4" onclick = updateSrcpos("spS4_CSA")>
+
+                <input type = button id = rpR1_CSA class = bluebutton value = "R1" onclick = updateRcvpos("rpR1_CSA")>
+                <input type = button id = rpR2_CSA class = bluebutton value = "R2" onclick = updateRcvpos("rpR2_CSA")>
+                <input type = button id = rpR3_CSA class = bluebutton value = "R3" onclick = updateRcvpos("rpR3_CSA")>
+                <input type = button id = rpR4_CSA class = bluebutton value = "R4" onclick = updateRcvpos("rpR4_CSA")>
+                <input type = button id = rpR5_CSA class = bluebutton value = "R5" onclick = updateRcvpos("rpR5_CSA")>
+                <input type = button id = rpR6_CSA class = bluebutton value = "R6" onclick = updateRcvpos("rpR6_CSA")>
+            </div>
+            <div id = whitespace></div>
+        </div>
     </div>
-    <div id = error>error: no such source-receiver combination</div>
-    <div id = RSBui class = 'ui'>
-        <input type = button id = spS1_RSB class = yellowsquare value = "S1" onclick = updateSrcpos("spS1_RSB")>
-        <input type = button id = spS3_RSB class = yellowsquare value = "S3" onclick = updateSrcpos("spS3_RSB")>
-        <input type = button id = spS5_RSB class = yellowsquare value = "S5" onclick = updateSrcpos("spS5_RSB")>
-        <input type = button id = spS7_RSB class = yellowsquare value = "S7" onclick = updateSrcpos("spS7_RSB")>
-
-
-        <input type = button id = st1_RSB class = barbutton value = "NTID" onclick = updateSrctype("st1_RSB")>
-        <input type = button id = st2_RSB class = barbutton value = "YMH" onclick = updateSrctype("st2_RSB")>
-
-
-        <input type = button id = rpR1_RSB class = bluebutton value = "R1" onclick = updateRcvpos("rpR1_RSB")>
-        <input type = button id = rpR2_RSB class = bluebutton value = "R2" onclick = updateRcvpos("rpR2_RSB")>
-        <input type = button id = rpR3_RSB class = bluebutton value = "R3" onclick = updateRcvpos("rpR3_RSB")>
-        <input type = button id = rpR4_RSB class = bluebutton value = "R4" onclick = updateRcvpos("rpR4_RSB")>
-    </div>
-    <div id = CSAui class = 'ui' style = "display: none">
-        <input type = button id = mt1_CSA class = barbutton value = ZMH3V>
-        <input type = button id = mt2_CSA class = barbutton value = RODE>
-
-        <input type = button id = st1_CSA class = barbutton value = "NTID" onclick = updateSrctype("st1_CSA")>
-        <input type = button id = st2_CSA class = barbutton value = "J308" onclick = updateSrctype("st2_CSA")>
-
-        <input type = button id = spS1_CSA class = yellowsquare value = "S1" onclick = updateSrcpos("spS1_CSA")>
-        <input type = button id = spS2_CSA class = yellowsquare value = "S2" onclick = updateSrcpos("spS2_CSA")>
-        <input type = button id = spS3_CSA class = yellowsquare value = "S3" onclick = updateSrcpos("spS3_CSA")>
-        <input type = button id = spS4_CSA class = yellowsquare value = "S4" onclick = updateSrcpos("spS4_CSA")>
-
-        <input type = button id = rpR1_CSA class = bluebutton value = "R1" onclick = updateRcvpos("rpR1_CSA")>
-        <input type = button id = rpR2_CSA class = bluebutton value = "R2" onclick = updateRcvpos("rpR2_CSA")>
-        <input type = button id = rpR3_CSA class = bluebutton value = "R3" onclick = updateRcvpos("rpR3_CSA")>
-        <input type = button id = rpR4_CSA class = bluebutton value = "R4" onclick = updateRcvpos("rpR4_CSA")>
-        <input type = button id = rpR5_CSA class = bluebutton value = "R5" onclick = updateRcvpos("rpR5_CSA")>
-        <input type = button id = rpR6_CSA class = bluebutton value = "R6" onclick = updateRcvpos("rpR6_CSA")>
-    </div>
-    <div id = whitespace></div>
 </body>
 <script>
 
@@ -189,18 +189,6 @@
         document.getElementById(srcpos).style.backgroundColor = "var(--maincolor2)";
         document.getElementById(srctype).style.backgroundColor = "var(--maincolor2)";
         document.getElementById(rcvpos).style.backgroundColor = "var(--maincolor2)";
-    }
-
-    function toggleDrawer()
-    {
-        if(document.getElementById('drawer').style.display === "none")
-        {
-            document.getElementById('drawer').style.display = "flex";
-        }
-        else
-        {
-            document.getElementById('drawer').style.display = "none";
-        }
     }
 
     function compile()

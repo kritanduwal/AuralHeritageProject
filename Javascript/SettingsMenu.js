@@ -1,3 +1,27 @@
+function toggleDrawer()
+{
+    if(document.getElementById('drawer').style.display === "none")
+    {
+        document.getElementById('drawer').style.animation = "fadein .8s ease-in forwards";
+        document.getElementById('drawer').style.display = "flex";
+        document.getElementById('blurbody').style.animation = "filter .8s ease-in forwards";
+        document.getElementById('disableui').style.pointerEvents = "none";
+        setTimeout(function () {
+        document.getElementById('blurbody').onclick = toggleDrawer;
+    }, 10);
+    }
+    else
+    {
+        document.getElementById('drawer').style.animation = "fadeout .8s ease-out forwards";
+        document.getElementById('blurbody').style.animation = "unfilter .8s ease-out forwards";
+        setTimeout(function (){
+            document.getElementById('drawer').style.display = "none";
+            document.getElementById('disableui').style.pointerEvents = "all";
+            document.getElementById('blurbody').onclick = null;
+        }, 800);
+    }
+}
+
 function switchRoom()
 {
     if(room === "RSB")
@@ -16,8 +40,6 @@ function switchRoom()
 
         document.getElementById('RSBui').style.display = "none";
         document.getElementById('CSAui').style.display = "flex";
-        toggleDrawer();
-        compile();
     }
     else if(room === "CSA")
     {
@@ -34,9 +56,9 @@ function switchRoom()
 
         document.getElementById('RSBui').style.display = "flex";
         document.getElementById('CSAui').style.display = "none";
-        toggleDrawer();
-        compile();
     }
+    toggleDrawer();
+    compile();
 }
 
 function switchFormat()
@@ -57,6 +79,7 @@ function switchFormat()
         document.getElementById('bformat').classList.add('roombutton');
         format = 'A';
     }
+    toggleDrawer();
 }
 
 function switchConvolve()
@@ -77,5 +100,6 @@ function switchConvolve()
         document.getElementById('dry').classList.add('roombutton');
         convolve = true;
     }
+    toggleDrawer();
     compile();
 }

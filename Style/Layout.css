@@ -7,10 +7,18 @@
     box-shadow: var(--card-shadow);
 }
 
+.coverscreen
+{
+    position: fixed;
+    height: 100%;
+    width: 100%;
+    overflow: auto;
+}
+
 #drawer
 {
     display: none;
-    position: fixed;
+    position: fixed !important;
     flex-direction: column;
     justify-content: start;
     align-items: center;
@@ -25,7 +33,7 @@
     right: 0;
     top: 180px;
     box-shadow: var(--card-shadow);
-    transition: .5s ease all;
+    transition: 1s ease all;
     z-index: 1;
 }
 
@@ -111,18 +119,12 @@
 
 }
 
-body
-{
-    /*display: flex;*/
-    /*height: 100vh;*/
-}
-
 .app-bar {
     position: absolute;
 }
 
 .mdc-top-app-bar {
-    z-index: 7;
+    z-index: 3;
 }
 
 #RSBui
@@ -165,7 +167,7 @@ body
 #play
 {
     position: fixed;
-    z-index: 1;
+    z-index: 2;
     background-color: var(--maincolor);
     color: var(--text-color);
     font-size: 72px !important;
