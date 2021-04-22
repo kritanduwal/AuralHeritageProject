@@ -67,23 +67,35 @@ function switchRoom()
 
 function switchFormat()
 {
-    if(format === 'A')
+    if(format === 'A') //switch to b
     {
         document.getElementById('bformat').classList.remove('roombutton');
         document.getElementById('bformat').classList.add('roombuttonselected');
         document.getElementById('aformat').classList.remove('roombuttonselected');
         document.getElementById('aformat').classList.add('roombutton');
         format = 'B';
+
+        document.getElementById("error").style.display = "none";
+        document.getElementById('RSBui').style.animation = "filter .8s ease-in forwards";
+        document.getElementById('CSAui').style.animation = "filter .8s ease-in forwards";
+        document.getElementById('RSBui').style.pointerEvents = "none";
+        document.getElementById('CSAui').style.pointerEvents = "none";
     }
-    else if(format === 'B')
+    else if(format === 'B') //switch to a
     {
         document.getElementById('aformat').classList.remove('roombutton');
         document.getElementById('aformat').classList.add('roombuttonselected');
         document.getElementById('bformat').classList.remove('roombuttonselected');
         document.getElementById('bformat').classList.add('roombutton');
         format = 'A';
+
+        document.getElementById('RSBui').style.animation = "unfilter .8s ease-in forwards";
+        document.getElementById('CSAui').style.animation = "unfilter .8s ease-in forwards";
+        document.getElementById('RSBui').style.pointerEvents = "all";
+        document.getElementById('CSAui').style.pointerEvents = "all";
     }
     toggleDrawer();
+    compile();
 }
 
 function switchConvolve()

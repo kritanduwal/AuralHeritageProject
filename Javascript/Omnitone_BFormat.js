@@ -3,8 +3,14 @@ let dac = ctx.destination;
 let foa = Omnitone.createFOARenderer(ctx);
 let theta = 0;
 
-let source;
-let sourceBuffer;
+let B1 = ctx.createBufferSource();
+let B1buffer;
+let B2 = ctx.createBufferSource();
+let B2buffer;
+let B3 = ctx.createBufferSource();
+let B3buffer;
+let B4 = ctx.createBufferSource()
+let B4buffer;
 
 let W = ctx.createGain(); W.gain.value *= 1.0;
 let X = ctx.createGain(); X.gain.value *= 1.0;
@@ -24,45 +30,24 @@ let numClicks = 0;
 
 let isPlaying = false;
 
-
-let B1 = ctx.createConvolver();
-let B1buffer;
-let B2 = ctx.createConvolver();
-let B2buffer;
-let B3 = ctx.createConvolver();
-let B3buffer;
-let B4 = ctx.createConvolver();
-let B4buffer;
-
-function initAmbisonicB(reverb)
+function initAmbisonicB()
 {
-    loadB1(reverb);
+    loadB1();
     B1.buffer = B1buffer;
-    loadB2(reverb);
+    loadB2();
     B2.buffer = B2buffer;
-    loadB3(reverb);
+    loadB3();
     B3.buffer = B3buffer;
-    loadB4(reverb);
+    loadB4();
     B4.buffer = B4buffer;
-}
-
-function convolveSource()
-{
-    if(convolve)
-    {
-        source.connect(B1);
-        source.connect(B2);
-        source.connect(B3);
-        source.connect(B4);
-    }
 }
 
 function mapB()
 {
     B1.connect(W);
-    B2.connect(Y);
-    B3.connect(Z);
-    B4.connect(X);
+    B2.connect(X);
+    B3.connect(Y);
+    B4.connect(Z);
 }
 
 function play_BFormat() {
@@ -73,7 +58,6 @@ function play_BFormat() {
         source = ctx.createBufferSource();
         source.buffer = sourceBuffer;
 
-        convolveSource();
         mapB();
         combineB();
         omnitoneSetup();
@@ -83,10 +67,10 @@ function play_BFormat() {
     }
 }
 
-function loadB1(reverb)
+function loadB1()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", reverb + "1.wav", true);
+    request.open("GET", "Ambisonic Files/B/ambix_local_W.wav", true);
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => B1buffer = data);
@@ -94,10 +78,10 @@ function loadB1(reverb)
     request.send();
 }
 
-function loadB2(reverb)
+function loadB2()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", reverb + "2.wav", true);
+    request.open("GET", "Ambisonic Files/B/ambix_local_X.wav", true);
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => B2buffer = data);
@@ -105,10 +89,10 @@ function loadB2(reverb)
     request.send();
 }
 
-function loadB3(reverb)
+function loadB3()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", reverb + "3.wav", true);
+    request.open("GET", "Ambisonic Files/B/ambix_local_Y.wav", true);
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => B3buffer = data);
@@ -116,10 +100,10 @@ function loadB3(reverb)
     request.send();
 }
 
-function loadB4(reverb)
+function loadB4()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", reverb + "4.wav", true);
+    request.open("GET", "Ambisonic Files/B/ambix_local_Z.wav", true);
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => B4buffer = data);

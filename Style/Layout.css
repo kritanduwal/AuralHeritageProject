@@ -35,11 +35,11 @@ body
     border-radius: 4px;
     width: 400px;
     height: 250px;
-    margin-right: auto;
-    margin-left: auto;
     left: 0;
     right: 0;
-    top: 180px;
+    top: 0;
+    bottom: 0;
+    margin: auto;
     box-shadow: var(--card-shadow);
     transition: 1s ease all;
     z-index: 1;
@@ -219,7 +219,7 @@ body
     position: absolute;
     width: 300px;
     height: 50px;
-    top:54%;
+    top:48%;
     left: 50%;
     margin-left: -150px;
     margin-top: -25px;

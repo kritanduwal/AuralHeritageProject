@@ -13,6 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
     <script src="Javascript/CompileRSB.js" type="text/javascript"></script>
     <script src="Javascript/CompileCSA.js" type="text/javascript"></script>
+    <script src="Javascript/CompileB.js" type="text/javascript"></script>
     <script src="Javascript/SettingsMenu.js" type="text/javascript"></script>
     <script src="Javascript/Omnitone.js" type="text/javascript"></script>
 
@@ -193,13 +194,20 @@
 
     function compile()
     {
-        if(room === "RSB")
+        if(format === "A")
         {
-            compileSelectionRSB();
+            if(room === "RSB")
+            {
+                compileSelectionRSB();
+            }
+            else if(room === "CSA")
+            {
+                compileSelectionCSA();
+            }
         }
-        else if(room === "CSA")
+        else if(format === "B")
         {
-            compileSelectionCSA();
+            compileSelectionB();
         }
     }
 
