@@ -31,10 +31,9 @@ function switchRoom()
     if(room === "RSB")
     {
         room = "CSA";
-        mictype = "ZMH3V";
-        srcpos = "spS2_CSA";
-        srctype = "st1_CSA";
-        rcvpos = "rpR1_CSA";
+        updateSrcpos("spS2_CSA");
+        updateSrctype("st1_CSA");
+        updateRcvpos("rpR1_CSA");
         setImage("Images/wp1909404.jpg");
 
         document.getElementById('csa').classList.remove('roombutton');
@@ -48,9 +47,9 @@ function switchRoom()
     else if(room === "CSA")
     {
         room = "RSB";
-        srcpos = "spS1_RSB";
-        srctype = "st1_RSB";
-        rcvpos = "rpR1_RSB";
+        updateSrcpos("spS1_RSB");
+        updateSrctype("st1_RSB");
+        updateRcvpos("rpR1_RSB");
         setImage("Images/wp1909404.jpg");
 
         document.getElementById('rsb').classList.remove('roombutton');

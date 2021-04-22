@@ -61,9 +61,6 @@ function compileSelectionRSB()
         }
         initAmbisonic(reverb);
         document.getElementById("play").disabled = false;
-        // document.getElementById("play").classList.remove('stop');
-        // document.getElementById("play").classList.add('play');
-        // document.getElementById("play").style.color = "var(--textcolor)";
         updateSelectedColor(true);
 
         if(isPlaying)
@@ -80,8 +77,6 @@ function compileSelectionRSB()
             play();
         }
         document.getElementById("play").disabled = true;
-        // document.getElementById("play").classList.remove('play');
-        // document.getElementById("play").classList.add('stop');
         updateSelectedColor(false);
     }
 }
