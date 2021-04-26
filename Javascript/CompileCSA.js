@@ -47,7 +47,7 @@ function compileSelectionCSA()
                 viewer.lookAt(0, 0, 100);
             }
         }
-        initAmbisonic(reverb);
+        initAmbisonicA(reverb);
         document.getElementById("play").disabled = false;
         updateSelectedColor(true);
 

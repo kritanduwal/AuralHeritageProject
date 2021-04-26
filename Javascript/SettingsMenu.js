@@ -68,6 +68,10 @@ function switchFormat()
 {
     if(format === 'A') //switch to b
     {
+        if(isPlaying)
+        {
+            play();
+        }
         document.getElementById('bformat').classList.remove('roombutton');
         document.getElementById('bformat').classList.add('roombuttonselected');
         document.getElementById('aformat').classList.remove('roombuttonselected');
@@ -82,6 +86,10 @@ function switchFormat()
     }
     else if(format === 'B') //switch to a
     {
+        if(isPlaying)
+        {
+            play();
+        }
         document.getElementById('aformat').classList.remove('roombutton');
         document.getElementById('aformat').classList.add('roombuttonselected');
         document.getElementById('bformat').classList.remove('roombuttonselected');
@@ -117,4 +125,9 @@ function switchConvolve()
     }
     toggleDrawer();
     compile();
+}
+
+function setGain(value)
+{
+    outputGain.gain.value = value/100;
 }
