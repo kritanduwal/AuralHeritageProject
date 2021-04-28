@@ -59,6 +59,7 @@ function play_BFormat() {
         B2.stop();
         B3.stop();
         B4.stop();
+        foa.output.disconnect(BformatGain);
         initAmbisonicB();
         isPlaying = false;
     } else {
