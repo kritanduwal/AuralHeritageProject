@@ -42,13 +42,13 @@ NegA3.gain.value = -1.0;
 let NegA4 = ctx.createGain();
 NegA4.gain.value = -1.0;
 
-let B1 = ctx.createBufferSource();
+let B1;
 let B1buffer;
-let B2 = ctx.createBufferSource();
+let B2;
 let B2buffer;
-let B3 = ctx.createBufferSource();
+let B3;
 let B3buffer;
-let B4 = ctx.createBufferSource()
+let B4;
 let B4buffer;
 
 //play functions
@@ -59,6 +59,7 @@ function play_BFormat() {
         B2.stop();
         B3.stop();
         B4.stop();
+        initAmbisonicB();
         isPlaying = false;
     } else {
         mapB();
@@ -248,6 +249,10 @@ function initAmbisonicA(reverb)
 
 function initAmbisonicB()
 {
+    B1 = ctx.createBufferSource();
+    B2 = ctx.createBufferSource();
+    B3 = ctx.createBufferSource();
+    B4 = ctx.createBufferSource()
     loadB1();
     B1.buffer = B1buffer;
     loadB2();
