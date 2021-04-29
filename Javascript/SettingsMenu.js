@@ -1,3 +1,11 @@
+/**
+ * Behavor for the settings menu
+ * @author Ben Jordan
+ */
+
+/**
+ * Toggles the settings menu
+ */
 function toggleDrawer()
 {
     if(document.getElementById('drawer').style.display === "none")
@@ -26,6 +34,9 @@ function toggleDrawer()
     }
 }
 
+/**
+ * Onclick function to switch the room from the settings menu
+ */
 function switchRoom()
 {
     if(room === "RSB")
@@ -64,6 +75,9 @@ function switchRoom()
     compile();
 }
 
+/**
+ * Onclick function to switch the format from the settings menu
+ */
 function switchFormat()
 {
     if(format === 'A') //switch to b
@@ -105,6 +119,9 @@ function switchFormat()
     compile();
 }
 
+/**
+ * Onclick function to turn off reverb from the settings menu
+ */
 function switchConvolve()
 {
     if(convolve === true)
@@ -127,6 +144,10 @@ function switchConvolve()
     compile();
 }
 
+/**
+ * Sets the overall gain of the audio
+ * @param value The gain value
+ */
 function setGain(value)
 {
     outputGain.gain.value = value/100;

@@ -1,3 +1,7 @@
+/**
+ *  A format RSB room compile function
+ *  @author Ben Jordan
+ */
 function compileSelectionRSB()
 {
     reverb = "Ambisonic Files/RSB/" + "RSB" + "_" + document.getElementById(srcpos).value + "_" +

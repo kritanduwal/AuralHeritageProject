@@ -1,3 +1,7 @@
+/**
+ * A format CSA room compile function
+ * @author Ben Jordan
+ */
 function compileSelectionCSA()
 {
     reverb = "Ambisonic Files/CSA/" + "CSA" + "_" + document.getElementById(srcpos).value + "_" +

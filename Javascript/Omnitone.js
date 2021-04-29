@@ -1,7 +1,11 @@
+/**
+ * Audio routing, processing, and playback
+ * @author Ben Jordan
+ */
+
 let ctx = new AudioContext();
 let dac = ctx.destination;
 let foa = Omnitone.createFOARenderer(ctx);
-let theta = 0;
 
 let source;
 let sourceBuffer;
@@ -20,10 +24,7 @@ BformatGain.gain.value = 10;
 let outputGain = ctx.createGain();
 outputGain.gain.value = .30;
 
-let numClicks = 0;
-
 let isPlaying = false;
-
 
 let A1 = ctx.createConvolver();
 let A1buffer;
@@ -52,6 +53,9 @@ let B4buffer;
 
 //play functions
 
+/**
+ * B format player
+ */
 function play_BFormat() {
     if (isPlaying === true) {
         B1.stop();
@@ -76,7 +80,9 @@ function play_BFormat() {
     }
 }
 
-
+/**
+ * A format player
+ */
 function play_AFormat() {
     if (isPlaying === true) {
         source.stop();
@@ -171,6 +177,9 @@ function disconnectNodes()
     outputGain.disconnect(dac);
 }
 
+/**
+ * Connects 4 channel audio to the ambisonic renderer
+ */
 function omnitoneSetup()
 {
     foa.setRenderingMode('ambisonic');
@@ -191,6 +200,9 @@ function omnitoneSetup()
     });
 }
 
+/**
+ * Convolves the source file
+ */
 function convolveSource()
 {
     if(convolve)
@@ -207,6 +219,9 @@ function convolveSource()
     }
 }
 
+/**
+ * Converts A format source to B format
+ */
 function AtoB()
 {
     A2.connect(NegA2);
@@ -237,6 +252,9 @@ function AtoB()
     A4.connect(Z);
 }
 
+/**
+ * Converts dry source to B format
+ */
 function AtoBNoConv()
 {
     source.connect(NegA2);
@@ -267,6 +285,9 @@ function AtoBNoConv()
     source.connect(Z);
 }
 
+/**
+ * Connects B format audio to 4 gain nodes
+ */
 function mapB()
 {
     B1.connect(W);
@@ -275,6 +296,9 @@ function mapB()
     B4.connect(Z);
 }
 
+/**
+ * Combines 4 gain nodes to create 4 channel ambisonic input
+ */
 function combineB()
 {
     W.connect(foainput, 0, 0);
@@ -287,7 +311,11 @@ function combineB()
 
 //file loading
 
-
+/**
+ * Checks if a file exists
+ * @param url The file url
+ * @returns {boolean} if the file exists
+ */
 function urlExists(url)
 {
     let http = new XMLHttpRequest();
@@ -297,6 +325,10 @@ function urlExists(url)
     return http.status !== 404;
 }
 
+/**
+ * Loads a source file
+ * @param url The source file
+ */
 function loadSource(url)
 {
     let request = new XMLHttpRequest();
@@ -308,6 +340,10 @@ function loadSource(url)
     request.send();
 }
 
+/**
+ * Initializes A format convolution
+ * @param reverb The reverb file path
+ */
 function initAmbisonicA(reverb)
 {
     loadA1(reverb);
@@ -320,12 +356,15 @@ function initAmbisonicA(reverb)
     A4.buffer = A4buffer;
 }
 
+/**
+ * Initializes B format source audio
+ */
 function initAmbisonicB()
 {
     B1 = ctx.createBufferSource();
     B2 = ctx.createBufferSource();
     B3 = ctx.createBufferSource();
-    B4 = ctx.createBufferSource()
+    B4 = ctx.createBufferSource();
     loadB1();
     B1.buffer = B1buffer;
     loadB2();
@@ -336,6 +375,10 @@ function initAmbisonicB()
     B4.buffer = B4buffer;
 }
 
+/**
+ * Loads A format
+ * @param reverb The url
+ */
 function loadA1(reverb)
 {
     let request = new XMLHttpRequest();
@@ -347,6 +390,10 @@ function loadA1(reverb)
     request.send();
 }
 
+/**
+ * Loads A format
+ * @param reverb The url
+ */
 function loadA2(reverb)
 {
     let request = new XMLHttpRequest();
@@ -358,6 +405,10 @@ function loadA2(reverb)
     request.send();
 }
 
+/**
+ * Loads A format
+ * @param reverb The url
+ */
 function loadA3(reverb)
 {
     let request = new XMLHttpRequest();
@@ -369,6 +420,10 @@ function loadA3(reverb)
     request.send();
 }
 
+/**
+ * Loads A format
+ * @param reverb The url
+ */
 function loadA4(reverb)
 {
     let request = new XMLHttpRequest();
@@ -380,6 +435,10 @@ function loadA4(reverb)
     request.send();
 }
 
+/**
+ * Loads B format
+ * @param reverb The url
+ */
 function loadB1()
 {
     let request = new XMLHttpRequest();
@@ -391,6 +450,10 @@ function loadB1()
     request.send();
 }
 
+/**
+ * Loads B format
+ * @param reverb The url
+ */
 function loadB2()
 {
     let request = new XMLHttpRequest();
@@ -402,6 +465,10 @@ function loadB2()
     request.send();
 }
 
+/**
+ * Loads B format
+ * @param reverb The url
+ */
 function loadB3()
 {
     let request = new XMLHttpRequest();
@@ -413,6 +480,10 @@ function loadB3()
     request.send();
 }
 
+/**
+ * Loads B format
+ * @param reverb The url
+ */
 function loadB4()
 {
     let request = new XMLHttpRequest();

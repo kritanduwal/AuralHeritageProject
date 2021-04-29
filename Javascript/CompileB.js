@@ -1,3 +1,7 @@
+/**
+ * B format compile function
+ * @author Ben Jordan
+ */
 function compileSelectionB()
 {
     if(isPlaying)
