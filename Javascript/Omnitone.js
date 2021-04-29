@@ -13,7 +13,6 @@ let Z = ctx.createGain(); Z.gain.value *= 1.0;
 
 let Xr = ctx.createGain();
 let Yr = ctx.createGain();
-let Zr = ctx.createGain();
 
 let foainput = ctx.createChannelMerger(4);
 let BformatGain = ctx.createGain();
@@ -59,7 +58,6 @@ function play_BFormat() {
         B2.stop();
         B3.stop();
         B4.stop();
-        foa.output.disconnect(BformatGain);
         initAmbisonicB();
         isPlaying = false;
     } else {
@@ -97,6 +95,81 @@ function play_AFormat() {
 }
 
 //audio routing
+
+function disconnectNodes()
+{
+    if(format === 'A')
+    {
+        if(convolve)
+        {
+            source.disconnect(A1);
+            source.disconnect(A2);
+            source.disconnect(A3);
+            source.disconnect(A4);
+
+            A2.disconnect(NegA2);
+            A3.disconnect(NegA3);
+            A4.disconnect(NegA4);
+            A1.disconnect(W);
+            A2.disconnect(W);
+            A3.disconnect(W);
+            A4.disconnect(W);
+            A1.disconnect(X);
+            A2.disconnect(X);
+            NegA3.disconnect(X);
+            NegA4.disconnect(X);
+            A1.disconnect(Y);
+            NegA2.disconnect(Y);
+            A3.disconnect(Y);
+            NegA4.disconnect(Y);
+            A1.disconnect(Z);
+            NegA2.disconnect(Z);
+            NegA3.disconnect(Z);
+            A4.disconnect(Z);
+        }
+        else
+        {
+            source.disconnect(NegA2);
+            source.disconnect(NegA3);
+            source.disconnect(NegA4);
+            source.disconnect(W);
+            source.disconnect(W);
+            source.disconnect(W);
+            source.disconnect(W);
+            source.disconnect(X);
+            source.disconnect(X);
+            NegA3.disconnect(X);
+            NegA4.disconnect(X);
+            source.disconnect(Y);
+            NegA2.disconnect(Y);
+            source.disconnect(Y);
+            NegA4.disconnect(Y);
+            source.disconnect(Z);
+            NegA2.disconnect(Z);
+            NegA3.disconnect(Z);
+            source.disconnect(Z);
+        }
+        foa.output.disconnect(outputGain);
+    }
+    else if(format === 'B')
+    {
+        B1.disconnect(W);
+        B2.disconnect(X);
+        B3.disconnect(Y);
+        B4.disconnect(Z);
+        foa.output.disconnect(BformatGain);
+        BformatGain.disconnect(outputGain);
+    }
+
+    W.disconnect(foainput, 0, 0);
+    Y.disconnect(Yr);
+    Yr.disconnect(foainput, 0, 1);
+    Z.disconnect(foainput, 0, 2);
+    X.disconnect(Xr);
+    Xr.disconnect(foainput, 0, 3);
+    foainput.disconnect(foa.input);
+    outputGain.disconnect(dac);
+}
 
 function omnitoneSetup()
 {
@@ -207,8 +280,7 @@ function combineB()
     W.connect(foainput, 0, 0);
     Y.connect(Yr);
     Yr.connect(foainput, 0, 1);
-    Z.connect(Zr);
-    Zr.connect(foainput, 0, 2);
+    Z.connect(foainput, 0, 2);
     X.connect(Xr);
     Xr.connect(foainput, 0, 3);
 }

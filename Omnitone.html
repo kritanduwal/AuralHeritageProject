@@ -146,7 +146,6 @@
     {
         Xr.gain.linearRampToValueAtTime(Math.cos(yaw) * X.gain.value + Math.sin(yaw) * Y.gain.value, 1);
         Yr.gain.linearRampToValueAtTime(-Math.sin(yaw) * X.gain.value + Math.cos(yaw) * Y.gain.value, 1);
-        //Zr.gain.value =
     }
 
     function destroyView()
