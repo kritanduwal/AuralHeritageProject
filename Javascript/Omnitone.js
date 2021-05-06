@@ -332,15 +332,18 @@ function urlExists(url)
 function loadSource(file)
 {
     ctx.decodeAudioData(file, (data) => sourceBuffer = data);
-    // let request = new XMLHttpRequest();
-    // request.open("GET", file, true);
-    // request.responseType = "arraybuffer";
-    // request.onload = function () {
-    //     ctx.decodeAudioData(request.response, (data) => sourceBuffer = data);
-    // };
-    // request.send();
 }
 
+function initSource()
+{
+    let request = new XMLHttpRequest();
+    request.open("GET", 'Source Files/Clarinet.wav', true);
+    request.responseType = "arraybuffer";
+    request.onload = function () {
+        ctx.decodeAudioData(request.response, (data) => sourceBuffer = data);
+    };
+    request.send();
+}
 /**
  * Initializes A format convolution
  * @param reverb The reverb file path

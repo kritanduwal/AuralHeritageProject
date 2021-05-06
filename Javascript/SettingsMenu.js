@@ -159,13 +159,25 @@ function selectSource()
     input.type = 'file';
     input.onchange = e => {
         let file = e.target.files[0];
-        document.getElementById("srcselectlabel").innerHTML = file.name;
+        if(file)
+        {
+            if(isPlaying)
+            {
+                playpause();
+            }
+            document.getElementById("srcselectlabel").innerHTML = file.name;
 
-        let reader = new FileReader();
-        reader.readAsArrayBuffer(file);
-        reader.onload = readerEvent => {
-            let fileContent = readerEvent.target.result;
-            loadSource(fileContent);
+            let reader = new FileReader();
+            reader.readAsArrayBuffer(file);
+            reader.onload = readerEvent => {
+                let fileContent = readerEvent.target.result;
+                loadSource(fileContent);
+            }
+            toggleDrawer();
+        }
+        else
+        {
+            window.alert("error, file could not be loaded");
         }
     }
     input.click();
