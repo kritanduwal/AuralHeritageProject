@@ -84,7 +84,7 @@ function switchFormat()
     {
         if(isPlaying)
         {
-            play();
+            playpause();
         }
         document.getElementById('bformat').classList.remove('roombutton');
         document.getElementById('bformat').classList.add('roombuttonselected');
@@ -102,7 +102,7 @@ function switchFormat()
     {
         if(isPlaying)
         {
-            play();
+            playpause();
         }
         document.getElementById('aformat').classList.remove('roombutton');
         document.getElementById('aformat').classList.add('roombuttonselected');
@@ -151,4 +151,22 @@ function switchConvolve()
 function setGain(value)
 {
     outputGain.gain.value = value/100;
+}
+
+function selectSource()
+{
+    let input = document.createElement('input');
+    input.type = 'file';
+    input.onchange = e => {
+        let file = e.target.files[0];
+        document.getElementById("srcselectlabel").innerHTML = file.name;
+
+        let reader = new FileReader();
+        reader.readAsArrayBuffer(file);
+        reader.onload = readerEvent => {
+            let fileContent = readerEvent.target.result;
+            loadSource(fileContent);
+        }
+    }
+    input.click();
 }

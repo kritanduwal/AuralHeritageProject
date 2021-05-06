@@ -6,8 +6,8 @@ function compileSelectionB()
 {
     if(isPlaying)
     {
-        play();
-        play();
+        playpause();
+        playpause();r
     }
     document.getElementById("play").disabled = false;
     updateSelectedColor(true);

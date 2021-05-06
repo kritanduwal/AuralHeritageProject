@@ -1,0 +1,161 @@
+#drawer
+{
+    display: none;
+    position: fixed !important;
+    flex-direction: column;
+    justify-content: start;
+    align-items: center;
+    text-align: center;
+    background-color: var(--maincolor);
+    border-radius: 4px;
+    width: 500px;
+    height: 300px;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+    box-shadow: var(--card-shadow);
+    transition: 1s ease all;
+    z-index: 1;
+}
+
+#row{
+    display: flex;
+    flex-direction: row;
+    justify-content: start;
+    align-items: center;
+    text-align: center;
+}
+
+#filehalf
+{
+    margin: 30px;
+    display: flex;
+    flex-direction: column;
+}
+#modehalf
+{
+    margin: 30px;
+    display: flex;
+    flex-direction: column;
+}
+
+#srcselect
+{
+}
+
+#srcselectlabel
+{
+    position: relative;
+    color: black;
+}
+#bselect
+{
+}
+
+#bselectlabel
+{
+    position: relative;
+    color: black;
+}
+
+.fileselect
+{
+    background-color: var(--maincolor);
+    border-radius: 4px;
+    box-shadow: var(--card-shadow);
+    outline: none;
+    border: none;
+    height: 25px;
+    font-family: Roboto;
+    margin-outside: 10px;
+    position: relative;
+}
+
+.fileselect:hover
+{
+    background-color: var(--hovercolor);
+}
+
+.roombuttonselected
+{
+    background-color: var(--maincolor2);
+    border-radius: 4px;
+    box-shadow: var(--card-shadow);
+    outline: none;
+    border: none;
+    width: 50px;
+    height: 25px;
+    font-family: Roboto;
+    margin-outside: 10px;
+}
+
+.roombutton
+{
+    background-color: var(--maincolor);
+    border-radius: 4px;
+    box-shadow: var(--card-shadow);
+    outline: none;
+    border: none;
+    width: 50px;
+    height: 25px;
+    font-family: Roboto;
+    margin-outside: 10px;
+}
+
+.roombutton:hover
+{
+    background-color: var(--hovercolor);
+}
+
+#roomselect
+{
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    top:35px;
+}
+
+#formatselect
+{
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    top:65px;
+}
+
+#convselect
+{
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    top:95px;
+}
+
+#output
+{
+    top: 130px;
+    position: relative;
+    border: none;
+    outline: none;
+    -webkit-appearance: none;
+    background-color: var(--maincolor2);
+    border-radius: 4px;
+    box-shadow: var(--card-shadow);
+    height: 10px;
+}
+
+#output::-webkit-slider-thumb
+{
+    -webkit-appearance: none;
+    appearance: none;
+    height: 20px;
+    width: 10px;
+    background-color: var(--maincolor);
+    box-shadow: var(--card-shadow);
+
+}

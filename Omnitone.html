@@ -21,28 +21,39 @@
     <link rel="stylesheet" href="Style/RSBButtons.css">
     <link rel="stylesheet" href="Style/CSAButtons.css">
     <link rel="stylesheet" href="Style/Layout.css">
+    <link rel="stylesheet" href="Style/SettingsMenu.css">
     <link rel="stylesheet" href="Style/Root.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
-<body onload = "loadSource('Source Files/Clarinet.wav')">
+<body onload = loadSource();>
+
     <div id = drawer>
-        <div id = roomselect>
-            <input class = 'roombuttonselected' id = rsb type = button value = RSB onclick="switchRoom()">
-            <input class = 'roombutton' id = csa type = button value = CSA onclick="switchRoom()">
-        </div>
+        <div id = row>
+            <div id="modehalf">
+                <div id = roomselect>
+                    <input class = 'roombuttonselected' id = rsb type = button value = RSB onclick="switchRoom()">
+                    <input class = 'roombutton' id = csa type = button value = CSA onclick="switchRoom()">
+                </div>
 
-        <div id = formatselect>
-            <input class = 'roombuttonselected' id = aformat type = button value = A onclick = "switchFormat()">
-            <input class = 'roombutton' id = bformat type = button value = B onclick = "switchFormat()">
-        </div>
+                <div id = formatselect>
+                    <input class = 'roombuttonselected' id = aformat type = button value = A onclick = "switchFormat()">
+                    <input class = 'roombutton' id = bformat type = button value = B onclick = "switchFormat()">
+                </div>
 
-        <div id = convselect>
-            <input class = 'roombuttonselected' id = wet type = button value = Wet onclick="switchConvolve()">
-            <input class = 'roombutton' id = dry type = button value = Dry onclick="switchConvolve()">
+                <div id = convselect>
+                    <input class = 'roombuttonselected' id = wet type = button value = Wet onclick="switchConvolve()">
+                    <input class = 'roombutton' id = dry type = button value = Dry onclick="switchConvolve()">
+                </div>
+            </div>
+            <div id = filehalf>
+                <input type = button id = srcselect class = fileselect value = "Select Source File" onclick=selectSource()>
+                <label for = srcselect id=srcselectlabel>Source Files/Clarinet.wav</label>
+                <input type = button id = bselect class = fileselect value = "Select B-Format File">
+                <label for = srcselect id=bselectlabel></label>
+            </div>
         </div>
-
         <input type = "range" id = "output" min = 0 max = 30 value = 30 oninput = setGain(this.value)>
     </div>
 
@@ -100,7 +111,7 @@
         </div>
     </div>
 
-    <button id = "play" class="material-icons" onclick = play()> play_circle_filled </button>
+    <button id = "play" class="material-icons" onclick = playpause()> play_circle_filled </button>
 </body>
 <script>
 
@@ -114,20 +125,25 @@
     let srctype = "st1_CSA";
     let rcvpos = "rpR1_CSA";
 
-    destroyView();
-
-    switchRoom(); //sets default values
+    destroyView(); //clears viewer
+    switchRoom(); //sets default values at start of program
 
     function setAngle()
     {
         setPos(viewer.getYaw() + 180, viewer.getPitch() + 180); //values are from -180 to 180, that's why we add 180
     }
 
+    /**
+     * Calls setAngle continuosly to update the audio position
+     */
     function runner()
     {
         setAngle();
         setTimeout(function () {
-            runner();
+            if(isPlaying)
+            {
+                runner();
+            }
         }, 0);
     }
 
@@ -144,35 +160,66 @@
         runner();
     }
 
+    /**
+     * Sets the position of the audio in the room. Using gain.value sets the position instantly, using linear ramp to
+     * value allows you to make the position change more gradual but sounds a bit funny.
+     *
+     * @param yaw The horizontal position
+     * @param pitch The vertical position
+     */
     function setPos(yaw, pitch)
     {
-        Xr.gain.linearRampToValueAtTime(Math.cos(degToRad(yaw)) * X.gain.value + Math.sin(degToRad(yaw)) * Y.gain.value, 1);
-        Yr.gain.linearRampToValueAtTime(-Math.sin(degToRad(yaw)) * X.gain.value + Math.cos(degToRad(yaw)) * Y.gain.value, 1);
+        Xr.gain.value = (Math.cos(degToRad(yaw)) * X.gain.value + Math.sin(degToRad(yaw)) * Y.gain.value);
+        Yr.gain.value = (-Math.sin(degToRad(yaw)) * X.gain.value + Math.cos(degToRad(yaw)) * Y.gain.value);
+        // Xr.gain.linearRampToValueAtTime(Math.cos(degToRad(yaw)) * X.gain.value + Math.sin(degToRad(yaw)) * Y.gain.value, 0);
+        // Yr.gain.linearRampToValueAtTime(-Math.sin(degToRad(yaw)) * X.gain.value + Math.cos(degToRad(yaw)) * Y.gain.value, 0);
     }
 
+    /**
+     * Converts degrees to radians
+     * @param deg Degrees
+     * @returns {number} Radians
+     */
     function degToRad(deg)
     {
         return deg * Math.PI / 180;
     }
 
+    /**
+     * Sets the viewer to a black screen in the case of error or no image available
+     */
     function destroyView()
     {
         setImage("Images/wp1909404.jpg");
         // viewer.destroy();
     }
 
+    /**
+     * Onclick function to update source positon
+     * @param val Source position element ID
+     */
     function updateSrcpos(val)
     {
         document.getElementById(srcpos).style.backgroundColor = "var(--buttoncolor2)";
         srcpos = val;
         compile()
     }
+
+    /**
+     * Onclick function to update source type
+     * @param val Source type element ID
+     */
     function updateSrctype(val)
     {
         document.getElementById(srctype).style.backgroundColor = "var(--buttoncolor3)";
         srctype = val;
         compile();
     }
+
+    /**
+     * Onclick function to update receiver position
+     * @param val Reciever positon element ID
+     */
     function updateRcvpos(val)
     {
         document.getElementById(rcvpos).style.backgroundColor = "var(--buttoncolor1)";
@@ -186,6 +233,10 @@
         compile()
     }
 
+    /**
+     * Changes program color to red or green depending on whether the impulse file url exists
+     * @param urlexists
+     */
     function updateSelectedColor(urlexists)
     {
         if(urlexists)
@@ -202,23 +253,9 @@
         document.getElementById(rcvpos).style.backgroundColor = "var(--maincolor2)";
     }
 
-    // function resetButtonColors()
-    // {
-    //     let x = document.getElementsByClassName('bluebutton');
-    //     for(let i = 0; i < x.length; i++)
-    //     {
-    //         x[i].style.backgroundColor = "var(--buttoncolor1)";
-    //     }
-    //     let y = document.getElementsByClassName('yellowsquare');
-    //     {
-    //         y[i].style.backgroundColor = "var(--buttoncolor2)";
-    //     }
-    //     let z = document.getElementsByClassName('barbutton');
-    //     {
-    //         z[i].style.backgroundColor = "var(--buttoncolor3)";
-    //     }
-    // }
-
+    /**
+     * Compiles the file path based on the room and format
+     */
     function compile()
     {
         if(format === "A")
@@ -238,7 +275,10 @@
         }
     }
 
-    function play()
+    /**
+     * Plays if isPlaying === false, stops sound if isPlaying === true
+     */
+    function playpause()
     {
         if(!isPlaying)
         {

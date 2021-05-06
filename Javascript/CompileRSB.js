@@ -69,8 +69,8 @@ function compileSelectionRSB()
 
         if(isPlaying)
         {
-            play();
-            play();
+            playpause();
+            playpause();
         }
     }
     else
@@ -78,7 +78,7 @@ function compileSelectionRSB()
         destroyView();
         document.getElementById("error").style.display = "flex";
         if(isPlaying) {
-            play();
+            playpause();
         }
         document.getElementById("play").disabled = true;
         updateSelectedColor(false);

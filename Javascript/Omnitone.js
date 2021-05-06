@@ -329,15 +329,16 @@ function urlExists(url)
  * Loads a source file
  * @param url The source file
  */
-function loadSource(url)
+function loadSource(file)
 {
-    let request = new XMLHttpRequest();
-    request.open("GET", url, true);
-    request.responseType = "arraybuffer";
-    request.onload = function () {
-        ctx.decodeAudioData(request.response, (data) => sourceBuffer = data);
-    };
-    request.send();
+    ctx.decodeAudioData(file, (data) => sourceBuffer = data);
+    // let request = new XMLHttpRequest();
+    // request.open("GET", file, true);
+    // request.responseType = "arraybuffer";
+    // request.onload = function () {
+    //     ctx.decodeAudioData(request.response, (data) => sourceBuffer = data);
+    // };
+    // request.send();
 }
 
 /**
