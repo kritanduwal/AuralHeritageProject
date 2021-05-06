@@ -2,9 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="0abe32c9-1041-488f-a09e-2019758715ae" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/Javascript/Omnitone.js" beforeDir="false" afterPath="$PROJECT_DIR$/Javascript/Omnitone.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Javascript/SettingsMenu.js" beforeDir="false" afterPath="$PROJECT_DIR$/Javascript/SettingsMenu.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Omnitone.html" beforeDir="false" afterPath="$PROJECT_DIR$/Omnitone.html" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -156,7 +155,7 @@
       <workItem from="1619697691443" duration="73000" />
       <workItem from="1620169527615" duration="1506000" />
       <workItem from="1620239798917" duration="5127000" />
-      <workItem from="1620301945082" duration="8487000" />
+      <workItem from="1620301945082" duration="9749000" />
     </task>
     <task id="LOCAL-00001" summary="Added CSA Files (2nd Room)">
       <created>1616290052249</created>
@@ -284,7 +283,14 @@
       <option name="project" value="LOCAL" />
       <updated>1620314981615</updated>
     </task>
-    <option name="localTasksCounter" value="19" />
+    <task id="LOCAL-00019" summary="Made selecting a valid file toggle drawer and pause current audio.">
+      <created>1620315402846</created>
+      <option name="number" value="00019" />
+      <option name="presentableId" value="LOCAL-00019" />
+      <option name="project" value="LOCAL" />
+      <updated>1620315402846</updated>
+    </task>
+    <option name="localTasksCounter" value="20" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -309,7 +315,8 @@
     <MESSAGE value="Added disconnect function, currently unused." />
     <MESSAGE value="." />
     <MESSAGE value="Added source file drag and drop capabilities. Added moer comments on Omnitone.html javascript section." />
-    <option name="LAST_COMMIT_MESSAGE" value="Added source file drag and drop capabilities. Added moer comments on Omnitone.html javascript section." />
+    <MESSAGE value="Made selecting a valid file toggle drawer and pause current audio." />
+    <option name="LAST_COMMIT_MESSAGE" value="Made selecting a valid file toggle drawer and pause current audio." />
   </component>
   <component name="XSLT-Support.FileAssociations.UIState">
     <expand />

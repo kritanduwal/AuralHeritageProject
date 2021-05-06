@@ -159,14 +159,14 @@ function selectSource()
     input.type = 'file';
     input.onchange = e => {
         let file = e.target.files[0];
-        if(file)
+        if(file.type === 'audio/wav' || 'audio/mpeg')
         {
             if(isPlaying)
             {
                 playpause();
             }
             document.getElementById("srcselectlabel").innerHTML = file.name;
-
+            window.alert(file.type);
             let reader = new FileReader();
             reader.readAsArrayBuffer(file);
             reader.onload = readerEvent => {
@@ -177,7 +177,7 @@ function selectSource()
         }
         else
         {
-            window.alert("error, file could not be loaded");
+            window.alert("error, incorrect file format");
         }
     }
     input.click();
