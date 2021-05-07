@@ -63,7 +63,7 @@ function compileSelectionRSB()
         {
             setImage("Images/RSB/R0010120.jpg");
         }
-        initAmbisonicA(reverb);
+        initAmbisonicA();
         document.getElementById("play").disabled = false;
         updateSelectedColor(true);
 

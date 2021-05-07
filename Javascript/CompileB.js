@@ -12,5 +12,13 @@ function compileSelectionB()
     document.getElementById("play").disabled = false;
     updateSelectedColor(true);
     destroyView();
-    initAmbisonicB();
+
+    if(hasSelected)
+    {
+        initAmbisonicB();
+    }
+    else
+    {
+        loadAmbisonicB();
+    }
 }

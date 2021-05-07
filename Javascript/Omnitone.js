@@ -25,6 +25,7 @@ let outputGain = ctx.createGain();
 outputGain.gain.value = .30;
 
 let isPlaying = false;
+let hasSelected = false;
 
 let A1 = ctx.createConvolver();
 let A1buffer;
@@ -62,7 +63,6 @@ function play_BFormat() {
         B2.stop();
         B3.stop();
         B4.stop();
-        initAmbisonicB();
         isPlaying = false;
     } else {
         mapB();
@@ -329,12 +329,12 @@ function urlExists(url)
  * Loads a source file
  * @param url The source file
  */
-function loadSource(file)
+function initSource(file)
 {
     ctx.decodeAudioData(file, (data) => sourceBuffer = data);
 }
 
-function initSource()
+function loadSource()
 {
     let request = new XMLHttpRequest();
     request.open("GET", 'Source Files/Clarinet.wav', true);
@@ -346,17 +346,16 @@ function initSource()
 }
 /**
  * Initializes A format convolution
- * @param reverb The reverb file path
  */
-function initAmbisonicA(reverb)
+function initAmbisonicA()
 {
-    loadA1(reverb);
+    loadA1();
     A1.buffer = A1buffer;
-    loadA2(reverb);
+    loadA2();
     A2.buffer = A2buffer;
-    loadA3(reverb);
+    loadA3();
     A3.buffer = A3buffer;
-    loadA4(reverb);
+    loadA4();
     A4.buffer = A4buffer;
 }
 
@@ -364,6 +363,22 @@ function initAmbisonicA(reverb)
  * Initializes B format source audio
  */
 function initAmbisonicB()
+{
+    B1 = ctx.createBufferSource();
+    B2 = ctx.createBufferSource();
+    B3 = ctx.createBufferSource();
+    B4 = ctx.createBufferSource();
+    ctx.decodeAudioData(bfile1, (data) => B1buffer = data);
+    B1.buffer = B1buffer;
+    ctx.decodeAudioData(bfile2, (data) => B2buffer = data);
+    B2.buffer = B2buffer;
+    ctx.decodeAudioData(bfile3, (data) => B3buffer = data);
+    B3.buffer = B3buffer;
+    ctx.decodeAudioData(bfile4, (data) => B4buffer = data);
+    B4.buffer = B4buffer;
+}
+
+function loadAmbisonicB()
 {
     B1 = ctx.createBufferSource();
     B2 = ctx.createBufferSource();
@@ -381,9 +396,8 @@ function initAmbisonicB()
 
 /**
  * Loads A format
- * @param reverb The url
  */
-function loadA1(reverb)
+function loadA1()
 {
     let request = new XMLHttpRequest();
     request.open("GET", reverb + "1.wav", true);
@@ -396,9 +410,8 @@ function loadA1(reverb)
 
 /**
  * Loads A format
- * @param reverb The url
  */
-function loadA2(reverb)
+function loadA2()
 {
     let request = new XMLHttpRequest();
     request.open("GET", reverb + "2.wav", true);
@@ -411,9 +424,8 @@ function loadA2(reverb)
 
 /**
  * Loads A format
- * @param reverb The url
  */
-function loadA3(reverb)
+function loadA3()
 {
     let request = new XMLHttpRequest();
     request.open("GET", reverb + "3.wav", true);
@@ -426,9 +438,8 @@ function loadA3(reverb)
 
 /**
  * Loads A format
- * @param reverb The url
  */
-function loadA4(reverb)
+function loadA4()
 {
     let request = new XMLHttpRequest();
     request.open("GET", reverb + "4.wav", true);
@@ -446,7 +457,7 @@ function loadA4(reverb)
 function loadB1()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", "Ambisonic Files/B/ambix_local_W.wav", true);
+    request.open("GET", bfile1, true);
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => B1buffer = data);
@@ -456,12 +467,11 @@ function loadB1()
 
 /**
  * Loads B format
- * @param reverb The url
  */
 function loadB2()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", "Ambisonic Files/B/ambix_local_X.wav", true);
+    request.open("GET", bfile2, true);
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => B2buffer = data);
@@ -471,12 +481,11 @@ function loadB2()
 
 /**
  * Loads B format
- * @param reverb The url
  */
 function loadB3()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", "Ambisonic Files/B/ambix_local_Y.wav", true);
+    request.open("GET", bfile3, true);
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => B3buffer = data);
@@ -486,12 +495,11 @@ function loadB3()
 
 /**
  * Loads B format
- * @param reverb The url
  */
 function loadB4()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", "Ambisonic Files/B/ambix_local_Z.wav", true);
+    request.open("GET", bfile4, true);
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => B4buffer = data);

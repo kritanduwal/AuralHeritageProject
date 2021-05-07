@@ -166,14 +166,67 @@ function selectSource()
                 playpause();
             }
             document.getElementById("srcselectlabel").innerHTML = file.name;
-            window.alert(file.type);
             let reader = new FileReader();
             reader.readAsArrayBuffer(file);
             reader.onload = readerEvent => {
                 let fileContent = readerEvent.target.result;
-                loadSource(fileContent);
+                initSource(fileContent);
             }
             toggleDrawer();
+        }
+        else
+        {
+            window.alert("error, incorrect file format");
+        }
+    }
+    input.click();
+}
+
+function selectBFormat()
+{
+    let input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = 'multiple';
+    input.onchange = e => {
+        let file1 = e.target.files[0];
+        let file2 = e.target.files[1];
+        let file3 = e.target.files[2];
+        let file4 = e.target.files[3];
+        if((file1.type === 'audio/wav' || 'audio/mpeg') && (file2.type === 'audio/wav' || 'audio/mpeg')
+        && (file3.type === 'audio/wav' || 'audio/mpeg') && (file4.type === 'audio/wav' || 'audio/mpeg'))
+        {
+            if(isPlaying)
+            {
+                playpause();
+            }
+            document.getElementById("bselectlabel").innerHTML = file1.name;
+
+            let reader1 = new FileReader();
+            reader1.readAsArrayBuffer(file1);
+            reader1.onload = readerEvent => {
+                bfile1 = readerEvent.target.result;
+
+                let reader2 = new FileReader();
+                reader2.readAsArrayBuffer(file2);
+                reader2.onload = readerEvent => {
+                    bfile2 = readerEvent.target.result;
+
+                    let reader3 = new FileReader();
+                    reader3.readAsArrayBuffer(file3);
+                    reader3.onload = readerEvent => {
+                        bfile3 = readerEvent.target.result;
+
+                        let reader4 = new FileReader();
+                        reader4.readAsArrayBuffer(file4);
+                        reader4.onload = readerEvent => {
+                            bfile4 = readerEvent.target.result;
+
+                            hasSelected = true;
+                            toggleDrawer();
+                        }
+                    }
+                }
+            }
         }
         else
         {
