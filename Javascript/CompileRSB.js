@@ -4,8 +4,10 @@
  */
 function compileSelectionRSB()
 {
-    reverb = "Ambisonic Files/RSB/" + "RSB" + "_" + document.getElementById(srcpos).value + "_" +
-        document.getElementById(srctype).value + "_" + document.getElementById(rcvpos).value + "_RODENTI1_FA.";
+    // reverb = "Ambisonic Files/RSB/" + "RSB" + "_" + document.getElementById(srcpos).value + "_" +
+    //    document.getElementById(srctype).value + "_" + document.getElementById(rcvpos).value + "_RODENTI1_FA.";
+
+    reverb ="Ambisonic Files/RSB/RSB_S1_NTID_R2_RODENTI1_FA.";
     if(urlExists(reverb))
     {
         document.getElementById("error").style.display = "none";

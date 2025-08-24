@@ -4,8 +4,10 @@
  */
 function compileSelectionCSA()
 {
-    reverb = "Ambisonic Files/CSA/" + "CSA" + "_" + document.getElementById(srcpos).value + "_" +
-        document.getElementById(srctype).value + "_" + document.getElementById(rcvpos).value + "_ZMH3V_FA.";
+    //reverb = "Ambisonic Files/CSA/" + "CSA" + "_" + document.getElementById(srcpos).value + "_" +
+    //    document.getElementById(srctype).value + "_" + document.getElementById(rcvpos).value + "_ZMH3V_FA.";
+
+    reverb ="Ambisonic Files/CSA/CSA_S1_J308_R1_ZMH3V_FA.";
     if(urlExists(reverb))
     {
         document.getElementById("error").style.display = "none";

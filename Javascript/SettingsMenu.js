@@ -36,41 +36,36 @@ function toggleDrawer()
 
 /**
  * Onclick function to switch the room from the settings menu
+ * @param selectedRoom The room selected from dropdown
  */
-function switchRoom()
-{
-    if(room === "RSB")
-    {
-        room = "CSA";
-        updateSrcpos("spS2_CSA");
-        updateSrctype("st1_CSA");
-        updateRcvpos("rpR1_CSA");
+function switchRoom(selectedRoom) {
+    // Hide all room UIs first
+    document.getElementById("RSBui").style.display = "none";
+    document.getElementById("CSAui").style.display = "none";
+    document.getElementById("DowntownPresbyterianChurchui").style.display = "none";
+
+    // Update room and related settings
+    room = selectedRoom;
+    
+    if (room === "RSB") {
+        document.getElementById("RSBui").style.display = "flex";
+        srcpos = "spS1_RSB";
+        srctype = "st1_RSB";
+        rcvpos = "rpR1_RSB";
         setImage("Images/wp1909404.jpg");
-
-        document.getElementById('csa').classList.remove('roombutton');
-        document.getElementById('csa').classList.add('roombuttonselected');
-        document.getElementById('rsb').classList.remove('roombuttonselected');
-        document.getElementById('rsb').classList.add('roombutton');
-
-        document.getElementById('RSBui').style.display = "none";
-        document.getElementById('CSAui').style.display = "flex";
-    }
-    else if(room === "CSA")
-    {
-        room = "RSB";
-        updateSrcpos("spS1_RSB");
-        updateSrctype("st1_RSB");
-        updateRcvpos("rpR1_RSB");
+    } else if (room === "CSA") {
+        document.getElementById("CSAui").style.display = "flex";
+        srcpos = "spS2_CSA";
+        srctype = "st1_CSA";
+        rcvpos = "rpR1_CSA";
         setImage("Images/wp1909404.jpg");
-
-        document.getElementById('rsb').classList.remove('roombutton');
-        document.getElementById('rsb').classList.add('roombuttonselected');
-        document.getElementById('csa').classList.remove('roombuttonselected');
-        document.getElementById('csa').classList.add('roombutton');
-
-        document.getElementById('RSBui').style.display = "flex";
-        document.getElementById('CSAui').style.display = "none";
+    } else if (room === "DowntownPresbyterianChurch") {
+        srcpos = "spS1_DowntownPresbyterianChurch";
+        //srctype = "st1_DowntownPresbyterianChurch";
+        rcvpos = "rpR1_DowntownPresbyterianChurch";
+        setImage("Images/wp1909404.jpg");
     }
+
     toggleDrawer();
     compile();
 }
