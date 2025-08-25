@@ -17,10 +17,32 @@ function compileSelectionDowntownPresbyterianChurch()
         if(rcvpos === 'rpR1_DowntownPresbyterianChurch')
         {
             setImage("Images/Downtown Presbyterian Church/20250715_135921_539.JPG");
-            if(srcpos === 'spS1_DowntownPresbyterianChurch')
-                {
-                    viewer.lookAt(0, 0, 100);
-                }
+            viewer.lookAt(0, 0, 100);
+        }
+        else if(rcvpos === 'rpR2_DowntownPresbyterianChurch')
+        {
+            setImage("Images/Downtown Presbyterian Church/20250715_135929_057.JPG");
+            viewer.lookAt(0, 0, 100);
+        }
+        else if(rcvpos === 'rpR3_DowntownPresbyterianChurch')
+        {
+            setImage("Images/Downtown Presbyterian Church/20250715_135936_329.JPG");
+            viewer.lookAt(0, 0, 100);
+        }
+        else if(rcvpos === 'rpR4_DowntownPresbyterianChurch')
+        {
+            setImage("Images/Downtown Presbyterian Church/20250715_135943_299.JPG");
+            viewer.lookAt(0, 0, 100);
+        }
+        else if(rcvpos === 'rpR5_DowntownPresbyterianChurch')
+        {
+            setImage("Images/Downtown Presbyterian Church/20250715_135949_651.JPG");
+            viewer.lookAt(0, 0, 100);
+        }
+        else if(rcvpos === 'rpR6_DowntownPresbyterianChurch')
+        {
+            setImage("Images/Downtown Presbyterian Church/20250715_135956_911.JPG");
+            viewer.lookAt(0, 0, 100);
         }
         // Add more receiver positions as needed for Downtown Presbyterian Church
         // Follow similar pattern:

@@ -60,8 +60,9 @@ function switchRoom(selectedRoom) {
         rcvpos = "rpR1_CSA";
         setImage("Images/wp1909404.jpg");
     } else if (room === "DowntownPresbyterianChurch") {
+        document.getElementById("DowntownPresbyterianChurchui").style.display = "flex";
         srcpos = "spS1_DowntownPresbyterianChurch";
-        //srctype = "st1_DowntownPresbyterianChurch";
+        srctype = "st1_DowntownPresbyterianChurch";
         rcvpos = "rpR1_DowntownPresbyterianChurch";
         setImage("Images/wp1909404.jpg");
     }
