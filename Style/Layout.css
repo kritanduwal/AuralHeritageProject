@@ -64,6 +64,14 @@ body
     background-size: 478px 255px;
 }
 
+#ChristChurchCathedralui
+{
+    width: 478px;
+    height: 280px;
+    background-image: url("../Images/Christ Church Cathedral/Christ Church Diagram.png");
+    background-size: 478px 255px;
+}
+
 .ui
 {
     display: flex;

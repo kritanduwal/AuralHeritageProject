@@ -400,7 +400,11 @@ function loadAmbisonicB()
 function loadA1()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", reverb + "1.wav", true);
+    if (room === "ChristChurchCathedral") {
+        request.open("GET", reverb + "5.wav", true);
+    } else {
+        request.open("GET", reverb + "1.wav", true);
+    }
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => A1buffer = data);
@@ -414,7 +418,11 @@ function loadA1()
 function loadA2()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", reverb + "2.wav", true);
+    if (room === "ChristChurchCathedral") {
+        request.open("GET", reverb + "6.wav", true);
+    } else {
+        request.open("GET", reverb + "2.wav", true);
+    }
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => A2buffer = data);
@@ -428,7 +436,11 @@ function loadA2()
 function loadA3()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", reverb + "3.wav", true);
+    if (room === "ChristChurchCathedral") {
+        request.open("GET", reverb + "7.wav", true);
+    } else {
+        request.open("GET", reverb + "3.wav", true);
+    }
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => A3buffer = data);
@@ -442,7 +454,11 @@ function loadA3()
 function loadA4()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", reverb + "4.wav", true);
+    if (room === "ChristChurchCathedral") {
+        request.open("GET", reverb + "8.wav", true);
+    } else {
+        request.open("GET", reverb + "4.wav", true);
+    }
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => A4buffer = data);

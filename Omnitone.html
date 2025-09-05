@@ -15,12 +15,15 @@
     <script src="Javascript/CompileRSB.js" type="text/javascript"></script>
     <script src="Javascript/CompileCSA.js" type="text/javascript"></script>
     <script src="Javascript/CompileDowntownPresbyterianChurch.js" type="text/javascript"></script>
+    <script src="Javascript/CompileChristChurchCathedral.js" type="text/javascript"></script>
     <script src="Javascript/SettingsMenu.js" type="text/javascript"></script>
     <script src="Javascript/Omnitone.js" type="text/javascript"></script>
 
     <link href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css" rel="stylesheet">
     <link rel="stylesheet" href="Style/RSBButtons.css">
     <link rel="stylesheet" href="Style/CSAButtons.css">
+    <link rel="stylesheet" href="Style/DowntownPresbyterianChurchButtons.css">
+    <link rel="stylesheet" href="Style/ChristChurchCathedralButtons.css">
     <link rel="stylesheet" href="Style/Layout.css">
     <link rel="stylesheet" href="Style/SettingsMenu.css">
     <link rel="stylesheet" href="Style/Root.css">
@@ -43,7 +46,8 @@
                     <select id="roomDropdown" onchange="switchRoom(this.value)">
                         <option value="RSB" selected>RSB</option>
                         <option value="CSA">CSA</option>
-                        <option value="DowntownPresbyterianChurch">Downtown Presbyterian Church</option>
+                    <!--<option value="DowntownPresbyterianChurch">Downtown Presbyterian Church</option>-->
+                        <option value="ChristChurchCathedral">Christ Church Cathedral</option>
                     </select>
                 </div>
 
@@ -129,7 +133,20 @@
                 <input type="button" id="rpR4_DowntownPresbyterianChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_DowntownPresbyterianChurch')">
                 <input type="button" id="rpR5_DowntownPresbyterianChurch" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_DowntownPresbyterianChurch')">
                 <input type="button" id="rpR6_DowntownPresbyterianChurch" class="bluebutton" value="R6" onclick="updateRcvpos('rpR6_DowntownPresbyterianChurch')">
+            </div>
+            <div id="ChristChurchCathedralui" class="ui">
+                <input type="button" id="spS_ChristChurchCathedral" class="yellowsquare" value="S" onclick="updateSrcpos('spS_ChristChurchCathedral')">
 
+                <input type="button" id="st1_ChristChurchCathedral" class="barbutton" value="Ambisonic" onclick="updateSrctype('st1_ChristChurchCathedral')">
+
+                <input type="button" id="rpR1_ChristChurchCathedral" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_ChristChurchCathedral')">
+                <input type="button" id="rpR2_ChristChurchCathedral" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_ChristChurchCathedral')">
+                <input type="button" id="rpR3_ChristChurchCathedral" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_ChristChurchCathedral')">
+                <input type="button" id="rpR4_ChristChurchCathedral" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_ChristChurchCathedral')">
+                <input type="button" id="rpR5_ChristChurchCathedral" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_ChristChurchCathedral')">
+                <input type="button" id="rpR6_ChristChurchCathedral" class="bluebutton" value="R6" onclick="updateRcvpos('rpR6_ChristChurchCathedral')">
+                <input type="button" id="rpR7_ChristChurchCathedral" class="bluebutton" value="R7" onclick="updateRcvpos('rpR7_ChristChurchCathedral')">
+                <input type="button" id="rpR8_ChristChurchCathedral" class="bluebutton" value="R8" onclick="updateRcvpos('rpR8_ChristChurchCathedral')">
             </div>
             <div id = whitespace></div>
         </div>
@@ -300,6 +317,10 @@
             else if(room === "DowntownPresbyterianChurch")
             {
                 compileSelectionDowntownPresbyterianChurch();
+            }
+            else if(room === "ChristChurchCathedral")
+            {
+                compileSelectionChristChurchCathedral();
             }
         }
         else if(format === "B")

@@ -43,6 +43,7 @@ function switchRoom(selectedRoom) {
     document.getElementById("RSBui").style.display = "none";
     document.getElementById("CSAui").style.display = "none";
     document.getElementById("DowntownPresbyterianChurchui").style.display = "none";
+    document.getElementById("ChristChurchCathedralui").style.display = "none";
 
     // Update room and related settings
     room = selectedRoom;
@@ -64,6 +65,12 @@ function switchRoom(selectedRoom) {
         srcpos = "spS1_DowntownPresbyterianChurch";
         srctype = "st1_DowntownPresbyterianChurch";
         rcvpos = "rpR1_DowntownPresbyterianChurch";
+        setImage("Images/wp1909404.jpg");
+    } else if (room === "ChristChurchCathedral") {
+        document.getElementById("ChristChurchCathedralui").style.display = "flex";
+        srcpos = "spS_ChristChurchCathedral";
+        srctype = "st1_ChristChurchCathedral";
+        rcvpos = "rpR1_ChristChurchCathedral";
         setImage("Images/wp1909404.jpg");
     }
 
