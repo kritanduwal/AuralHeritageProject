@@ -12,21 +12,30 @@
     <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
     <script src="Javascript/CompileB.js" type="text/javascript"></script>
-    <script src="Javascript/CompileRSB.js" type="text/javascript"></script>
+    <script src="Javascript/CompileBridgeCommunityChurch.js" type="text/javascript"></script>
+    <script src="Javascript/CompileChristChurchCathedral.js" type="text/javascript"></script>
     <script src="Javascript/CompileCSA.js" type="text/javascript"></script>
     <script src="Javascript/CompileDowntownPresbyterianChurch.js" type="text/javascript"></script>
-    <script src="Javascript/CompileChristChurchCathedral.js" type="text/javascript"></script>
-    <script src="Javascript/SettingsMenu.js" type="text/javascript"></script>
+    <script src="Javascript/CompileFirstBaptistChurchCapitolHill.js" type="text/javascript"></script>
+    <script src="Javascript/CompileHolyTrinityEpiscopalChurch.js" type="text/javascript"></script>
+    <script src="Javascript/CompileRSB.js" type="text/javascript"></script>
+    <script src="Javascript/CompileUnitedMethodistChurch.js" type="text/javascript"></script>
     <script src="Javascript/Omnitone.js" type="text/javascript"></script>
+    <script src="Javascript/SettingsMenu.js" type="text/javascript"></script>
 
     <link href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="Style/RSBButtons.css">
+    <link rel="stylesheet" href="Style/BridgeCommunityChurchButtons.css">
+    <link rel="stylesheet" href="Style/ChristChurchCathedralButtons.css">
     <link rel="stylesheet" href="Style/CSAButtons.css">
     <link rel="stylesheet" href="Style/DowntownPresbyterianChurchButtons.css">
-    <link rel="stylesheet" href="Style/ChristChurchCathedralButtons.css">
+    <link rel="stylesheet" href="Style/FirstBaptistChurchCapitolHillButtons.css">
+    <link rel="stylesheet" href="Style/HolyTrinityEpiscopalChurchButtons.css">
+    <link rel="stylesheet" href="Style/RSBButtons.css">
+    <link rel="stylesheet" href="Style/UnitedMethodistChurchButtons.css">
     <link rel="stylesheet" href="Style/Layout.css">
-    <link rel="stylesheet" href="Style/SettingsMenu.css">
     <link rel="stylesheet" href="Style/Root.css">
+    <link rel="stylesheet" href="Style/SettingsMenu.css">
+    
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
@@ -36,18 +45,16 @@
     <div id = drawer>
         <div id = row>
             <div id="modehalf">
-                <!--<div id = roomselect>
-                    <input class = 'roombuttonselected' id = rsb type = button value = RSB onclick="switchRoom()">
-                    <input class = 'roombutton' id = csa type = button value = CSA onclick="switchRoom()">
-                    <input class = 'roombutton' id = downtownPresbyterianChurch type = button value = DowntownPresbyterianChurch onclick="switchRoom()">
-                </div>
-                -->
                 <div id="roomselect">
                     <select id="roomDropdown" onchange="switchRoom(this.value)">
                         <option value="RSB" selected>RSB</option>
                         <option value="CSA">CSA</option>
-                    <!--<option value="DowntownPresbyterianChurch">Downtown Presbyterian Church</option>-->
+                        <option value="BridgeCommunityChurch">Bridge Community Church</option>
                         <option value="ChristChurchCathedral">Christ Church Cathedral</option>
+                        <option value="DowntownPresbyterianChurch">Downtown Presbyterian Church</option>
+                        <option value="FirstBaptistChurchCapitolHill">First Baptist Church Capitol Hill</option>
+                        <option value="HolyTrinityEpiscopalChurch">Holy Trinity Episcopal Church</option>
+                        <option value="UnitedMethodistChurch">United Methodist Church</option>
                     </select>
                 </div>
 
@@ -88,7 +95,8 @@
             <div id = view>
             </div>
 
-            <div id = error>error: no such source-receiver combination</div>
+            <div id = error>error: source-receiver combination not found</div>
+            
             <div id = RSBui class = 'ui'>
                 <input type="button" id="st1_RSB" class="barbutton" value="NTID" onclick="updateSrctype('st1_RSB')">
                 <input type="button" id="st2_RSB" class="barbutton" value="YMH" onclick="updateSrctype('st2_RSB')">
@@ -103,7 +111,8 @@
                 <input type="button" id="rpR3_RSB" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_RSB')">
                 <input type="button" id="rpR4_RSB" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_RSB')">
             </div>
-            <div id="CSAui" class="ui" style="display: none">
+
+            <div id="CSAui" class="ui">
                 <input type="button" id="mt1_CSA" class="barbutton" value="ZMH3V">
                 <input type="button" id="mt2_CSA" class="barbutton" value="RODE">
 
@@ -122,22 +131,22 @@
                 <input type="button" id="rpR5_CSA" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_CSA')">
                 <input type="button" id="rpR6_CSA" class="bluebutton" value="R6" onclick="updateRcvpos('rpR6_CSA')">
             </div>
-            <div id="DowntownPresbyterianChurchui" class="ui">
-                <input type="button" id="spS1_DowntownPresbyterianChurch" class="yellowsquare" value="S1" onclick="updateSrcpos('spS1_DowntownPresbyterianChurch')">
 
-                <input type="button" id="st1_DowntownPresbyterianChurch" class="barbutton" value="Ambisonic" onclick="updateSrctype('st1_DowntownPresbyterianChurch')">
+            <div id="BridgeCommunityChurchui" class="ui">
+                <input type="button" id="spS_BridgeCommunityChurch" class="yellowsquare" value="S" onclick="updateSrcpos('spS_BridgeCommunityChurch')">
 
-                <input type="button" id="rpR1_DowntownPresbyterianChurch" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_DowntownPresbyterianChurch')">
-                <input type="button" id="rpR2_DowntownPresbyterianChurch" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_DowntownPresbyterianChurch')">
-                <input type="button" id="rpR3_DowntownPresbyterianChurch" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_DowntownPresbyterianChurch')">
-                <input type="button" id="rpR4_DowntownPresbyterianChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_DowntownPresbyterianChurch')">
-                <input type="button" id="rpR5_DowntownPresbyterianChurch" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_DowntownPresbyterianChurch')">
-                <input type="button" id="rpR6_DowntownPresbyterianChurch" class="bluebutton" value="R6" onclick="updateRcvpos('rpR6_DowntownPresbyterianChurch')">
+                <input type="button" id="st1_BridgeCommunityChurch" class="barbutton" value="Ambisonic" onclick="updateSrctype('st1_BridgeCommunityChurch')" style="display: none">
+
+                <input type="button" id="rpR1_BridgeCommunityChurch" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_BridgeCommunityChurch')">
+                <input type="button" id="rpR2_BridgeCommunityChurch" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_BridgeCommunityChurch')">
+                <input type="button" id="rpR3_BridgeCommunityChurch" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_BridgeCommunityChurch')">
+                <input type="button" id="rpR4_BridgeCommunityChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_BridgeCommunityChurch')">
             </div>
+
             <div id="ChristChurchCathedralui" class="ui">
                 <input type="button" id="spS_ChristChurchCathedral" class="yellowsquare" value="S" onclick="updateSrcpos('spS_ChristChurchCathedral')">
 
-                <input type="button" id="st1_ChristChurchCathedral" class="barbutton" value="Ambisonic" onclick="updateSrctype('st1_ChristChurchCathedral')">
+                <input type="button" id="st1_ChristChurchCathedral" class="barbutton" value="Ambisonic" onclick="updateSrctype('st1_ChristChurchCathedral')" style="display: none">
 
                 <input type="button" id="rpR1_ChristChurchCathedral" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_ChristChurchCathedral')">
                 <input type="button" id="rpR2_ChristChurchCathedral" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_ChristChurchCathedral')">
@@ -148,6 +157,53 @@
                 <input type="button" id="rpR7_ChristChurchCathedral" class="bluebutton" value="R7" onclick="updateRcvpos('rpR7_ChristChurchCathedral')">
                 <input type="button" id="rpR8_ChristChurchCathedral" class="bluebutton" value="R8" onclick="updateRcvpos('rpR8_ChristChurchCathedral')">
             </div>
+
+            <div id="DowntownPresbyterianChurchui" class="ui">
+                <input type="button" id="spS_DowntownPresbyterianChurch" class="yellowsquare" value="S" onclick="updateSrcpos('spS_DowntownPresbyterianChurch')">
+
+                <input type="button" id="st1_DowntownPresbyterianChurch" class="barbutton" value="Ambisonic" onclick="updateSrctype('st1_DowntownPresbyterianChurch')" style="display: none">
+
+                <input type="button" id="rpR1_DowntownPresbyterianChurch" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_DowntownPresbyterianChurch')">
+                <input type="button" id="rpR2_DowntownPresbyterianChurch" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_DowntownPresbyterianChurch')">
+                <input type="button" id="rpR3_DowntownPresbyterianChurch" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_DowntownPresbyterianChurch')">
+                <input type="button" id="rpR4_DowntownPresbyterianChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_DowntownPresbyterianChurch')">
+                <input type="button" id="rpR5_DowntownPresbyterianChurch" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_DowntownPresbyterianChurch')">
+            </div>
+
+            <div id="FirstBaptistChurchCapitolHillui" class="ui">
+                <input type="button" id="spS1_FirstBaptistChurchCapitolHill" class="yellowsquare" value="S1" onclick="updateSrcpos('spS1_FirstBaptistChurchCapitolHill')">
+
+                <input type="button" id="st1_FirstBaptistChurchCapitolHill" class="barbutton" value="Ambisonic" onclick="updateSrctype('st1_FirstBaptistChurchCapitolHill')" style="display: none">
+
+                <input type="button" id="rpR1_FirstBaptistChurchCapitolHill" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_FirstBaptistChurchCapitolHill')">
+                <input type="button" id="rpR2_FirstBaptistChurchCapitolHill" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_FirstBaptistChurchCapitolHill')">
+                <input type="button" id="rpR3_FirstBaptistChurchCapitolHill" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_FirstBaptistChurchCapitolHill')">
+                <input type="button" id="rpR4_FirstBaptistChurchCapitolHill" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_FirstBaptistChurchCapitolHill')">
+                <input type="button" id="rpR5_FirstBaptistChurchCapitolHill" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_FirstBaptistChurchCapitolHill')">
+            </div>
+
+            <div id="HolyTrinityEpiscopalChurchui" class="ui">
+                <input type="button" id="spS1_HolyTrinityEpiscopalChurch" class="yellowsquare" value="S1" onclick="updateSrcpos('spS1_HolyTrinityEpiscopalChurch')">
+
+                <input type="button" id="st1_HolyTrinityEpiscopalChurch" class="barbutton" value="Ambisonic" onclick="updateSrctype('st1_HolyTrinityEpiscopalChurch')" style="display: none">
+
+                <input type="button" id="rpR1_HolyTrinityEpiscopalChurch" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_HolyTrinityEpiscopalChurch')">
+                <input type="button" id="rpR2_HolyTrinityEpiscopalChurch" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_HolyTrinityEpiscopalChurch')">
+                <input type="button" id="rpR3_HolyTrinityEpiscopalChurch" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_HolyTrinityEpiscopalChurch')">
+                <input type="button" id="rpR4_HolyTrinityEpiscopalChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_HolyTrinityEpiscopalChurch')">
+            </div>
+
+            <div id="UnitedMethodistChurchui" class="ui">
+                <input type="button" id="spS1_UnitedMethodistChurch" class="yellowsquare" value="S1" onclick="updateSrcpos('spS1_UnitedMethodistChurch')">
+
+                <input type="button" id="st1_UnitedMethodistChurch" class="barbutton" value="Ambisonic" onclick="updateSrctype('st1_UnitedMethodistChurch')" style="display: none">
+
+                <input type="button" id="rpR1_UnitedMethodistChurch" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_UnitedMethodistChurch')">
+                <input type="button" id="rpR2_UnitedMethodistChurch" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_UnitedMethodistChurch')">
+                <input type="button" id="rpR3_UnitedMethodistChurch" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_UnitedMethodistChurch')">
+                <input type="button" id="rpR4_UnitedMethodistChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_UnitedMethodistChurch')">
+            </div>
+
             <div id = whitespace></div>
         </div>
     </div>
@@ -167,7 +223,7 @@
 
     let viewer;
     let mictype = "ZMH3V";
-    let srcpos = "spS2_CSA";
+    let srcpos = "spS1_CSA";
     let srctype = "st1_CSA";
     let rcvpos = "rpR1_CSA";
 
@@ -314,13 +370,29 @@
             {
                 compileSelectionCSA();
             }
+            else if(room === "BridgeCommunityChurch")
+            {
+                compileSelectionBridgeCommunityChurch();
+            }            
+            else if(room === "ChristChurchCathedral")
+            {
+                compileSelectionChristChurchCathedral();
+            }
             else if(room === "DowntownPresbyterianChurch")
             {
                 compileSelectionDowntownPresbyterianChurch();
             }
-            else if(room === "ChristChurchCathedral")
+            else if(room === "FirstBaptistChurchCapitolHill")
             {
-                compileSelectionChristChurchCathedral();
+                compileSelectionFirstBaptistChurchCapitolHill();
+            }
+            else if(room === "HolyTrinityEpiscopalChurch")
+            {
+                compileSelectionHolyTrinityEpiscopalChurch();
+            }
+            else if(room === "UnitedMethodistChurch")
+            {
+                compileSelectionUnitedMethodistChurch();
             }
         }
         else if(format === "B")

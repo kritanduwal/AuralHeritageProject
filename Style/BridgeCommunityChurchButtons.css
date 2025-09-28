@@ -1,0 +1,43 @@
+/*
+    Bridge Community Church Buttons
+
+    description: Positioning for the Bridge Community Church room buttons
+    author: Kritan Duwal
+ */
+
+/* Source positions */
+#spS_BridgeCommunityChurch
+{
+    position: absolute;
+    top: 62px;
+    left: 315px;
+}
+
+/* Receiver positions */
+#rpR1_BridgeCommunityChurch
+{
+    position: absolute;
+    top: 95px;
+    left: 315px;
+}
+
+#rpR2_BridgeCommunityChurch
+{
+    position: absolute;
+    top: 135px;
+    left: 315px;
+}
+
+#rpR3_BridgeCommunityChurch
+{
+    position: absolute;
+    top: 185px;
+    left: 315px;
+}
+
+#rpR4_BridgeCommunityChurch
+{
+    position: absolute;
+    top: 95px;
+    left: 230px;
+}

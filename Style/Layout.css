@@ -56,11 +56,11 @@ body
     background-size: 478px 255px;
 }
 
-#DowntownPresbyterianChurchui
+#BridgeCommunityChurchui
 {
     width: 478px;
     height: 280px;
-    background-image: url("../Images/RSB/Image Rotation 4.png");
+    background-image: url("../Images/Bridge Community Church/Bridge Community Church Diagram.png");
     background-size: 478px 255px;
 }
 
@@ -68,7 +68,39 @@ body
 {
     width: 478px;
     height: 280px;
-    background-image: url("../Images/Christ Church Cathedral/Christ Church Diagram.png");
+    background-image: url("../Images/Christ Church Cathedral/Christ Church Cathedral Diagram.png");
+    background-size: 478px 255px;
+}
+
+#DowntownPresbyterianChurchui
+{
+    width: 478px;
+    height: 280px;
+    background-image: url("../Images/Downtown Presbyterian Church/Downtown Presbyterian Church Diagram.png");
+    background-size: 478px 255px;
+}
+
+#FirstBaptistChurchCapitolHillui
+{
+    width: 478px;
+    height: 280px;
+    background-image: url("../Images/First Baptist Church Capitol Hill/First Baptist Church Diagram.png");
+    background-size: 478px 255px;
+}
+
+#HolyTrinityEpiscopalChurchui
+{
+    width: 478px;
+    height: 280px;
+    background-image: url("../Images/Holy Trinity Episcopal Church/Holy Trinity Episcopal Church Diagram.png");
+    background-size: 478px 255px;
+}
+
+#UnitedMethodistChurchui
+{
+    width: 478px;
+    height: 280px;
+    background-image: url("../Images/United Methodist Church/United Methodist Church Diagram.png");
     background-size: 478px 255px;
 }
 

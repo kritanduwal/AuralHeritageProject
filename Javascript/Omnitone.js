@@ -400,7 +400,9 @@ function loadAmbisonicB()
 function loadA1()
 {
     let request = new XMLHttpRequest();
-    if (room === "ChristChurchCathedral") {
+    if (room === "BridgeCommunityChurch" || room === "ChristChurchCathedral" 
+        || room === "DowntownPresbyterianChurch" || room === "FirstBaptistChurchCapitolHill" 
+        || room === "HolyTrinityEpiscopalChurch" || room === "UnitedMethodistChurch") {
         request.open("GET", reverb + "5.wav", true);
     } else {
         request.open("GET", reverb + "1.wav", true);
@@ -418,7 +420,9 @@ function loadA1()
 function loadA2()
 {
     let request = new XMLHttpRequest();
-    if (room === "ChristChurchCathedral") {
+    if (room === "BridgeCommunityChurch" || room === "ChristChurchCathedral" 
+        || room === "DowntownPresbyterianChurch" || room === "FirstBaptistChurchCapitolHill" 
+        || room === "HolyTrinityEpiscopalChurch" || room === "UnitedMethodistChurch") {
         request.open("GET", reverb + "6.wav", true);
     } else {
         request.open("GET", reverb + "2.wav", true);
@@ -436,7 +440,9 @@ function loadA2()
 function loadA3()
 {
     let request = new XMLHttpRequest();
-    if (room === "ChristChurchCathedral") {
+    if (room === "BridgeCommunityChurch" || room === "ChristChurchCathedral" 
+        || room === "DowntownPresbyterianChurch" || room === "FirstBaptistChurchCapitolHill" 
+        || room === "HolyTrinityEpiscopalChurch" || room === "UnitedMethodistChurch") {
         request.open("GET", reverb + "7.wav", true);
     } else {
         request.open("GET", reverb + "3.wav", true);
@@ -454,7 +460,9 @@ function loadA3()
 function loadA4()
 {
     let request = new XMLHttpRequest();
-    if (room === "ChristChurchCathedral") {
+    if (room === "BridgeCommunityChurch" || room === "ChristChurchCathedral" 
+        || room === "DowntownPresbyterianChurch" || room === "FirstBaptistChurchCapitolHill" 
+        || room === "HolyTrinityEpiscopalChurch" || room === "UnitedMethodistChurch") {
         request.open("GET", reverb + "8.wav", true);
     } else {
         request.open("GET", reverb + "4.wav", true);

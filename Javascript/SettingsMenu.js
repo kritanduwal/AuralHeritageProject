@@ -42,8 +42,12 @@ function switchRoom(selectedRoom) {
     // Hide all room UIs first
     document.getElementById("RSBui").style.display = "none";
     document.getElementById("CSAui").style.display = "none";
-    document.getElementById("DowntownPresbyterianChurchui").style.display = "none";
+    document.getElementById("BridgeCommunityChurchui").style.display = "none";
     document.getElementById("ChristChurchCathedralui").style.display = "none";
+    document.getElementById("DowntownPresbyterianChurchui").style.display = "none";
+    document.getElementById("FirstBaptistChurchCapitolHillui").style.display = "none";
+    document.getElementById("HolyTrinityEpiscopalChurchui").style.display = "none";
+    document.getElementById("UnitedMethodistChurchui").style.display = "none";
 
     // Update room and related settings
     room = selectedRoom;
@@ -56,21 +60,45 @@ function switchRoom(selectedRoom) {
         setImage("Images/wp1909404.jpg");
     } else if (room === "CSA") {
         document.getElementById("CSAui").style.display = "flex";
-        srcpos = "spS2_CSA";
+        srcpos = "spS1_CSA";
         srctype = "st1_CSA";
         rcvpos = "rpR1_CSA";
         setImage("Images/wp1909404.jpg");
-    } else if (room === "DowntownPresbyterianChurch") {
-        document.getElementById("DowntownPresbyterianChurchui").style.display = "flex";
-        srcpos = "spS1_DowntownPresbyterianChurch";
-        srctype = "st1_DowntownPresbyterianChurch";
-        rcvpos = "rpR1_DowntownPresbyterianChurch";
+    } else if (room === "BridgeCommunityChurch") {
+        document.getElementById("BridgeCommunityChurchui").style.display = "flex";
+        srcpos = "spS_BridgeCommunityChurch";
+        srctype = "st1_BridgeCommunityChurch";
+        rcvpos = "rpR1_BridgeCommunityChurch";
         setImage("Images/wp1909404.jpg");
     } else if (room === "ChristChurchCathedral") {
         document.getElementById("ChristChurchCathedralui").style.display = "flex";
         srcpos = "spS_ChristChurchCathedral";
         srctype = "st1_ChristChurchCathedral";
         rcvpos = "rpR1_ChristChurchCathedral";
+        setImage("Images/wp1909404.jpg");
+    } else if (room === "DowntownPresbyterianChurch") {
+        document.getElementById("DowntownPresbyterianChurchui").style.display = "flex";
+        srcpos = "spS_DowntownPresbyterianChurch";
+        srctype = "st1_DowntownPresbyterianChurch";
+        rcvpos = "rpR1_DowntownPresbyterianChurch";
+        setImage("Images/wp1909404.jpg");
+    } else if (room === "FirstBaptistChurchCapitolHill") {
+        document.getElementById("FirstBaptistChurchCapitolHillui").style.display = "flex";
+        srcpos = "spS_FirstBaptistChurchCapitolHill";
+        srctype = "st1_FirstBaptistChurchCapitolHill";
+        rcvpos = "rpR1_FirstBaptistChurchCapitolHill";
+        setImage("Images/wp1909404.jpg");
+    } else if (room === "HolyTrinityEpiscopalChurch") {
+        document.getElementById("HolyTrinityEpiscopalChurchui").style.display = "flex";
+        srcpos = "spS_HolyTrinityEpiscopalChurch";
+        srctype = "st1_HolyTrinityEpiscopalChurch";
+        rcvpos = "rpR1_HolyTrinityEpiscopalChurch";
+        setImage("Images/wp1909404.jpg");
+    } else if (room === "UnitedMethodistChurch") {
+        document.getElementById("UnitedMethodistChurchui").style.display = "flex";
+        srcpos = "spS_UnitedMethodistChurch";
+        srctype = "st1_UnitedMethodistChurch";
+        rcvpos = "rpR1_UnitedMethodistChurch";
         setImage("Images/wp1909404.jpg");
     }
 
@@ -98,8 +126,20 @@ function switchFormat()
         document.getElementById("error").style.display = "none";
         document.getElementById('RSBui').style.animation = "filter .8s ease-in forwards";
         document.getElementById('CSAui').style.animation = "filter .8s ease-in forwards";
+        document.getElementById('BridgeCommunityChurchui').style.animation = "filter .8s ease-in forwards";
+        document.getElementById('ChristChurchCathedralui').style.animation = "filter .8s ease-in forwards";
+        document.getElementById('DowntownPresbyterianChurchui').style.animation = "filter .8s ease-in forwards";
+        document.getElementById('FirstBaptistChurchCapitolHillui').style.animation = "filter .8s ease-in forwards";
+        document.getElementById('HolyTrinityEpiscopalChurchui').style.animation = "filter .8s ease-in forwards";
+        document.getElementById('UnitedMethodistChurchui').style.animation = "filter .8s ease-in forwards";
         document.getElementById('RSBui').style.pointerEvents = "none";
         document.getElementById('CSAui').style.pointerEvents = "none";
+        document.getElementById('BridgeCommunityChurchui').style.pointerEvents = "none";
+        document.getElementById('ChristChurchCathedralui').style.pointerEvents = "none";
+        document.getElementById('DowntownPresbyterianChurchui').style.pointerEvents = "none";
+        document.getElementById('FirstBaptistChurchCapitolHillui').style.pointerEvents = "none";
+        document.getElementById('HolyTrinityEpiscopalChurchui').style.pointerEvents = "none";
+        document.getElementById('UnitedMethodistChurchui').style.pointerEvents = "none";
     }
     else if(format === 'B') //switch to a
     {
@@ -115,8 +155,20 @@ function switchFormat()
 
         document.getElementById('RSBui').style.animation = "unfilter .8s ease-in forwards";
         document.getElementById('CSAui').style.animation = "unfilter .8s ease-in forwards";
+        document.getElementById('BridgeCommunityChurchui').style.animation = "unfilter .8s ease-in forwards";
+        document.getElementById('ChristChurchCathedralui').style.animation = "unfilter .8s ease-in forwards";
+        document.getElementById('DowntownPresbyterianChurchui').style.animation = "unfilter .8s ease-in forwards";
+        document.getElementById('FirstBaptistChurchCapitolHillui').style.animation = "unfilter .8s ease-in forwards";
+        document.getElementById('HolyTrinityEpiscopalChurchui').style.animation = "unfilter .8s ease-in forwards";
+        document.getElementById('UnitedMethodistChurchui').style.animation = "unfilter .8s ease-in forwards";
         document.getElementById('RSBui').style.pointerEvents = "all";
         document.getElementById('CSAui').style.pointerEvents = "all";
+        document.getElementById('BridgeCommunityChurchui').style.pointerEvents = "all";
+        document.getElementById('ChristChurchCathedralui').style.pointerEvents = "all";
+        document.getElementById('DowntownPresbyterianChurchui').style.pointerEvents = "all";
+        document.getElementById('FirstBaptistChurchCapitolHillui').style.pointerEvents = "all";
+        document.getElementById('HolyTrinityEpiscopalChurchui').style.pointerEvents = "all";
+        document.getElementById('UnitedMethodistChurchui').style.pointerEvents = "all";
     }
     toggleDrawer();
     compile();

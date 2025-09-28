@@ -1,0 +1,50 @@
+/*
+    First Baptist Church Capitol Hill Buttons
+
+    description: Positioning for the First Baptist Church Capitol Hill room buttons
+    author: Kritan Duwal
+ */
+
+/* Source positions */
+#spS_FirstBaptistChurchCapitolHill
+{
+    position: absolute;
+    top: 62px;
+    left: 315px;
+}
+
+/* Receiver positions */
+#rpR1_FirstBaptistChurchCapitolHill
+{
+    position: absolute;
+    top: 95px;
+    left: 315px;
+}
+
+#rpR2_FirstBaptistChurchCapitolHill
+{
+    position: absolute;
+    top: 135px;
+    left: 315px;
+}
+
+#rpR3_FirstBaptistChurchCapitolHill
+{
+    position: absolute;
+    top: 185px;
+    left: 315px;
+}
+
+#rpR4_FirstBaptistChurchCapitolHill
+{
+    position: absolute;
+    top: 95px;
+    left: 230px;
+}
+
+#rpR5_FirstBaptistChurchCapitolHill
+{
+    position: absolute;
+    top: 135px;
+    left: 230px;
+}
