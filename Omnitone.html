@@ -68,12 +68,14 @@
                     <input class = 'roombutton' id = dry type = button value = Dry onclick="switchConvolve()">
                 </div>
             </div>
+
             <div id = filehalf>
                 <input type = button id = srcselect class = fileselect value = "Select Source File" onclick=selectSource()>
                 <label for = srcselect id=srcselectlabel>Source Files/Clarinet.wav</label>
                 <input type = button id = bselect class = fileselect value = "Select B-Format File" onclick=selectBFormat()>
                 <label for = bselect id=bselectlabel>ambix_local_W.wav</label>
             </div>
+            
         </div>
         <input type = "range" id = "output" min = 0 max = 30 value = 30 oninput = setGain(this.value)>
     </div>
@@ -171,7 +173,7 @@
             </div>
 
             <div id="FirstBaptistChurchCapitolHillui" class="ui">
-                <input type="button" id="spS1_FirstBaptistChurchCapitolHill" class="yellowsquare" value="S1" onclick="updateSrcpos('spS1_FirstBaptistChurchCapitolHill')">
+                <input type="button" id="spS_FirstBaptistChurchCapitolHill" class="yellowsquare" value="S" onclick="updateSrcpos('spS_FirstBaptistChurchCapitolHill')">
 
                 <input type="button" id="st1_FirstBaptistChurchCapitolHill" class="barbutton" value="Ambisonic" onclick="updateSrctype('st1_FirstBaptistChurchCapitolHill')" style="display: none">
 
@@ -183,7 +185,7 @@
             </div>
 
             <div id="HolyTrinityEpiscopalChurchui" class="ui">
-                <input type="button" id="spS1_HolyTrinityEpiscopalChurch" class="yellowsquare" value="S1" onclick="updateSrcpos('spS1_HolyTrinityEpiscopalChurch')">
+                <input type="button" id="spS_HolyTrinityEpiscopalChurch" class="yellowsquare" value="S" onclick="updateSrcpos('spS_HolyTrinityEpiscopalChurch')">
 
                 <input type="button" id="st1_HolyTrinityEpiscopalChurch" class="barbutton" value="Ambisonic" onclick="updateSrctype('st1_HolyTrinityEpiscopalChurch')" style="display: none">
 
@@ -194,7 +196,7 @@
             </div>
 
             <div id="UnitedMethodistChurchui" class="ui">
-                <input type="button" id="spS1_UnitedMethodistChurch" class="yellowsquare" value="S1" onclick="updateSrcpos('spS1_UnitedMethodistChurch')">
+                <input type="button" id="spS_UnitedMethodistChurch" class="yellowsquare" value="S" onclick="updateSrcpos('spS_UnitedMethodistChurch')">
 
                 <input type="button" id="st1_UnitedMethodistChurch" class="barbutton" value="Ambisonic" onclick="updateSrctype('st1_UnitedMethodistChurch')" style="display: none">
 

@@ -53,7 +53,7 @@ body
     width: 478px;
     height: 280px;
     background-image: url("../Images/CSA/Rotation.png");
-    background-size: 478px 255px;
+    background-size: 478px 280px;
 }
 
 #BridgeCommunityChurchui
@@ -61,7 +61,7 @@ body
     width: 478px;
     height: 280px;
     background-image: url("../Images/Bridge Community Church/Bridge Community Church Diagram.png");
-    background-size: 478px 255px;
+    background-size: 478px 280px;
 }
 
 #ChristChurchCathedralui
@@ -69,7 +69,7 @@ body
     width: 478px;
     height: 280px;
     background-image: url("../Images/Christ Church Cathedral/Christ Church Cathedral Diagram.png");
-    background-size: 478px 255px;
+    background-size: 478px 280px;
 }
 
 #DowntownPresbyterianChurchui
@@ -77,7 +77,7 @@ body
     width: 478px;
     height: 280px;
     background-image: url("../Images/Downtown Presbyterian Church/Downtown Presbyterian Church Diagram.png");
-    background-size: 478px 255px;
+    background-size: 478px 280px;
 }
 
 #FirstBaptistChurchCapitolHillui
@@ -85,23 +85,23 @@ body
     width: 478px;
     height: 280px;
     background-image: url("../Images/First Baptist Church Capitol Hill/First Baptist Church Diagram.png");
-    background-size: 478px 255px;
+    background-size: 478px 280px;
 }
 
 #HolyTrinityEpiscopalChurchui
 {
     width: 478px;
-    height: 280px;
+    height: 400px;
     background-image: url("../Images/Holy Trinity Episcopal Church/Holy Trinity Episcopal Church Diagram.png");
-    background-size: 478px 255px;
+    background-size: 478px 400px;
 }
 
 #UnitedMethodistChurchui
 {
     width: 478px;
-    height: 280px;
-    background-image: url("../Images/United Methodist Church/United Methodist Church Diagram.png");
-    background-size: 478px 255px;
+    height: 400px;
+    background-image: url("../Images/Church Street United Methodist Church, Knoxville/United Methodist Church Diagram.png");
+    background-size: 478px 400px;
 }
 
 .ui
@@ -150,7 +150,6 @@ body
 {
     color: var(--maincolor) !important;
 }
-
 
 #view
 {

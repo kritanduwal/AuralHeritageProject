@@ -56,7 +56,7 @@ function switchRoom(selectedRoom) {
         document.getElementById("RSBui").style.display = "flex";
         srcpos = "spS1_RSB";
         srctype = "st1_RSB";
-        rcvpos = "rpR1_RSB";
+        rcvpos = "rpR2_RSB";
         setImage("Images/wp1909404.jpg");
     } else if (room === "CSA") {
         document.getElementById("CSAui").style.display = "flex";

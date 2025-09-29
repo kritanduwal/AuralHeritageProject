@@ -9,35 +9,42 @@
 #spS_DowntownPresbyterianChurch
 {
     position: absolute;
-    top: 62px;
-    left: 315px;
+    top: 69px;
+    left: 260px;
 }
 
 /* Receiver positions */
 #rpR1_DowntownPresbyterianChurch
 {
     position: absolute;
-    top: 95px;
-    left: 315px;
+    top: 107px;
+    left: 260px;
 }
 
 #rpR2_DowntownPresbyterianChurch
 {
     position: absolute;
-    top: 135px;
-    left: 315px;
+    top: 160px;
+    left: 260px;
 }
 
 #rpR3_DowntownPresbyterianChurch
 {
     position: absolute;
-    top: 185px;
-    left: 315px;
+    top: 225px;
+    left: 260px;
 }
 
 #rpR4_DowntownPresbyterianChurch
 {
     position: absolute;
-    top: 95px;
-    left: 230px;
+    top: 160px;
+    left: 136px;
+}
+
+#rpR5_DowntownPresbyterianChurch
+{
+    position: absolute;
+    top: 160px;
+    left: 390px;
 }
