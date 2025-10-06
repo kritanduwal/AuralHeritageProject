@@ -52,6 +52,11 @@ let B3buffer;
 let B4;
 let B4buffer;
 
+let stereoL = ctx.createConvolver();
+let stereoLBuffer;
+let stereoR = ctx.createConvolver();
+let stereoRBuffer;
+
 //play functions
 
 /**
@@ -99,6 +104,99 @@ function play_AFormat() {
         isPlaying = true;
     }
 }
+
+/**
+ * Stereo format player
+ */
+function playStereoFormat() {
+    if (isPlaying === true) {
+        source.stop();
+        isPlaying = false;
+    } else {
+        source = ctx.createBufferSource();
+        source.buffer = sourceBuffer;
+
+        //convolveSource();
+        source.connect(stereoL);
+        source.connect(stereoR);
+        //combineB();
+        foa.setRenderingMode('stereo');
+        foa.initialize().then(function() {
+            foainput.connect(foa.input);
+            foa.output.connect(outputGain);
+            outputGain.connect(dac);
+        }, function (onInitializationError) {
+            console.error(onInitializationError)
+        });
+        //omnitoneSetup();
+        source.loop = true;
+        source.start();
+        isPlaying = true;
+    }
+}
+
+async function createStereoConvolution(audioContext, sourceUrl, irLeftUrl, irRightUrl) {
+    if (isPlaying === true) {
+        source.stop();
+        isPlaying = false;
+    } else {
+        // Load audio and IRs
+        const [monoBuffer, irLeftBuffer, irRightBuffer] = await Promise.all([
+            loadAudioBuffer(audioContext, sourceUrl),
+            loadAudioBuffer(audioContext, irLeftUrl),
+            loadAudioBuffer(audioContext, irRightUrl),
+        ]);
+
+        // Create source
+        const source = audioContext.createBufferSource();
+        source.buffer = monoBuffer;
+
+        // Create convolver nodes
+        const convolverLeft = audioContext.createConvolver();
+        convolverLeft.buffer = irLeftBuffer;
+
+        const convolverRight = audioContext.createConvolver();
+        convolverRight.buffer = irRightBuffer;
+
+        // Create splitter and connect mono source to both convolvers
+        const splitter = audioContext.createChannelSplitter(1);
+        const merger = audioContext.createChannelMerger(2);
+
+        // Optional: Gain nodes for volume control
+        const gainLeft = audioContext.createGain();
+        const gainRight = audioContext.createGain();
+
+        // Connect source to splitter
+        source.connect(splitter);
+
+        // Route mono to both convolver nodes
+        splitter.connect(convolverLeft, 0);
+        splitter.connect(convolverRight, 0);
+
+        // Connect convolvers to gain and then merge to stereo
+        convolverLeft.connect(gainLeft);
+        convolverRight.connect(gainRight);
+
+        gainLeft.connect(merger, 0, 0);  // Left channel
+        gainRight.connect(merger, 0, 1); // Right channel
+
+        // Connect to output
+        merger.connect(audioContext.destination);
+
+        // Start playback
+        source.loop = true;
+        source.start();
+        isPlaying = true;
+    }
+}
+
+// Utility to load audio buffer from a URL
+async function loadAudioBuffer(audioContext, url) {
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    return await audioContext.decodeAudioData(arrayBuffer);
+}
+
 
 //audio routing
 
@@ -344,6 +442,18 @@ function loadSource()
     };
     request.send();
 }
+
+/**
+ * Initializes Stereo format convolution
+ */
+function initStereo()
+{
+    loadStereoL();
+    stereoL.buffer = stereoLBuffer;
+    loadStereoR();
+    stereoR.buffer = stereoRBuffer;
+}
+
 /**
  * Initializes A format convolution
  */
@@ -392,6 +502,34 @@ function loadAmbisonicB()
     B3.buffer = B3buffer;
     loadB4();
     B4.buffer = B4buffer;
+}
+
+/**
+ * Loads Stereo format
+ */
+function loadStereoL()
+{
+    let request = new XMLHttpRequest();
+    request.open("GET", reverb + "1.wav", true);
+    request.responseType = "arraybuffer";
+    request.onload = function () {
+        ctx.decodeAudioData(request.response, (data) => stereoLBuffer = data);
+    };
+    request.send();
+}
+
+/**
+ * Loads Stereo format
+ */
+function loadStereoR()
+{
+    let request = new XMLHttpRequest();
+    request.open("GET", reverb + "2.wav", true);
+    request.responseType = "arraybuffer";
+    request.onload = function () {
+        ctx.decodeAudioData(request.response, (data) => stereoRBuffer = data);
+    };
+    request.send();
 }
 
 /**

@@ -34,15 +34,20 @@ function compileSelectionBridgeCommunityChurch()
             viewer.lookAt(0, 170, 100);
         }
 
-        initAmbisonicA();
+        let ctx = new AudioContext();
+        sourceUrl = "Source Files/Clarinet.wav";
+        irLeftUrl = reverb + "1.wav";
+        irRightUrl = reverb + "2.wav";
+        createStereoConvolution(ctx, sourceUrl, irLeftUrl, irRightUrl);
         document.getElementById("play").disabled = false;
         updateSelectedColor(true);
 
-        if(isPlaying)
-        {
-            playpause();
-            playpause();
-        }
+        //if(isPlaying)
+        //{
+        //    format = 'stereo'
+        //    playpause();
+        //    playpause();
+        //}
     }
     else
     {

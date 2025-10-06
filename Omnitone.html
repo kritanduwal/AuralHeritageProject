@@ -413,7 +413,11 @@
             compile();
         }
 
-        if(format === 'A')
+        if(format === 'stereo')
+        {
+            playStereoFormat();
+        }
+        else if(format === 'A')
         {
             play_AFormat();
         }
