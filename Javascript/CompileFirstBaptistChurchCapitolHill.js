@@ -39,9 +39,12 @@ function compileSelectionFirstBaptistChurchCapitolHill()
             viewer.lookAt(0, 210, 100);
         }
 
-        initAmbisonicA();
         document.getElementById("play").disabled = false;
         updateSelectedColor(true);
+
+        irLeftUrl = reverb + "1.wav";
+        irRightUrl = reverb + "2.wav";
+        initStereoConvolution(irLeftUrl, irRightUrl);
 
         if(isPlaying)
         {

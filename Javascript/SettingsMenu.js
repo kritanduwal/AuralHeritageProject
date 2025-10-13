@@ -39,6 +39,10 @@ function toggleDrawer()
  * @param selectedRoom The room selected from dropdown
  */
 function switchRoom(selectedRoom) {
+
+    if(rcvpos)
+        document.getElementById(rcvpos).style.backgroundColor = "var(--buttoncolor1)";
+
     // Hide all room UIs first
     document.getElementById("RSBui").style.display = "none";
     document.getElementById("CSAui").style.display = "none";

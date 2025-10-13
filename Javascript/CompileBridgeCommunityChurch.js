@@ -34,20 +34,18 @@ function compileSelectionBridgeCommunityChurch()
             viewer.lookAt(0, 170, 100);
         }
 
-        let ctx = new AudioContext();
-        sourceUrl = "Source Files/Clarinet.wav";
-        irLeftUrl = reverb + "1.wav";
-        irRightUrl = reverb + "2.wav";
-        createStereoConvolution(ctx, sourceUrl, irLeftUrl, irRightUrl);
         document.getElementById("play").disabled = false;
         updateSelectedColor(true);
 
-        //if(isPlaying)
-        //{
-        //    format = 'stereo'
-        //    playpause();
-        //    playpause();
-        //}
+        irLeftUrl = reverb + "1.wav";
+        irRightUrl = reverb + "2.wav";
+        initStereoConvolution(irLeftUrl, irRightUrl);
+        
+        if(isPlaying)
+        {
+            playpause();
+            playpause();
+        }
     }
     else
     {
