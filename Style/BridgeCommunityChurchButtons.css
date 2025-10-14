@@ -9,35 +9,35 @@
 #spS_BridgeCommunityChurch
 {
     position: absolute;
-    top: 35px;
-    left: 200px;
+    top: 25px;
+    left: 115px;
 }
 
 /* Receiver positions */
 #rpR1_BridgeCommunityChurch
 {
     position: absolute;
-    top: 87px;
-    left: 198px;
+    top: 63px;
+    left: 115px;
 }
 
 #rpR2_BridgeCommunityChurch
 {
     position: absolute;
-    top: 180px;
-    left: 198px;
+    top: 135px;
+    left: 115px;
 }
 
 #rpR3_BridgeCommunityChurch
 {
     position: absolute;
-    top: 130px;
-    left: 47px;
+    top: 97px;
+    left: 23px;
 }
 
 #rpR4_BridgeCommunityChurch
 {
     position: absolute;
-    top: 130px;
-    left: 351px;
+    top: 97px;
+    left: 207px;
 }

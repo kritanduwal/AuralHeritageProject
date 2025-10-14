@@ -1,17 +1,16 @@
 /*
     Layout
 
-    description: Contains styling for the elements of the program.
-    author: Ben Jordan
-    email: bej9038@rit.edu
+    description: Contains styling for the elements of the program. - Updated to match Belmont repository style
+    author: Ben Jordan, Kritan Duwal
  */
 
 #appbar
 {
     border-radius: 4px;
     font-size: var(--font-size);
-    background-color: var(--maincolor);
-    color: var(--text-color);
+    background-color: var(--belmont-blue);
+    color: var(--text-color-white);
     box-shadow: var(--card-shadow);
 }
 
@@ -60,7 +59,7 @@ body
 {
     width: 287px;
     height: 214px;
-    background-image: url("../Images/Bridge Community Church/bridgeCommunity_small.png");
+    background-image: url("../Images/Bridge Community Church/Bridge Community Church Diagram.png");
     background-size: 287px 214px;
 }
 
@@ -68,7 +67,7 @@ body
 {
     width: 282px;
     height: 275px;
-    background-image: url("../Images/Christ Church Cathedral/christChurch_small.png");
+    background-image: url("../Images/Christ Church Cathedral/Christ Church Cathedral Diagram.png");
     background-size: 282px 275px;
 }
 
@@ -76,7 +75,7 @@ body
 {
     width: 255px;
     height: 270px;
-    background-image: url("../Images/Downtown Presbyterian Church/downtownPresbyterian_small.png");
+    background-image: url("../Images/Downtown Presbyterian Church/Downtown Presbyterian Church Diagram.png");
     background-size: 255px 270px;
 }
 
@@ -84,7 +83,7 @@ body
 {
     width: 270px;
     height: 126px;
-    background-image: url("../Images/First Baptist Church Capitol Hill/firstBaptist_small.png");
+    background-image: url("../Images/First Baptist Church Capitol Hill/First Baptist Church Diagram.png");
     background-size: 270px 126px;
 }
 
@@ -92,7 +91,7 @@ body
 {
     width: 166px;
     height: 395px;
-    background-image: url("../Images/Holy Trinity Episcopal Church/holyTrinity_small.png");
+    background-image: url("../Images/Holy Trinity Episcopal Church/Holy Trinity Episcopal Church Diagram.png");
     background-size: 166px 395px;
 }
 
@@ -100,7 +99,7 @@ body
 {
     width: 206px;
     height: 302px;
-    background-image: url("../Images/Church Street United Methodist Church, Knoxville/churchStreet_small.png");
+    background-image: url("../Images/Church Street United Methodist Church, Knoxville/United Methodist Church Diagram.png");
     background-size: 206px 302px;
 }
 
@@ -115,7 +114,8 @@ body
     background-repeat: no-repeat;
     z-index: 2;
     overflow: auto;
-    cursor: grab;
+    cursor: default;
+    pointer-events: auto;
 }
 
 #whitespace
@@ -128,7 +128,7 @@ body
 #play
 {
     position: fixed;
-    z-index: 1;
+    z-index: 2;
     background-color: var(--maincolor);
     color: var(--text-color);
     font-size: 72px !important;
@@ -137,8 +137,9 @@ body
     outline: none;
     border-radius: 50%;
     box-shadow: var(--card-shadow);
-    bottom: 48px;
-    right: 48px;
+    bottom: 1px;
+    right: 1px;
+    pointer-events: auto;
 }
 
 #play:hover
@@ -164,6 +165,7 @@ body
     border-radius: 4px;
     box-shadow: var(--card-shadow);
     background-color: var(--text-color);
+    z-index: 0;
 }
 
 #error

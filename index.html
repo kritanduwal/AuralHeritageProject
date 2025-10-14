@@ -5,7 +5,7 @@
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="author" content="Ben Jordan">
-    <title>A Digital Repository of Christian Aural Heritage</title>
+    <title>The Aural Heritage Project: A Digital Repository of Christian Aural Heritage</title>
 
     <script src="https://www.gstatic.com/external_hosted/omnitone/build/omnitone.min.js"></script>
     <script src="https://storage.googleapis.com/vrview/2.0/build/vrview.min.js"></script>
@@ -83,7 +83,12 @@
                     </div>
                 </div>
 
+                <div id = filehalf>
+                    <input type = button id = srcselect class = fileselect value = "Select Source File" onclick=selectSource()>
+                    <label for = srcselect id=srcselectlabel>Source Files/Clarinet.wav</label>
+                </div>
             </div>
+
             <!--
             <div id = filehalf>
                 <input type = button id = srcselect class = fileselect value = "Select Source File" onclick=selectSource()>
@@ -106,9 +111,9 @@
                 <div class="mdc-top-app-bar__row">
                     <section class="mdc-top-app-bar__section mdc-top-app-bar__section--align-start">
                         <button class="material-icons mdc-top-app-bar__navigation-icon mdc-icon-button"
-                                style="color: var(--text-color)"
+                                style="color: var(--text-color-white)"
                                 onclick=toggleDrawer()>menu</button>
-                        <span class="mdc-top-app-bar__title">A Digital Repository of Christian Aural Heritage</span>
+                        <span class="mdc-top-app-bar__title">The Aural Heritage Project: A Digital Repository of Christian Aural Heritage</span>
                     </section>
                 </div>
             </header>
@@ -220,14 +225,13 @@
                     <input type="button" id="rpR3_UnitedMethodistChurch" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_UnitedMethodistChurch')">
                     <input type="button" id="rpR4_UnitedMethodistChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_UnitedMethodistChurch')">
                 </div>
+                <button id = "play" class="material-icons" onclick = playpause()> play_circle_filled </button>
             </div>
             
             <div id = error>error: source-receiver combination not found</div>
-            <div id = whitespace></div>
+            <!--<div id = whitespace></div>-->
         </div>
     </div>
-
-    <button id = "play" class="material-icons" onclick = playpause()> play_circle_filled </button>
 </body>
 <script>
 
