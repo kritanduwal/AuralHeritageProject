@@ -1,0 +1,43 @@
+/*
+    Church Street United Methodist Church Knoxville Buttons
+
+    description: Positioning for the Church Street United Methodist Church room buttons
+    author: Kritan Duwal
+ */
+
+/* Source positions */
+#spS_UnitedMethodistChurch
+{
+    position: absolute;
+    top: 20px;
+    left: 77px;
+}
+
+/* Receiver positions */
+#rpR1_UnitedMethodistChurch
+{
+    position: absolute;
+    top: 70px;
+    left: 77px;
+}
+
+#rpR2_UnitedMethodistChurch
+{
+    position: absolute;
+    top: 130px;
+    left: 77px;
+}
+
+#rpR3_UnitedMethodistChurch
+{
+    position: absolute;
+    top: 193px;
+    left: 77px;
+}
+
+#rpR4_UnitedMethodistChurch
+{
+    position: absolute;
+    top: 262px;
+    left: 77px;
+}

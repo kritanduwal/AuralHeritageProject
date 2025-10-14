@@ -1,16 +1,17 @@
 /*
     Root
 
-    description: Contains the variables, button types, and keyframes.
-    author: Ben Jordan
-    email: bej9038@rit.edu
+    description: Contains the variables, button types, and keyframes. - Updated to match Belmont style
+    author: Ben Jordan, Kritan Duwal
  */
 
 :root{
     --maincolor: #FFFFFF;
     --maincolor2: crimson;
     --text-color: #000000;
+    --text-color-white: #FFFFFF;
     --hovercolor: #EEEEEE;
+    --belmont-blue: #00205b;
     --font: Roboto;
     --font-size: 24px;
     --card-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.17);

@@ -1,0 +1,43 @@
+/*
+    Holy Trinity Episcopal Church Buttons
+
+    description: Positioning for the Holy Trinity Episcopal Church room buttons
+    author: Kritan Duwal
+ */
+
+/* Source positions */
+#spS_HolyTrinityEpiscopalChurch
+{
+    position: absolute;
+    top: 77px;
+    left: 60px;
+}
+
+/* Receiver positions */
+#rpR1_HolyTrinityEpiscopalChurch
+{
+    position: absolute;
+    top: 151px;
+    left: 60px;
+}
+
+#rpR2_HolyTrinityEpiscopalChurch
+{
+    position: absolute;
+    top: 225px;
+    left: 60px;
+}
+
+#rpR3_HolyTrinityEpiscopalChurch
+{
+    position: absolute;
+    top: 303px;
+    left: 60px;
+}
+
+#rpR4_HolyTrinityEpiscopalChurch
+{
+    position: absolute;
+    top: 374px;
+    left: 60px;
+}

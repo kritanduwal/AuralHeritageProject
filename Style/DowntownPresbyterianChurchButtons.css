@@ -1,0 +1,50 @@
+/*
+    Downtown Presbyterian Church Buttons
+
+    description: Positioning for the Downtown Presbyterian Church room buttons
+    author: Kritan Duwal
+ */
+
+/* Source positions */
+#spS_DowntownPresbyterianChurch
+{
+    position: absolute;
+    top: 68px;
+    left: 140px;
+}
+
+/* Receiver positions */
+#rpR1_DowntownPresbyterianChurch
+{
+    position: absolute;
+    top: 105px;
+    left: 140px;
+}
+
+#rpR2_DowntownPresbyterianChurch
+{
+    position: absolute;
+    top: 158px;
+    left: 140px;
+}
+
+#rpR3_DowntownPresbyterianChurch
+{
+    position: absolute;
+    top: 221px;
+    left: 140px;
+}
+
+#rpR4_DowntownPresbyterianChurch
+{
+    position: absolute;
+    top: 158px;
+    left: 75px;
+}
+
+#rpR5_DowntownPresbyterianChurch
+{
+    position: absolute;
+    top: 158px;
+    left: 205px;
+}

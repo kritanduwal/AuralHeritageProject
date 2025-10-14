@@ -1,17 +1,16 @@
 /*
     Layout
 
-    description: Contains styling for the elements of the program.
-    author: Ben Jordan
-    email: bej9038@rit.edu
+    description: Contains styling for the elements of the program. - Updated to match Belmont repository style
+    author: Ben Jordan, Kritan Duwal
  */
 
 #appbar
 {
     border-radius: 4px;
     font-size: var(--font-size);
-    background-color: var(--maincolor);
-    color: var(--text-color);
+    background-color: var(--belmont-blue);
+    color: var(--text-color-white);
     box-shadow: var(--card-shadow);
 }
 
@@ -53,7 +52,55 @@ body
     width: 478px;
     height: 280px;
     background-image: url("../Images/CSA/Rotation.png");
-    background-size: 478px 255px;
+    background-size: 478px 280px;
+}
+
+#BridgeCommunityChurchui
+{
+    width: 287px;
+    height: 214px;
+    background-image: url("../Images/Bridge Community Church/Bridge Community Church Diagram.png");
+    background-size: 287px 214px;
+}
+
+#ChristChurchCathedralui
+{
+    width: 282px;
+    height: 275px;
+    background-image: url("../Images/Christ Church Cathedral/Christ Church Cathedral Diagram.png");
+    background-size: 282px 275px;
+}
+
+#DowntownPresbyterianChurchui
+{
+    width: 255px;
+    height: 270px;
+    background-image: url("../Images/Downtown Presbyterian Church/Downtown Presbyterian Church Diagram.png");
+    background-size: 255px 270px;
+}
+
+#FirstBaptistChurchCapitolHillui
+{
+    width: 270px;
+    height: 126px;
+    background-image: url("../Images/First Baptist Church Capitol Hill/First Baptist Church Diagram.png");
+    background-size: 270px 126px;
+}
+
+#HolyTrinityEpiscopalChurchui
+{
+    width: 166px;
+    height: 395px;
+    background-image: url("../Images/Holy Trinity Episcopal Church/Holy Trinity Episcopal Church Diagram.png");
+    background-size: 166px 395px;
+}
+
+#UnitedMethodistChurchui
+{
+    width: 206px;
+    height: 302px;
+    background-image: url("../Images/Church Street United Methodist Church, Knoxville/United Methodist Church Diagram.png");
+    background-size: 206px 302px;
 }
 
 .ui
@@ -61,13 +108,14 @@ body
     display: flex;
     box-shadow: var(--card-shadow);
     border-radius: 4px;
-    position: relative;
-    top: 101vh;
-    margin-left: auto;
-    margin-right: auto;
-    left: 0;
-    right: 0;
+    position: fixed;
+    top: 5px;
+    right: 5px;
     background-repeat: no-repeat;
+    z-index: 2;
+    overflow: auto;
+    cursor: default;
+    pointer-events: auto;
 }
 
 #whitespace
@@ -80,7 +128,7 @@ body
 #play
 {
     position: fixed;
-    z-index: 1;
+    z-index: 2;
     background-color: var(--maincolor);
     color: var(--text-color);
     font-size: 72px !important;
@@ -89,8 +137,9 @@ body
     outline: none;
     border-radius: 50%;
     box-shadow: var(--card-shadow);
-    bottom: 48px;
-    right: 48px;
+    bottom: 1px;
+    right: 1px;
+    pointer-events: auto;
 }
 
 #play:hover
@@ -103,7 +152,6 @@ body
     color: var(--maincolor) !important;
 }
 
-
 #view
 {
     position: absolute;
@@ -112,11 +160,12 @@ body
     left: 0;
     right: 0;
     top: 100px;
-    height: 77%;
-    width: 93%;
+    height: 85%;
+    width: 95%;
     border-radius: 4px;
     box-shadow: var(--card-shadow);
     background-color: var(--text-color);
+    z-index: 0;
 }
 
 #error

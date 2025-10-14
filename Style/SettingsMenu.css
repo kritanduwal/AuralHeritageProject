@@ -8,7 +8,7 @@
     text-align: center;
     background-color: var(--maincolor);
     border-radius: 4px;
-    width: 500px;
+    width: 400px;
     height: 300px;
     left: 0;
     right: 0;
@@ -44,13 +44,13 @@
 #srcselect
 {
     position: relative;
-    top: 45px;
+    top: -65px;
 }
 
 #srcselectlabel
 {
     position: relative;
-    top: 50px;
+    top: -60px;
     color: black;
 }
 #bselect
@@ -75,7 +75,6 @@
     border: none;
     height: 25px;
     font-family: Roboto;
-    margin-outside: 10px;
     position: relative;
 }
 
@@ -94,7 +93,6 @@
     width: 50px;
     height: 25px;
     font-family: Roboto;
-    margin-outside: 10px;
 }
 
 .roombutton
@@ -107,7 +105,6 @@
     width: 50px;
     height: 25px;
     font-family: Roboto;
-    margin-outside: 10px;
 }
 
 .roombutton:hover
@@ -122,6 +119,20 @@
     align-items: center;
     position: relative;
     top:35px;
+}
+
+#roomDropdown {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid var(--buttoncolor1);
+    color: var(--text-color);
+    width: 100%;
+    font-size: 14px;
+}
+
+#roomDropdown:focus {
+    outline: none;
+    border-color: var(--maincolor2);
 }
 
 #formatselect
@@ -149,6 +160,7 @@
     border: none;
     outline: none;
     -webkit-appearance: none;
+    appearance: none;
     background-color: var(--maincolor2);
     border-radius: 4px;
     box-shadow: var(--card-shadow);

@@ -1,6 +1,6 @@
 /**
  * Audio routing, processing, and playback
- * @author Ben Jordan
+ * @author Ben Jordan, Kritan Duwal
  */
 
 let ctx = new AudioContext();
@@ -52,7 +52,106 @@ let B3buffer;
 let B4;
 let B4buffer;
 
-//play functions
+// Convolution mix control
+let convolutionMix = 1.0; // 0 = dry, 1 = wet
+let dryGain = ctx.createGain();
+let wetGain = ctx.createGain();
+dryGain.gain.value = 0;
+wetGain.gain.value = 1;
+
+// Store references for stereo convolution
+let stereoDryGain = null;
+let stereoWetGainLeft = null;
+let stereoWetGainRight = null;
+let stereoL = ctx.createConvolver();
+let stereoLBuffer;
+let stereoR = ctx.createConvolver();
+let stereoRBuffer;
+
+/**
+ * Sets the convolution mix amount
+ * @param mix Value from 0 (dry) to 1 (wet)
+ */
+function setConvolutionMix(mix) {
+    convolutionMix = mix;
+    const now = ctx.currentTime;
+    dryGain.gain.linearRampToValueAtTime(1 - mix, now + 0.05);
+    wetGain.gain.linearRampToValueAtTime(mix, now + 0.05);
+
+    if (stereoDryGain && stereoWetGainLeft && stereoWetGainRight) {
+        stereoDryGain.gain.linearRampToValueAtTime(1 - mix, now + 0.05);
+        stereoWetGainLeft.gain.linearRampToValueAtTime(mix, now + 0.05);
+        stereoWetGainRight.gain.linearRampToValueAtTime(mix, now + 0.05);
+    }
+}
+
+/**
+ * Initializes Stereo format convolution
+ */
+async function initStereoConvolution(irLeftUrl, irRightUrl)
+{
+    // Load IRs
+    stereoLBuffer = await loadAudioBuffer(ctx, irLeftUrl);
+    stereoRBuffer = await loadAudioBuffer(ctx, irRightUrl);
+}
+
+// Utility to load audio buffer from a URL
+async function loadAudioBuffer(audioContext, url) {
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    return await audioContext.decodeAudioData(arrayBuffer);
+}
+
+/**
+ * Stereo format player
+ */
+async function playStereoFormat() {
+    if (isPlaying === true) {
+        if (source) {
+            source.stop();
+        }
+        isPlaying = false;
+    } else {
+        // Create source
+        source = ctx.createBufferSource();
+        source.buffer = sourceBuffer;
+        // Create convolver nodes
+        convolverLeft = ctx.createConvolver();
+        convolverLeft.buffer = stereoLBuffer;
+        convolverRight = ctx.createConvolver();
+        convolverRight.buffer = stereoRBuffer;
+        // Create splitter and connect mono source to both convolvers
+        const splitter = ctx.createChannelSplitter(1);
+        merger = ctx.createChannelMerger(2);
+        // Create gain nodes for wet/dry mix
+        stereoDryGain = ctx.createGain();
+        stereoWetGainLeft = ctx.createGain();
+        stereoWetGainRight = ctx.createGain();
+        // Set initial mix values
+        stereoDryGain.gain.value = 1 - convolutionMix;
+        stereoWetGainLeft.gain.value = convolutionMix;
+        stereoWetGainRight.gain.value = convolutionMix;
+        // Connect source to both dry and wet paths
+        source.connect(splitter);
+        source.connect(stereoDryGain);
+        // Wet path: source -> convolver -> gain -> merger
+        splitter.connect(convolverLeft, 0);
+        splitter.connect(convolverRight, 0);
+        convolverLeft.connect(stereoWetGainLeft);
+        convolverRight.connect(stereoWetGainRight);
+        stereoWetGainLeft.connect(merger, 0, 0);  // Left channel
+        stereoWetGainRight.connect(merger, 0, 1); // Right channel
+        // Dry path: source -> gain -> merger
+        stereoDryGain.connect(merger, 0, 0);
+        stereoDryGain.connect(merger, 0, 1);
+        // Connect to output
+        merger.connect(ctx.destination);
+        // Start playback
+        source.loop = true;
+        source.start();
+        isPlaying = true;
+    }
+}
 
 /**
  * B format player
@@ -344,20 +443,8 @@ function loadSource()
     };
     request.send();
 }
-/**
- * Initializes A format convolution
- */
-function initAmbisonicA()
-{
-    loadA1();
-    A1.buffer = A1buffer;
-    loadA2();
-    A2.buffer = A2buffer;
-    loadA3();
-    A3.buffer = A3buffer;
-    loadA4();
-    A4.buffer = A4buffer;
-}
+
+
 
 /**
  * Initializes B format source audio
@@ -400,7 +487,13 @@ function loadAmbisonicB()
 function loadA1()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", reverb + "1.wav", true);
+    if (room === "BridgeCommunityChurch" || room === "ChristChurchCathedral" 
+        || room === "DowntownPresbyterianChurch" || room === "FirstBaptistChurchCapitolHill" 
+        || room === "HolyTrinityEpiscopalChurch" || room === "UnitedMethodistChurch") {
+        request.open("GET", reverb + "5.wav", true);
+    } else {
+        request.open("GET", reverb + "1.wav", true);
+    }
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => A1buffer = data);
@@ -414,7 +507,13 @@ function loadA1()
 function loadA2()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", reverb + "2.wav", true);
+    if (room === "BridgeCommunityChurch" || room === "ChristChurchCathedral" 
+        || room === "DowntownPresbyterianChurch" || room === "FirstBaptistChurchCapitolHill" 
+        || room === "HolyTrinityEpiscopalChurch" || room === "UnitedMethodistChurch") {
+        request.open("GET", reverb + "6.wav", true);
+    } else {
+        request.open("GET", reverb + "2.wav", true);
+    }
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => A2buffer = data);
@@ -428,7 +527,13 @@ function loadA2()
 function loadA3()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", reverb + "3.wav", true);
+    if (room === "BridgeCommunityChurch" || room === "ChristChurchCathedral" 
+        || room === "DowntownPresbyterianChurch" || room === "FirstBaptistChurchCapitolHill" 
+        || room === "HolyTrinityEpiscopalChurch" || room === "UnitedMethodistChurch") {
+        request.open("GET", reverb + "7.wav", true);
+    } else {
+        request.open("GET", reverb + "3.wav", true);
+    }
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => A3buffer = data);
@@ -442,7 +547,13 @@ function loadA3()
 function loadA4()
 {
     let request = new XMLHttpRequest();
-    request.open("GET", reverb + "4.wav", true);
+    if (room === "BridgeCommunityChurch" || room === "ChristChurchCathedral" 
+        || room === "DowntownPresbyterianChurch" || room === "FirstBaptistChurchCapitolHill" 
+        || room === "HolyTrinityEpiscopalChurch" || room === "UnitedMethodistChurch") {
+        request.open("GET", reverb + "8.wav", true);
+    } else {
+        request.open("GET", reverb + "4.wav", true);
+    }
     request.responseType = "arraybuffer";
     request.onload = function () {
         ctx.decodeAudioData(request.response, (data) => A4buffer = data);
@@ -506,5 +617,3 @@ function loadB4()
     };
     request.send();
 }
-
-

@@ -1,0 +1,71 @@
+/*
+    Christ Church Cathedral Buttons
+
+    description: Positioning for the Christ Church Cathedral room buttons
+    author: Kritan Duwal
+ */
+
+/* Source positions */
+#spS_ChristChurchCathedral
+{
+    position: absolute;
+    top: 44px;
+    left: 153px;
+}
+
+/* Receiver positions */
+#rpR1_ChristChurchCathedral
+{
+    position: absolute;
+    top: 85px;
+    left: 153px;
+}
+
+#rpR2_ChristChurchCathedral
+{
+    position: absolute;
+    top: 135px;
+    left: 153px;
+}
+
+#rpR3_ChristChurchCathedral
+{
+    position: absolute;
+    top: 200px;
+    left: 153px;
+}
+
+#rpR4_ChristChurchCathedral
+{
+    position: absolute;
+    top: 85px;
+    left: 88px;
+}
+
+#rpR5_ChristChurchCathedral
+{
+    position: absolute;
+    top: 135px;
+    left: 88px;
+}
+
+#rpR6_ChristChurchCathedral
+{
+    position: absolute;
+    top: 85px;
+    left: 218px;
+}
+
+#rpR7_ChristChurchCathedral
+{
+    position: absolute;
+    top: 135px;
+    left: 218px;
+}
+
+#rpR8_ChristChurchCathedral
+{
+    position: absolute;
+    top: 27px;
+    left: 153px;
+}
