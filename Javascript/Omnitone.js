@@ -53,13 +53,7 @@ let B4;
 let B4buffer;
 
 // Convolution mix control
-let convolutionMix = 1.0; // 0 = dry, 1 = wet
-let dryGain = ctx.createGain();
-let wetGain = ctx.createGain();
-dryGain.gain.value = 0;
-wetGain.gain.value = 1;
-
-// Store references for stereo convolution
+let convolutionMix = 1.0; // start with full convolution mix
 let stereoDryGain = null;
 let stereoWetGainLeft = null;
 let stereoWetGainRight = null;
@@ -70,16 +64,14 @@ let stereoRBuffer;
 
 /**
  * Sets the convolution mix amount
- * @param mix Value from 0 (dry) to 1 (wet)
+ * @param mix Value from 0 to 1
  */
 function setConvolutionMix(mix) {
     convolutionMix = mix;
     const now = ctx.currentTime;
-    dryGain.gain.linearRampToValueAtTime(1 - mix, now + 0.05);
-    wetGain.gain.linearRampToValueAtTime(mix, now + 0.05);
 
     if (stereoDryGain && stereoWetGainLeft && stereoWetGainRight) {
-        stereoDryGain.gain.linearRampToValueAtTime(1 - mix, now + 0.05);
+        stereoDryGain.gain.linearRampToValueAtTime(1, now + 0.05);
         stereoWetGainLeft.gain.linearRampToValueAtTime(mix, now + 0.05);
         stereoWetGainRight.gain.linearRampToValueAtTime(mix, now + 0.05);
     }
@@ -128,7 +120,7 @@ async function playStereoFormat() {
         stereoWetGainLeft = ctx.createGain();
         stereoWetGainRight = ctx.createGain();
         // Set initial mix values
-        stereoDryGain.gain.value = 1 - convolutionMix;
+        stereoDryGain.gain.value = 1;
         stereoWetGainLeft.gain.value = convolutionMix;
         stereoWetGainRight.gain.value = convolutionMix;
         // Connect source to both dry and wet paths
@@ -154,7 +146,7 @@ async function playStereoFormat() {
 }
 
 /**
- * B format player
+ * B format player // removed from html
  */
 function play_BFormat() {
     if (isPlaying === true) {
@@ -180,7 +172,7 @@ function play_BFormat() {
 }
 
 /**
- * A format player
+ * A format player // removed from html
  */
 function play_AFormat() {
     if (isPlaying === true) {

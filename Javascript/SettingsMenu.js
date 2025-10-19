@@ -1,10 +1,10 @@
 /**
  * Behavor for the settings menu
- * @author Ben Jordan
+ * @author Ben Jordan, Kritan Duwal
  */
 
 /**
- * Toggles the settings menu
+ * Toggles the settings menu //removed from html file
  */
 function toggleDrawer()
 {
@@ -40,35 +40,23 @@ function toggleDrawer()
  */
 function switchRoom(selectedRoom) {
 
-    if(rcvpos)
+    room = selectedRoom;
+
+    if(rcvpos !== "")
         document.getElementById(rcvpos).style.backgroundColor = "var(--buttoncolor1)";
 
     // Hide all room UIs first
-    document.getElementById("RSBui").style.display = "none";
-    document.getElementById("CSAui").style.display = "none";
-    document.getElementById("BridgeCommunityChurchui").style.display = "none";
-    document.getElementById("ChristChurchCathedralui").style.display = "none";
-    document.getElementById("DowntownPresbyterianChurchui").style.display = "none";
-    document.getElementById("FirstBaptistChurchCapitolHillui").style.display = "none";
-    document.getElementById("HolyTrinityEpiscopalChurchui").style.display = "none";
-    document.getElementById("UnitedMethodistChurchui").style.display = "none";
+    if(selectedRoom !== "Select a Church"){
+        document.getElementById("BridgeCommunityChurchui").style.display = "none";
+        document.getElementById("ChristChurchCathedralui").style.display = "none";
+        document.getElementById("DowntownPresbyterianChurchui").style.display = "none";
+        document.getElementById("FirstBaptistChurchCapitolHillui").style.display = "none";
+        document.getElementById("HolyTrinityEpiscopalChurchui").style.display = "none";
+        document.getElementById("UnitedMethodistChurchui").style.display = "none";
+    }
 
-    // Update room and related settings
-    room = selectedRoom;
-    
-    if (room === "RSB") {
-        document.getElementById("RSBui").style.display = "flex";
-        srcpos = "spS1_RSB";
-        srctype = "st1_RSB";
-        rcvpos = "rpR2_RSB";
-        setImage("Images/wp1909404.jpg");
-    } else if (room === "CSA") {
-        document.getElementById("CSAui").style.display = "flex";
-        srcpos = "spS1_CSA";
-        srctype = "st1_CSA";
-        rcvpos = "rpR1_CSA";
-        setImage("Images/wp1909404.jpg");
-    } else if (room === "BridgeCommunityChurch") {
+    // Update room and related settings    
+    if (room === "BridgeCommunityChurch") {
         document.getElementById("BridgeCommunityChurchui").style.display = "flex";
         srcpos = "spS_BridgeCommunityChurch";
         srctype = "st1_BridgeCommunityChurch";
@@ -106,12 +94,11 @@ function switchRoom(selectedRoom) {
         setImage("Images/wp1909404.jpg");
     }
 
-    toggleDrawer();
     compile();
 }
 
 /**
- * Onclick function to switch the format from the settings menu
+ * Onclick function to switch the format from the settings menu //removed from html file
  */
 function switchFormat()
 {
@@ -179,7 +166,7 @@ function switchFormat()
 }
 
 /**
- * Onclick function to turn off reverb from the settings menu
+ * Onclick function to turn off reverb from the settings menu //removed from html file
  */
 function switchConvolve()
 {
@@ -204,7 +191,7 @@ function switchConvolve()
 }
 
 /**
- * Sets the overall gain of the audio
+ * Sets the overall gain of the audio //removed from html file
  * @param value The gain value
  */
 function setGain(value)
@@ -231,7 +218,6 @@ function selectSource()
                 let fileContent = readerEvent.target.result;
                 initSource(fileContent);
             }
-            toggleDrawer();
         }
         else
         {
@@ -241,6 +227,7 @@ function selectSource()
     input.click();
 }
 
+//removed from html file
 function selectBFormat()
 {
     let input = document.createElement('input');

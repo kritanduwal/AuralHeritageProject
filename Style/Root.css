@@ -22,8 +22,6 @@
     --buttoncolor2: #f2bf5a;
     --buttoncolor3: #a6a6a6;
     --bordersize: 0.7px;
-
-    /*overflow: hidden;*/
 }
 
 @keyframes filter {
@@ -56,8 +54,8 @@
     to   { opacity: 0; }
 }
 
-.bluebutton
-{
+/* Button Styles */
+.bluebutton {
     outline: none;
     border-radius: 100%;
     height: var(--buttonsize);
@@ -68,10 +66,10 @@
     padding: 0;
     font-size: var(--buttonfont);
     font-weight: bold;
+    cursor: pointer;
 }
 
-.yellowsquare
-{
+.yellowsquare {
     outline: none;
     border-radius: 15%;
     height: var(--buttonsize);
@@ -82,17 +80,18 @@
     padding: 0;
     font-size: var(--buttonfont);
     font-weight: bold;
+    cursor: pointer;
 }
 
-.barbutton
-{
+.barbutton {
     outline: none;
     height: var(--buttonsize);
-    width: var(--buttonsize) + 20px;
+    min-width: calc(var(--buttonsize) + 20px);
     background-color: var(--buttoncolor3);
     border: solid;
     border-width: var(--bordersize);
-    padding: 0;
+    padding: 0 4px;
     font-size: var(--buttonfont);
     font-weight: bold;
+    cursor: pointer;
 }

@@ -1,133 +1,46 @@
-#drawer
-{
-    display: none;
-    position: fixed !important;
-    flex-direction: column;
-    justify-content: start;
-    align-items: center;
-    text-align: center;
+/*
+    Style for Controls
+
+    description: Contains the variables, button types, and keyframes. - Updated to match Belmont style
+    author: Ben Jordan, Kritan Duwal
+ */
+
+/* Controls Container */
+#controls-container {
     background-color: var(--maincolor);
-    border-radius: 4px;
-    width: 400px;
-    height: 300px;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    margin: auto;
+    padding: 4px;
     box-shadow: var(--card-shadow);
-    transition: 1s ease all;
-    z-index: 1;
-}
-
-#row{
     display: flex;
-    flex-direction: row;
-    justify-content: start;
-    align-items: center;
-    text-align: center;
-}
-
-#filehalf
-{
-    margin: 30px;
-    display: flex;
-    flex-direction: column;
-}
-#modehalf
-{
-    margin: 30px;
-    display: flex;
-    flex-direction: column;
-}
-
-#srcselect
-{
-    position: relative;
-    top: -65px;
-}
-
-#srcselectlabel
-{
-    position: relative;
-    top: -60px;
-    color: black;
-}
-#bselect
-{
-    position: relative;
-    top: 65px;
-}
-
-#bselectlabel
-{
-    position: relative;
-    top: 70px;
-    color: black;
-}
-
-.fileselect
-{
-    background-color: var(--maincolor);
-    border-radius: 4px;
-    box-shadow: var(--card-shadow);
-    outline: none;
-    border: none;
-    height: 25px;
-    font-family: Roboto;
-    position: relative;
-}
-
-.fileselect:hover
-{
-    background-color: var(--hovercolor);
-}
-
-.roombuttonselected
-{
-    background-color: var(--maincolor2);
-    border-radius: 4px;
-    box-shadow: var(--card-shadow);
-    outline: none;
-    border: none;
-    width: 50px;
-    height: 25px;
-    font-family: Roboto;
-}
-
-.roombutton
-{
-    background-color: var(--maincolor);
-    border-radius: 4px;
-    box-shadow: var(--card-shadow);
-    outline: none;
-    border: none;
-    width: 50px;
-    height: 25px;
-    font-family: Roboto;
-}
-
-.roombutton:hover
-{
-    background-color: var(--hovercolor);
-}
-
-#roomselect
-{
-    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 24px;
+    align-items: flex-start;
     justify-content: center;
-    align-items: center;
-    position: relative;
-    top:35px;
 }
 
+.control-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 200px;
+}
+
+.control-label {
+    color: var(--text-color);
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: -10px;
+}
+
+/* Room Dropdown */
 #roomDropdown {
-    padding: 8px;
+    padding: 10px 12px;
     border-radius: 4px;
     border: 1px solid var(--buttoncolor1);
     color: var(--text-color);
-    width: 100%;
     font-size: 14px;
+    font-family: var(--font);
+    background-color: white;
+    cursor: pointer;
 }
 
 #roomDropdown:focus {
@@ -135,45 +48,83 @@
     border-color: var(--maincolor2);
 }
 
-#formatselect
-{
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-    top:65px;
+/* Convolution Mix Slider */
+.slider-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-#convselect
-{
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-    position: relative;
-    top:95px;
+.slider-label {
+    color: var(--text-color);
+    font-size: 14px;
 }
 
-#output
-{
-    top: 130px;
-    position: relative;
-    border: none;
+.slider-value {
+    font-weight: 600;
+    color: var(--belmont-blue);
+}
+
+#convmix {
+    width: 100%;
+    height: 8px;
+    border-radius: 4px;
+    background: linear-gradient(to right, var(--buttoncolor1), var(--maincolor2));
     outline: none;
     -webkit-appearance: none;
     appearance: none;
-    background-color: var(--maincolor2);
-    border-radius: 4px;
-    box-shadow: var(--card-shadow);
-    height: 10px;
 }
 
-#output::-webkit-slider-thumb
-{
+#convmix::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
+    width: 20px;
     height: 20px;
-    width: 10px;
-    background-color: var(--maincolor);
+    border-radius: 50%;
+    background: var(--maincolor);
     box-shadow: var(--card-shadow);
+    cursor: pointer;
+}
 
+#convmix::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--maincolor);
+    box-shadow: var(--card-shadow);
+    cursor: pointer;
+    border: none;
+}
+
+.slider-endpoints {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #666;
+    margin-top: 0px;
+}
+
+/* File Selection */
+.fileselect {
+    background-color: var(--belmont-blue);
+    color: var(--text-color-white);
+    border-radius: 4px;
+    box-shadow: var(--card-shadow);
+    outline: none;
+    border: none;
+    padding: 10px 16px;
+    font-family: var(--font);
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.25s ease;
+}
+
+.fileselect:hover {
+    background-color: #003d82;
+}
+
+#srcselectlabel {
+    color: #666;
+    font-size: 12px;
+    margin-top: -5px;
 }
