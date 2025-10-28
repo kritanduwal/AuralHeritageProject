@@ -12,7 +12,7 @@
     box-shadow: var(--card-shadow);
     display: flex;
     flex-wrap: wrap;
-    gap: 24px;
+    gap: 250px;
     align-items: flex-start;
     justify-content: center;
 }
