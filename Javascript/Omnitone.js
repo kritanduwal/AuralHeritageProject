@@ -29,7 +29,7 @@ function setConvolutionMix(mix) {
     const now = ctx.currentTime;
 
     if (stereoDryGain && stereoWetGainLeft && stereoWetGainRight) {
-        stereoDryGain.gain.linearRampToValueAtTime(1, now + 0.05);
+        stereoDryGain.gain.linearRampToValueAtTime(1 - (mix/2), now + 0.05);
         stereoWetGainLeft.gain.linearRampToValueAtTime(mix, now + 0.05);
         stereoWetGainRight.gain.linearRampToValueAtTime(mix, now + 0.05);
     }
@@ -82,7 +82,7 @@ async function playStereoFormat() {
         stereoWetGainLeft = ctx.createGain();
         stereoWetGainRight = ctx.createGain();
         // Set initial mix values
-        stereoDryGain.gain.value = 1;
+        stereoDryGain.gain.value = 1 - (convolutionMix / 2);
         stereoWetGainLeft.gain.value = convolutionMix;
         stereoWetGainRight.gain.value = convolutionMix;
         // Connect source to both dry and wet paths

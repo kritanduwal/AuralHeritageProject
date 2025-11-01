@@ -16,27 +16,37 @@ function compileSelectionFirstBaptistChurchCapitolHill()
         if(rcvpos === 'rpR1_FirstBaptistChurchCapitolHill')
         {
             setImage("Images/First Baptist Church Capitol Hill/First Baptist Church Capitol Hill_R1.JPG");
-            viewer.lookAt(0, 180, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 180, 100, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR2_FirstBaptistChurchCapitolHill')
         {
             setImage("Images/First Baptist Church Capitol Hill/First Baptist Church Capitol Hill_R2.JPG");
-            viewer.lookAt(0, 180, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 180, 100, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR3_FirstBaptistChurchCapitolHill')
         {
             setImage("Images/First Baptist Church Capitol Hill/First Baptist Church Capitol Hill_R3.JPG");
-            viewer.lookAt(0, 180, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 180, 100, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR4_FirstBaptistChurchCapitolHill')
         {
             setImage("Images/First Baptist Church Capitol Hill/First Baptist Church Capitol Hill_R4.JPG");
-            viewer.lookAt(0, 150, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 150, 100, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR5_FirstBaptistChurchCapitolHill')
         {
             setImage("Images/First Baptist Church Capitol Hill/First Baptist Church Capitol Hill_R5.JPG");
-            viewer.lookAt(0, 210, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 210, 100, { duration: 1000 });
+            }, 100);
         }
 
         document.getElementById("play").disabled = false;

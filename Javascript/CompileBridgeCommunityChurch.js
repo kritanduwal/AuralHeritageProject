@@ -16,22 +16,30 @@ function compileSelectionBridgeCommunityChurch()
         if(rcvpos === 'rpR1_BridgeCommunityChurch')
         {
             setImage("Images/Bridge Community Church/Bridge Community Church_R1.JPG");
-            viewer.lookAt(0, 180, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 180, 100, { duration: 1000 }); // Smooth rotation over 1 second
+            }, 100); // Small delay to ensure image is loaded
         }
         else if(rcvpos === 'rpR2_BridgeCommunityChurch')
         {
             setImage("Images/Bridge Community Church/Bridge Community Church_R2.JPG");
-            viewer.lookAt(0, 180, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 180, 100, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR3_BridgeCommunityChurch')
         {
             setImage("Images/Bridge Community Church/Bridge Community Church_R3.JPG");
-            viewer.lookAt(0, 190, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 190, 100, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR4_BridgeCommunityChurch')
         {
             setImage("Images/Bridge Community Church/Bridge Community Church_R4.JPG");
-            viewer.lookAt(0, 170, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 170, 100, { duration: 1000 });
+            }, 100);
         }
 
         document.getElementById("play").disabled = false;

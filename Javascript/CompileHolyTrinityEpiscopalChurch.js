@@ -16,22 +16,30 @@ function compileSelectionHolyTrinityEpiscopalChurch()
         if(rcvpos === 'rpR1_HolyTrinityEpiscopalChurch')
         {
             setImage("Images/Holy Trinity Episcopal Church/Holy Trinity Episcopal Church_R1.JPG");
-            viewer.lookAt(0, 180, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 180, 100, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR2_HolyTrinityEpiscopalChurch')
         {
             setImage("Images/Holy Trinity Episcopal Church/Holy Trinity Episcopal Church_R2.JPG");
-            viewer.lookAt(0, 180, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 180, 100, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR3_HolyTrinityEpiscopalChurch')
         {
             setImage("Images/Holy Trinity Episcopal Church/Holy Trinity Episcopal Church_R3.JPG");
-            viewer.lookAt(0, 180, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 180, 100, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR4_HolyTrinityEpiscopalChurch')
         {
             setImage("Images/Holy Trinity Episcopal Church/Holy Trinity Episcopal Church_R4.JPG");
-            viewer.lookAt(0, 180, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 180, 100, { duration: 1000 });
+            }, 100);
         }
         
         document.getElementById("play").disabled = false;
