@@ -1,0 +1,12 @@
+{
+  "name": "aural-heritage-project",
+  "version": "1.0.0",
+  "description": "Aural Heritage Preservation of Historic American Churches",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
