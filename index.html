@@ -20,6 +20,7 @@
     <script src="Javascript/Omnitone.js" type="text/javascript"></script>
     <script src="Javascript/SettingsMenu.js" type="text/javascript"></script>
 
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css" rel="stylesheet">
     <link rel="stylesheet" href="Style/BridgeCommunityChurchButtons.css">
     <link rel="stylesheet" href="Style/ChristChurchCathedralButtons.css">
@@ -30,12 +31,12 @@
     <link rel="stylesheet" href="Style/Layout.css">
     <link rel="stylesheet" href="Style/Root.css">
     <link rel="stylesheet" href="Style/SettingsMenu.css">
-    
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
-<body onload = "loadSource()">
+<body onload="loadSource()">
     <!-- App Bar -->
     <div id="appbar">
         <div class="app-title">Aural Heritage Preservation of Historic American Churches</div>
@@ -76,71 +77,350 @@
             <label for="srcselect" id="srcselectlabel">Source Files/Clarinet.wav</label>
         </div>
     </div>
-    
-    <!-- Main View Area -->
-    <div id="view">
-        <!-- Church UI Overlays -->
-        <div id="BridgeCommunityChurchui" class="ui" style="display: none;">
-            <input type="button" id="spS_BridgeCommunityChurch" class="yellowsquare" value="S" onclick="updateSrcpos('spS_BridgeCommunityChurch')">
-            <input type="button" id="rpR1_BridgeCommunityChurch" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_BridgeCommunityChurch')">
-            <input type="button" id="rpR2_BridgeCommunityChurch" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_BridgeCommunityChurch')">
-            <input type="button" id="rpR3_BridgeCommunityChurch" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_BridgeCommunityChurch')">
-            <input type="button" id="rpR4_BridgeCommunityChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_BridgeCommunityChurch')">
+
+    <!-- Tab Navigation -->
+    <div id="tab-nav">
+        <button class="tab-btn active" onclick="switchTab('main', this)">View</button>
+        <button class="tab-btn" onclick="switchTab('about', this)">About</button>
+        <button class="tab-btn" onclick="switchTab('instructions', this)">Instructions</button>
+    </div>
+
+    <!-- Content Area -->
+    <div id="content-area">
+
+        <!-- Main View Panel -->
+        <div id="main-panel" class="tab-panel active">
+            <div id="view">
+                <!-- Church UI Overlays -->
+                <div id="BridgeCommunityChurchui" class="ui" style="display: none;">
+                    <input type="button" id="spS_BridgeCommunityChurch" class="yellowsquare" value="S" onclick="updateSrcpos('spS_BridgeCommunityChurch')">
+                    <input type="button" id="rpR1_BridgeCommunityChurch" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_BridgeCommunityChurch')">
+                    <input type="button" id="rpR2_BridgeCommunityChurch" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_BridgeCommunityChurch')">
+                    <input type="button" id="rpR3_BridgeCommunityChurch" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_BridgeCommunityChurch')">
+                    <input type="button" id="rpR4_BridgeCommunityChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_BridgeCommunityChurch')">
+                </div>
+
+                <div id="ChristChurchCathedralui" class="ui" style="display: none;">
+                    <input type="button" id="spS_ChristChurchCathedral" class="yellowsquare" value="S" onclick="updateSrcpos('spS_ChristChurchCathedral')">
+                    <input type="button" id="rpR1_ChristChurchCathedral" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_ChristChurchCathedral')">
+                    <input type="button" id="rpR2_ChristChurchCathedral" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_ChristChurchCathedral')">
+                    <input type="button" id="rpR3_ChristChurchCathedral" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_ChristChurchCathedral')">
+                    <input type="button" id="rpR4_ChristChurchCathedral" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_ChristChurchCathedral')">
+                    <input type="button" id="rpR5_ChristChurchCathedral" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_ChristChurchCathedral')">
+                    <input type="button" id="rpR6_ChristChurchCathedral" class="bluebutton" value="R6" onclick="updateRcvpos('rpR6_ChristChurchCathedral')">
+                    <input type="button" id="rpR7_ChristChurchCathedral" class="bluebutton" value="R7" onclick="updateRcvpos('rpR7_ChristChurchCathedral')">
+                    <input type="button" id="rpR8_ChristChurchCathedral" class="bluebutton" value="R8" onclick="updateRcvpos('rpR8_ChristChurchCathedral')">
+                </div>
+
+                <div id="DowntownPresbyterianChurchui" class="ui" style="display: none;">
+                    <input type="button" id="spS_DowntownPresbyterianChurch" class="yellowsquare" value="S" onclick="updateSrcpos('spS_DowntownPresbyterianChurch')">
+                    <input type="button" id="rpR1_DowntownPresbyterianChurch" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_DowntownPresbyterianChurch')">
+                    <input type="button" id="rpR2_DowntownPresbyterianChurch" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_DowntownPresbyterianChurch')">
+                    <input type="button" id="rpR3_DowntownPresbyterianChurch" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_DowntownPresbyterianChurch')">
+                    <input type="button" id="rpR4_DowntownPresbyterianChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_DowntownPresbyterianChurch')">
+                    <input type="button" id="rpR5_DowntownPresbyterianChurch" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_DowntownPresbyterianChurch')">
+                </div>
+
+                <div id="FirstBaptistChurchCapitolHillui" class="ui" style="display: none;">
+                    <input type="button" id="spS_FirstBaptistChurchCapitolHill" class="yellowsquare" value="S" onclick="updateSrcpos('spS_FirstBaptistChurchCapitolHill')">
+                    <input type="button" id="rpR1_FirstBaptistChurchCapitolHill" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_FirstBaptistChurchCapitolHill')">
+                    <input type="button" id="rpR2_FirstBaptistChurchCapitolHill" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_FirstBaptistChurchCapitolHill')">
+                    <input type="button" id="rpR3_FirstBaptistChurchCapitolHill" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_FirstBaptistChurchCapitolHill')">
+                    <input type="button" id="rpR4_FirstBaptistChurchCapitolHill" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_FirstBaptistChurchCapitolHill')">
+                    <input type="button" id="rpR5_FirstBaptistChurchCapitolHill" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_FirstBaptistChurchCapitolHill')">
+                </div>
+
+                <div id="HolyTrinityEpiscopalChurchui" class="ui" style="display: none;">
+                    <input type="button" id="spS_HolyTrinityEpiscopalChurch" class="yellowsquare" value="S" onclick="updateSrcpos('spS_HolyTrinityEpiscopalChurch')">
+                    <input type="button" id="rpR1_HolyTrinityEpiscopalChurch" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_HolyTrinityEpiscopalChurch')">
+                    <input type="button" id="rpR2_HolyTrinityEpiscopalChurch" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_HolyTrinityEpiscopalChurch')">
+                    <input type="button" id="rpR3_HolyTrinityEpiscopalChurch" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_HolyTrinityEpiscopalChurch')">
+                    <input type="button" id="rpR4_HolyTrinityEpiscopalChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_HolyTrinityEpiscopalChurch')">
+                </div>
+
+                <div id="UnitedMethodistChurchui" class="ui" style="display: none;">
+                    <input type="button" id="spS_UnitedMethodistChurch" class="yellowsquare" value="S" onclick="updateSrcpos('spS_UnitedMethodistChurch')">
+                    <input type="button" id="rpR1_UnitedMethodistChurch" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_UnitedMethodistChurch')">
+                    <input type="button" id="rpR2_UnitedMethodistChurch" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_UnitedMethodistChurch')">
+                    <input type="button" id="rpR3_UnitedMethodistChurch" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_UnitedMethodistChurch')">
+                    <input type="button" id="rpR4_UnitedMethodistChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_UnitedMethodistChurch')">
+                </div>
+
+                <div id="error">error: source-receiver combination not found</div>
+
+                <!-- Church Info Button (shown when a church is selected) -->
+                <button id="church-info-btn" onclick="showChurchInfo()">
+                    <span class="material-icons">info</span> Church Info
+                </button>
+
+                <button id="play" class="material-icons" onclick="playpause()">play_circle_filled</button>
+            </div>
         </div>
 
-        <div id="ChristChurchCathedralui" class="ui" style="display: none;">
-            <input type="button" id="spS_ChristChurchCathedral" class="yellowsquare" value="S" onclick="updateSrcpos('spS_ChristChurchCathedral')">
-            <input type="button" id="rpR1_ChristChurchCathedral" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_ChristChurchCathedral')">
-            <input type="button" id="rpR2_ChristChurchCathedral" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_ChristChurchCathedral')">
-            <input type="button" id="rpR3_ChristChurchCathedral" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_ChristChurchCathedral')">
-            <input type="button" id="rpR4_ChristChurchCathedral" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_ChristChurchCathedral')">
-            <input type="button" id="rpR5_ChristChurchCathedral" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_ChristChurchCathedral')">
-            <input type="button" id="rpR6_ChristChurchCathedral" class="bluebutton" value="R6" onclick="updateRcvpos('rpR6_ChristChurchCathedral')">
-            <input type="button" id="rpR7_ChristChurchCathedral" class="bluebutton" value="R7" onclick="updateRcvpos('rpR7_ChristChurchCathedral')">
-            <input type="button" id="rpR8_ChristChurchCathedral" class="bluebutton" value="R8" onclick="updateRcvpos('rpR8_ChristChurchCathedral')">
+        <!-- About Panel -->
+        <div id="about-panel" class="tab-panel">
+            <div class="info-section">
+                <h2>About the Project</h2>
+                <p>
+                    As historically significant church buildings are remodeled and destroyed, we also lose the aural
+                    heritage that has shaped America's diverse Christian narratives. This project, led by
+                    <strong>The Creative Arts Collective for Christian Life and Faith at Belmont University</strong>,
+                    has the following specific objectives:
+                </p>
+                <ol>
+                    <li>Capture and preserve the aural heritage data of historically significant American churches</li>
+                    <li>Develop a widely accessible digital repository for artists, researchers, and the public</li>
+                    <li>Support interdisciplinary artistic and scholarly projects utilizing the reconstructed aural heritage data</li>
+                </ol>
+                <p>
+                    The aural heritage data and auralization products created by the project are available for free
+                    and open access. The data is documented as impulse responses (IRs) digital audio files widely
+                    used in audio engineering, acoustics, and music research.
+                </p>
+            </div>
+
+            <div class="info-section">
+                <h2>Recording Equipment</h2>
+                <div class="equipment-grid">
+                    <div class="equipment-card">
+                        <h3>Microphones</h3>
+                        <ul>
+                            <li><strong>Front L/R:</strong> Earthworks QTC 40 - Omnidirectional, 3 Hz-40 kHz, 140 dB max SPL</li>
+                            <li><strong>Rear L/R:</strong> Earthworks QTC 1 - Omnidirectional, 4 Hz-40 kHz, 142 dB max SPL</li>
+                            <li><strong>Center:</strong> Rode SoundField NT-SF1 - 4-channel Ambisonic, 20 Hz-20 kHz</li>
+                        </ul>
+                    </div>
+                    <div class="equipment-card">
+                        <h3>Playback &amp; Recording</h3>
+                        <ul>
+                            <li><strong>Monitors:</strong> JBL 308P MKII 8" Powered Studio Monitor - 112 W, 37 Hz-24 kHz</li>
+                            <li><strong>Subwoofer:</strong> JBL LSR6312SP - 28 Hz-80 Hz</li>
+                            <li><strong>Interface:</strong> Focusrite Clarett+ 8Pre USB-C - 24-bit/192 kHz, 8 preamps</li>
+                            <li><strong>Software:</strong> Room EQ Wizard Pro on Apple MacBook Pro</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <h2>About the Churches</h2>
+                <p style="font-size:14px;color:#555;margin-bottom:20px;">
+                    Select a church in the <strong>View</strong> tab and click <strong>Church Info</strong> for the full
+                    historical write-up and acoustic measurement data. Brief summaries are shown below.
+                </p>
+                <div class="church-grid">
+                    <div class="church-card">
+                        <h3>First Baptist Church Capitol Hill</h3>
+                        <p class="church-meta">625 Rosa L. Parks Blvd., Nashville, TN &bull; Est. 1843</p>
+                        <p>A historic predominantly African American church with deep ties to the Civil Rights Movement. James Lawson hosted civil protest workshops here attended by Diane Nash, John Lewis, and others. Listed on the National Register of Historic Places.</p>
+                    </div>
+                    <div class="church-card">
+                        <h3>Church of the Holy Trinity</h3>
+                        <p class="church-meta">615 6th Ave S., Nashville, TN &bull; Est. 1849</p>
+                        <p>A Gothic Episcopal church designed in the English Parish style by New York firm Dudley and Wills. Served as an armory during the Civil War and became an all-Black congregation in 1896. Listed on the National Historic Register since 1972.</p>
+                    </div>
+                    <div class="church-card">
+                        <h3>Christ Church Cathedral</h3>
+                        <p class="church-meta">900 Broadway, Nashville, TN &bull; Consecrated 1831</p>
+                        <p>The first Episcopal church in Tennessee, designed in the Victorian Gothic style by Francis Hatch Kimball. Known for 55 memorial stained-glass windows and a historic pipe organ. Became the Cathedral of the Diocese of Tennessee in 1997.</p>
+                    </div>
+                    <div class="church-card">
+                        <h3>Bridge Community Church</h3>
+                        <p class="church-meta">4916 Franklin Pike, Nashville, TN &bull; Korean Baptist</p>
+                        <p>A Korean immigrant congregation affiliated with the Southern Baptist Convention, meeting in the former home of country music legend Hank Williams — a Nashville landmark purchased and preserved in 1978.</p>
+                    </div>
+                    <div class="church-card">
+                        <h3>Church Street United Methodist</h3>
+                        <p class="church-meta">900 Henley St., Knoxville, TN &bull; Est. 1816</p>
+                        <p>A Gothic Revival landmark completed in 1931, designed by architects Charles I. Barber and John Russell Pope. Features a Hugh Tyler mural, intricate stained-glass windows, an antiphonal pipe organ, and a bell tower silent for 75 years before 2006.</p>
+                    </div>
+                    <div class="church-card">
+                        <h3>Downtown Presbyterian Church</h3>
+                        <p class="church-meta">154 Rep. John Lewis Way N., Nashville, TN &bull; Est. 1814</p>
+                        <p>Designed by William Strickland in the Egyptian Revival style and completed in 1851. Considered by many to be "the single most important Egyptian Revival building in the world." Designated a historic landmark in 1993.</p>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div id="DowntownPresbyterianChurchui" class="ui" style="display: none;">
-            <input type="button" id="spS_DowntownPresbyterianChurch" class="yellowsquare" value="S" onclick="updateSrcpos('spS_DowntownPresbyterianChurch')">
-            <input type="button" id="rpR1_DowntownPresbyterianChurch" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_DowntownPresbyterianChurch')">
-            <input type="button" id="rpR2_DowntownPresbyterianChurch" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_DowntownPresbyterianChurch')">
-            <input type="button" id="rpR3_DowntownPresbyterianChurch" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_DowntownPresbyterianChurch')">
-            <input type="button" id="rpR4_DowntownPresbyterianChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_DowntownPresbyterianChurch')">
-            <input type="button" id="rpR5_DowntownPresbyterianChurch" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_DowntownPresbyterianChurch')">
+        <!-- Instructions Panel -->
+        <div id="instructions-panel" class="tab-panel">
+            <div class="info-section">
+                <h2>How to Use</h2>
+                <ol>
+                    <li>
+                        <strong>Select a Church</strong> - Use the "Select Church" dropdown in the control bar to choose a
+                        recording location. The panoramic photo will update to show the interior of that space.
+                    </li>
+                    <li>
+                        <strong>Choose a Receiver Position</strong> - A floorplan overlay will appear in the top-right corner
+                        of the view. Click one of the blue <em>R1, R2&hellip;</em> buttons to select where you are placed
+                        inside the church. The yellow <em>S</em> button marks the fixed sound source position. The panoramic
+                        view will rotate to show the perspective from that position.
+                    </li>
+                    <li>
+                        <strong>Indicator Colors</strong> - After selecting a position, the S and R buttons will turn
+                        <span style="color:#00f47f;font-weight:600;">green</span> if a valid impulse response exists for that
+                        combination, or <span style="color:crimson;font-weight:600;">red</span> if the recording is not
+                        available.
+                    </li>
+                    <li>
+                        <strong>Adjust Convolution Mix</strong> - The slider controls how much of the church reverb is
+                        applied. All the way left (Dry) plays the source with no reverb; all the way right (Wet) applies
+                        the full acoustic character of the space.
+                    </li>
+                    <li>
+                        <strong>Select a Source File</strong> - Click "Select Source File" to choose the audio that will be
+                        played through the church's acoustics. When running locally, a list of bundled source files appears.
+                        You can also browse for any WAV or MP3 file on your computer.
+                    </li>
+                    <li>
+                        <strong>Play / Pause</strong> - Press the circular button in the bottom-right corner to start
+                        playback. The button switches to a pause icon while audio is playing. Press it again to stop.
+                    </li>
+                    <li>
+                        <strong>Church Info</strong> - Once a church is selected, click the <em>Church Info</em> button in
+                        the bottom-left of the view to read its full history, address, measurement date, room dimensions,
+                        and receiver-to-speaker distances.
+                    </li>
+                </ol>
+            </div>
+
+            <div class="info-section">
+                <h2>Tips</h2>
+                <ul>
+                    <li>Use headphones for the best binaural experience.</li>
+                    <li>Try the "Sermon" source file with a large church and a wet mix to hear how speech carries in the space.</li>
+                    <li>Switching receiver positions while audio is playing will not interrupt playback, changes take effect on the next play.</li>
+                    <li>Christ Church Cathedral (R3) and Church Street United Methodist (R4) have the longest source-to-receiver distances and the most reverberant acoustic character.</li>
+                </ul>
+            </div>
         </div>
 
-        <div id="FirstBaptistChurchCapitolHillui" class="ui" style="display: none;">
-            <input type="button" id="spS_FirstBaptistChurchCapitolHill" class="yellowsquare" value="S" onclick="updateSrcpos('spS_FirstBaptistChurchCapitolHill')">
-            <input type="button" id="rpR1_FirstBaptistChurchCapitolHill" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_FirstBaptistChurchCapitolHill')">
-            <input type="button" id="rpR2_FirstBaptistChurchCapitolHill" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_FirstBaptistChurchCapitolHill')">
-            <input type="button" id="rpR3_FirstBaptistChurchCapitolHill" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_FirstBaptistChurchCapitolHill')">
-            <input type="button" id="rpR4_FirstBaptistChurchCapitolHill" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_FirstBaptistChurchCapitolHill')">
-            <input type="button" id="rpR5_FirstBaptistChurchCapitolHill" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_FirstBaptistChurchCapitolHill')">
-        </div>
+    </div><!-- end #content-area -->
 
-        <div id="HolyTrinityEpiscopalChurchui" class="ui" style="display: none;">
-            <input type="button" id="spS_HolyTrinityEpiscopalChurch" class="yellowsquare" value="S" onclick="updateSrcpos('spS_HolyTrinityEpiscopalChurch')">
-            <input type="button" id="rpR1_HolyTrinityEpiscopalChurch" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_HolyTrinityEpiscopalChurch')">
-            <input type="button" id="rpR2_HolyTrinityEpiscopalChurch" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_HolyTrinityEpiscopalChurch')">
-            <input type="button" id="rpR3_HolyTrinityEpiscopalChurch" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_HolyTrinityEpiscopalChurch')">
-            <input type="button" id="rpR4_HolyTrinityEpiscopalChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_HolyTrinityEpiscopalChurch')">
+    <!-- Source File Modal -->
+    <div id="source-modal">
+        <div id="source-modal-inner">
+            <div id="source-modal-header">
+                <h3>Select Source File</h3>
+                <button class="modal-close-btn" onclick="closeSourceModal()">&#x2715;</button>
+            </div>
+            <div id="source-file-list"></div>
+            <div id="source-modal-footer">
+                <button class="modal-browse-btn" onclick="openNativeFilePicker()">Browse other files&hellip;</button>
+            </div>
         </div>
+    </div>
 
-        <div id="UnitedMethodistChurchui" class="ui" style="display: none;">
-            <input type="button" id="spS_UnitedMethodistChurch" class="yellowsquare" value="S" onclick="updateSrcpos('spS_UnitedMethodistChurch')">
-            <input type="button" id="rpR1_UnitedMethodistChurch" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_UnitedMethodistChurch')">
-            <input type="button" id="rpR2_UnitedMethodistChurch" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_UnitedMethodistChurch')">
-            <input type="button" id="rpR3_UnitedMethodistChurch" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_UnitedMethodistChurch')">
-            <input type="button" id="rpR4_UnitedMethodistChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_UnitedMethodistChurch')">
+    <!-- Church Info Modal -->
+    <div id="church-info-modal">
+        <div id="church-info-inner">
+            <div id="church-info-header">
+                <div id="church-info-header-text">
+                    <h3 id="church-info-name"></h3>
+                    <p id="church-info-address"></p>
+                    <p id="church-info-date"></p>
+                </div>
+                <button class="modal-close-btn" onclick="closeChurchInfo()">&#x2715;</button>
+            </div>
+            <div id="church-info-body">
+                <div id="church-info-history" class="church-info-history"></div>
+                <div class="church-info-data">
+                    <div class="church-info-table-section">
+                        <h4>Room Dimensions</h4>
+                        <table class="church-info-table" id="church-info-dimensions"></table>
+                    </div>
+                    <div class="church-info-table-section">
+                        <h4>Receiver to Speaker Distances</h4>
+                        <table class="church-info-table" id="church-info-receivers"></table>
+                    </div>
+                </div>
+            </div>
         </div>
+    </div>
 
-        <div id="error">error: source-receiver combination not found</div>
-        <button id = "play" class="material-icons" onclick = playpause()> play_circle_filled </button>
-    </div>     
 </body>
 
 <script>
 
+    // ── Church data from project report ──────────────────────────────────────
+    const churchData = {
+        BridgeCommunityChurch: {
+            name: "Bridge Community Church",
+            address: "4916 Franklin Pike, Nashville, TN 37220",
+            measured: "June 13, 2025, 10:30 AM – 1:30 PM",
+            history: [
+                "Bridge Community Church is a Korean immigrant church located on Franklin Pike in Nashville, Tennessee. The church is affiliated with both the Southern Baptist Convention and the Korean Baptist Convention of America. The church's mission statement focuses on community, family, and connection.",
+                "The church building itself has a very unique history. It was originally a house owned by country singer Hank Williams. Williams' family lived in the house until 1975, when his widow Audrey passed away. Originally a simple house when purchased by the Williams family in 1949, the building was enlarged by Mrs. Williams and served as a showplace home for Hank Williams, Jr. Many of the planned renovations were not completed by the time of Mrs. Williams' passing in 1975 and ownership of the house became contested. The house sat unused for some time until WJRB radio owner Mac Sanders stumbled upon it. Sanders spent nearly a year negotiating and finally purchased the house in 1978 with the goal of restoring and preserving it. The house was subsequently purchased by the Baptist church and is currently being rented to Bridge Community Church. This church is a unique piece of the fabric of Nashville's history."
+            ],
+            dimensions: { "Width": "48.42 ft", "Length": "37.92 ft", "Height (Floor to Ceiling)": "23.33 ft", "Height (Stage to Ceiling)": "22.71 ft", "Height (Floor to Balcony)": "11.32 ft", "Stage Width": "24.38 ft", "Mic Array Height": "6.40 ft, 9.00 ft", "Speaker Height": "4.43 ft" },
+            receivers: { "R1": "16.54 ft", "R2": "26.22 ft", "R3": "23.87 ft", "R4": "23.38 ft" }
+        },
+        ChristChurchCathedral: {
+            name: "Christ Church Cathedral",
+            address: "900 Broadway, Nashville, TN 37203",
+            measured: "June 12, 2025, 10:30 AM – 1:30 PM",
+            history: [
+                "Christ Church Cathedral is an Episcopal church located on Broadway in downtown Nashville, Tennessee. The church's first Vestry was elected in June 1829 and the original cornerstone was laid approximately a year later. The church was consecrated on July 6, 1831, officially making it the first Episcopal church in Tennessee. The congregation grew over the next several years, expanding to 72 members by 1837.",
+                "The church continued to thrive even during difficult times. Christ Church was one of the few churches that managed to avoid occupation during the Civil War, as the lighting made it an impractical place to house troops. This made it so that Christ Church was the only regularly operating church at certain times during the war; baptisms, confirmations, burials, and weddings still took place at the cathedral.",
+                "In 1883, the Vestry bought a new lot with the intent of building a new church. New York architect Francis Hatch Kimball was chosen to design the new building. The chapel was the first part of the new church to be constructed and was completed in 1888. The construction of the chapel alone cost twice as much as the congregation originally budgeted for the entire church, so the rest of the construction was delayed until 1890, when the foundation was finally laid. Another long delay followed; the congregation had not achieved their fundraising goal of $50,000 by 1892. However, they decided to continue with construction regardless. The new church opened on December 16, 1894. Since then, Christ Church has been a pillar of Nashville's religious community, known for its internal stability and external support of the diocese and the broader Episcopal church. In 1997, Christ Church officially became the Cathedral of the Diocese of Tennessee, which consists of 50 different parishes and missions and serves approximately 16,000 communicants. Today, the cathedral's congregation is made up of more than 2,000 members. It is still considered a crucial component of Tennessee's Christian community.",
+                "Christ Church Cathedral was designed in the Victorian Gothic style. The outer walls of the church were made from sandstone and the trim was made from limestone. Features of the cathedral include stone gargoyles and tiled vestibules. The tower, which was added to the building in 1947, was designed by local architect Russell E. Hart. Additional architects and craftsmen were enlisted to design interior features like the reredos, altar, and pulpit. Another unique feature of Christ Church Cathedral is an immersion baptismal pool, the only one of its kind in an Episcopal church in Tennessee. In 1894, an immense pipe organ was installed in the chancel. It was replaced with the current organ in 2003. The cathedral is known for its 55 memorial stained-glass windows, 12 of which are originals that were installed in 1894. The remaining windows were designed in various stained glass studios and donated to the cathedral."
+            ],
+            dimensions: { "Width": "78.22 ft", "Length": "108.20 ft", "Height (Floor to Ceiling)": "47.92 ft", "Height (Stage to Ceiling)": "47.27 ft", "Height (Floor to Balcony)": "9.99 ft", "Stage Width": "25.62 ft", "Mic Array Height": "6.41 ft, 9.00 ft", "Speaker Height": "4.46 ft" },
+            receivers: { "R1": "16.00 ft", "R2": "30.50 ft", "R3": "45.50 ft", "R4": "23.90 ft", "R5": "35.62 ft", "R6": "23.90 ft", "R7": "35.62 ft", "R8": "18.30 ft" }
+        },
+        DowntownPresbyterianChurch: {
+            name: "Downtown Presbyterian Church",
+            address: "154 Rep. John Lewis Way N., Nashville, TN 37219",
+            measured: "July 11, 2025, 10:30 AM – 1:00 PM",
+            history: [
+                "Downtown Presbyterian Church is a presbyterian church located on Rep. John Lewis Way North in downtown Nashville, Tennessee. The First Presbyterian Church of Nashville was constructed in 1814 at the corner of what is now Church Street and Rep. John Lewis Way North and later destroyed in a fire in 1832. A second structure was built in the same location and met a similar fate in 1848. Following the second fire, the local presbyterian community hired William Strickland, the architect who designed the Tennessee state capitol building, to submit a design for a replacement.",
+                "The new church was built in the Egyptian Revival style, which was seeing a renewed surge in popularity following Napoleon's Egyptian campaign in the late 1700s. Funding issues delayed Strickland and construction of his elaborate design was not completed until 1851. The finished product did not quite match Strickland's original vision; the interior decorations ended up being rather modest. During the Civil War, Downtown Presbyterian was seized by the government and converted into a hospital. After the war, the congregation resumed work on both the interior and exterior of the church. In the 1880s, German painters Theo Knoch and John Schleicher were hired to renovate the inside of the church. Among their contributions were two floor-to-ceiling paintings of the Temple of Karnak, intricate stenciled walls, and a coffered ceiling. Other parts of the church underwent improvements over the next several decades; for example, the pipe organ was enlarged in 1914. Downtown Presbyterian continued to serve as a haven during times of strife, being used as a shelter for flood victims in 1927 and 1937 as well as a place for soldiers on leave in Nashville during World War II. In 1954, the original congregation considered leaving Nashville and reestablishing their church elsewhere. After much discussion, it was determined that the members who did not want to leave the original location would take over ownership of the church. In 1955, after this schism, the Downtown Presbyterian Church as it is known today was formed.",
+                "In the 1990s, an extensive restoration project began with the goal of restoring the church to its former glory. The original plaster walls were covered with canvas and repainted with the goal of recreating the original paint job as accurately as possible. EverGreene Painting Studios, a company responsible for many other high-profile historic preservation projects like the restoration of the state capitol building, took great care to reproduce the original paint job. According to an article by Donna Dorian Wall, Downtown Presbyterian is considered by many to be “the single most important Egyptian Revival building in the world,” making this extensive restoration well worth the effort. In 1993, Downtown Presbyterian was officially designated a historic landmark. The church celebrated its 150th anniversary in 2001 and its current website pledges that it \“stands ready for another 150 years of service to the city.\”"
+            ],
+            dimensions: { "Width": "70.55 ft", "Length": "89.94 ft", "Height (Floor to Ceiling)": "31.62 ft", "Height (Stage to Ceiling)": "30.97 ft", "Stage Width": "26.03 ft", "Mic Array Height": "6.40 ft, 8.85 ft", "Speaker Height": "4.45 ft" },
+            receivers: { "R1": "17.86 ft", "R2": "34.73 ft", "R3": "51.56 ft", "R4": "35.48 ft", "R5": "35.66 ft" }
+        },
+        FirstBaptistChurchCapitolHill: {
+            name: "First Baptist Church Capitol Hill",
+            address: "625 Rosa L. Parks Blvd., Nashville, TN 37203",
+            measured: "June 10, 2025, 9:00 AM – 12:00 PM",
+            history: [
+                "First Baptist Church, Capitol Hill is a Baptist church located on Rosa L. Parks Boulevard in downtown Nashville, Tennessee. It is a historic predominantly African American church with strong ties to the Civil Rights Movement in Tennessee. The First Baptist Church, Nashville first began accepting Black members in 1843, including enslaved people. In October of 1847, the First Baptist Church's African American congregation established the First Colored Baptist Mission. The next year, the congregation began holding their own separate services. This faction of the church became known as the First Colored Baptist Mission.",
+                "During the Civil War, the Union Army occupied the city and impacted the operations of many local churches. The First Baptist Church was confiscated by the army and its pastor was arrested, but the mission continued operating. The mission petitioned for independence from the First Baptist Church in March of 1865; this request was granted and the deed to the First Baptist Church was given to the mission on August 13, 1865. The General Assembly granted a charter to what was then known as the First Colored Baptist Church of Nashville on May 26, 1866. At this time, the church's congregation consisted of 780 members. The church also served the greater Baptist community outside of its congregation by hosting founding meetings for the first national Baptist Conventions. The First Colored Baptist Church purchased a plot of land on which to construct a new church on August 6, 1872, and started using the new building in 1873. By 1884, the church had approximately 2,800 members. Internal issues caused the congregation to split in 1887; this division led to the formation of the Mount Olive Baptist Church. The church was destroyed in a fire in 1893, and the internal struggles continued during this time of turmoil, but the church was able to rebuild.",
+                "First Baptist changed and grew over the course of the 20th century. During the Civil Rights Movement, activist and professor James Lawson hosted workshops about civil protest at the church that were attended by many prominent activists, including Diane Nash, Bernard Lafayette, James Bevel, and John Lewis. In 1965, the original charter was amended, and First Colored Baptist Church was renamed as the First Baptist Church, Capitol Hill. On March 5, 1972, the congregation left the church that had been in use since 1896 and moved to its current location. Between 2004 and 2009, services were held in a local high school auditorium while the church was being renovated. In recent years, the church has expanded its ministries, increased cultural preservation efforts, and continued supporting social justice endeavors."
+            ],
+            dimensions: { "Width": "73.36 ft", "Length": "49.16 ft", "Height (Floor to Ceiling)": "20.76 ft", "Height (Stage to Ceiling)": "17.57 ft", "Height (Floor to Balcony)": "9.19 ft", "Stage Width": "67.34 ft", "Mic Array Height": "6.40 ft, 9.00 ft", "Speaker Height": "3.00 ft" },
+            receivers: { "R1": "13.90 ft", "R2": "22.35 ft", "R3": "33.93 ft", "R4": "24.00 ft", "R5": "24.00 ft" }
+        },
+        HolyTrinityEpiscopalChurch: {
+            name: "Church of the Holy Trinity",
+            address: "615 6th Avenue S., Nashville, TN 37203",
+            measured: "June 11, 2025, 9:00 AM – 12:00 PM",
+            history: [
+                "The Church of the Holy Trinity is an episcopal church located on 6th Avenue South in downtown Nashville, Tennessee. The church was established in 1849 when Rector Charles S. Tomes of Christ Church Episcopal left his former church to create a “free Church” that would not rely on taxes for financial support. Originally called St. Paul's Mission, the church was located in what was then known as South Nashville, a town that was considered completely separate from Nashville proper.",
+                "The cornerstone of the current building was placed on May 7, 1852, by Bishop James Hervey Otey. The building itself was designed by New York-based architectural firm Dudley and Wills in the style of an English Parish Church. The design is Gothic and contains many features that are typical of the firm's style, including native stone and open-hammered ceiling beams. Further additions were made over the years, including a stone baptismal font gifted to the church in 1860 and a tower containing a bell constructed in 1861.",
+                "Prior to the Civil War, the neighborhood surrounding the Church of the Holy Trinity was considered prosperous and refined. It was known for its “stately houses” and for the University of Nashville, which housed a distinguished medical facility. During the war, the church was used as an armory and was severely damaged. The original stained-glass windows were broken, and the pipe organ was dismantled by soldiers. Holy Trinity was able to recover following the war and evolved in interesting ways over the next several years; it reopened as a mission in 1866, grew to parish status by 1872, then reverted to a mission in 1876. By the early 1900s, the neighborhood had become less affluent and more diverse. The mission became an all-Black mission in 1896, and the Church of the Holy Trinity was officially given to its Black communicants by the Diocese of Tennessee in 1907. It was determined that the congregation would not be able to sustain the church financially, so it remained a mission until 1961, when it once again assumed parish status. The church was officially placed on the National Historic Register of Historic places in 1972."
+            ],
+            dimensions: { "Width": "26.40 ft", "Length": "84.12 ft", "Height (Floor to Ceiling)": "35.60 ft", "Height (Stage to Ceiling)": "28.58 ft", "Height (Floor to Balcony)": "8.52 ft", "Stage Width": "20.49 ft", "Mic Array Height": "6.41 ft, 9.00 ft", "Speaker Height": "15.11 ft" },
+            receivers: { "R1": "15.72 ft", "R2": "25.72 ft", "R3": "35.72 ft", "R4": "45.72 ft" }
+        },
+        UnitedMethodistChurch: {
+            name: "Church Street United Methodist Church",
+            address: "900 Henley Street, Knoxville, TN 37902",
+            measured: "June 27, 2025, 2:00 PM – 5:00 PM",
+            history: [
+                "Church Street United Methodist Church is a Methodist church located on Henley Street in downtown Knoxville, Tennessee. The first Knoxville Methodist Church was initially constructed in 1816 in a different location on what is now E. Hill Avenue. In 1844, the Methodist Episcopal Church split into North and South locations; the congregation belonged to the South location. Like many cities in the southeast, Knoxville was occupied by Confederate forces during the Civil War. In 1861, both Methodist Episcopal Churches were used as medical and housing facilities for Confederate troops. Despite the occupation, the South church continued to operate. The church was then confiscated by Union forces in 1863 and used as a hospital. Methodist Episcopal Church, South reestablished itself in 1866, regaining the property seven years after the Civil War ended.",
+                "A Victorian Gothic church was constructed on the same property in 1878 but unfortunately burned down in 1928. Afterwards, the congregation held a vote and agreed to construct a new building on a larger property on Henley Street. Architects Charles I. Barber and John Russell Pope were hired to design the church in the Gothic Revival style. The congregation pushed through financial difficulties in 1929, and the church was completed in 1931. The first service was held on January 25 of that year, attended by 1,000 worshipers. The Methodist Episcopal Church and the Methodist Protestant Church united in 1939 to form the Methodist Church. The current denomination came to be when the Evangelical United Brethren Church merged in 1968. Over the next several decades, Church Street United Methodist continued to influence the Knoxville community by establishing new churches and other Methodist organizations. The church celebrated its bicentennial in 2016.",
+                "Church Street United Methodist is a Gothic Revival church boasting several unique features, including a mural designed to emulate a mosaic painted by Hugh Tyler in 1955-1956, several intricate stained-glass windows, an antiphonal pipe organ, and a tall bell tower. The tower was not fully equipped with bells until 2006, when the church bells rang for the first time in 75 years. Additional wings of the church include an educational center, a welcome center, and a newly renovated parish hall. Church Street United Methodist is a striking example of Gothic Revival architecture that remains a fixture of the Knoxville community more than two centuries after the church was initially established."
+            ],
+            dimensions: { "Width (Widest)": "73.58 ft", "Width": "51.77 ft", "Length": "138.53 ft", "Height (Floor to Ceiling)": "56.65 ft", "Height (Stage to Ceiling)": "48.99 ft", "Height (Floor to Ceiling, Sides)": "9.13 ft", "Stage Width": "36.27 ft", "Mic Array Height": "6.90 ft, 9.60 ft", "Speaker Height": "4.43 ft" },
+            receivers: { "R1": "20.08 ft", "R2": "40.08 ft", "R3": "60.08 ft", "R4": "80.00 ft" }
+        }
+    };
+
+    // ── Page state ────────────────────────────────────────────────────────────
     let room = "";
     let reverb;
     let viewer;
@@ -148,23 +428,15 @@
     let srcpos = "";
     let srctype = "";
     let rcvpos = "";
-    destroyView(); //clears viewer
+    destroyView();
 
-    /**
-     * Calls setAngle continuosly to update the audio position
-     */
-    function runner()
-    {
+    function runner() {
         setTimeout(function () {
-            if(isPlaying)
-            {
-                runner();
-            }
+            if (isPlaying) runner();
         }, 0);
     }
 
-    function setImage(image)
-    {
+    function setImage(image) {
         viewer = pannellum.viewer('view', {
             "type": "equirectangular",
             "panorama": image,
@@ -176,132 +448,101 @@
         runner();
     }
 
-    /**
-     * Converts degrees to radians
-     * @param deg Degrees
-     * @returns {number} Radians
-     */
-    function degToRad(deg)
-    {
+    function degToRad(deg) {
         return deg * Math.PI / 180;
     }
 
-    /**
-     * Sets the viewer to a black screen in the case of error or no image available
-     */
-    function destroyView()
-    {
+    function destroyView() {
         setImage("Images/wp1909404.jpg");
-        // viewer.destroy();
     }
 
-    /**
-     * Onclick function to update source positon
-     * @param val Source position element ID
-     */
-    function updateSrcpos(val)
-    {
+    function updateSrcpos(val) {
         document.getElementById(srcpos).style.backgroundColor = "var(--buttoncolor2)";
         srcpos = val;
-        compile()
+        compile();
     }
 
-    /**
-     * Onclick function to update source type
-     * @param val Source type element ID
-     */
-    function updateSrctype(val)
-    {
+    function updateSrctype(val) {
         document.getElementById(srctype).style.backgroundColor = "var(--buttoncolor3)";
         srctype = val;
         compile();
     }
 
-    /**
-     * Onclick function to update receiver position
-     * @param val Reciever positon element ID
-     */
-    function updateRcvpos(val)
-    {
+    function updateRcvpos(val) {
         document.getElementById(rcvpos).style.backgroundColor = "var(--buttoncolor1)";
         rcvpos = val;
         compile();
     }
 
-    function updateMicType(val)
-    {
+    function updateMicType(val) {
         document.getElementById(mictype).style.backgroundColor = "var(--buttoncolor3)";
         mictype = val;
-        compile()
+        compile();
     }
 
-    /**
-     * Changes program color to red or green depending on whether the impulse file url exists
-     * @param urlexists
-     */
-    function updateSelectedColor(urlexists)
-    {
-        if(urlexists)
-        {
+    function updateSelectedColor(urlexists) {
+        if (urlexists) {
             document.documentElement.style.cssText = "--maincolor2: #00f47f";
-        }
-        else
-        {
+        } else {
             document.documentElement.style.cssText = "--maincolor2: crimson";
         }
-
         document.getElementById(srcpos).style.backgroundColor = "var(--maincolor2)";
         document.getElementById(rcvpos).style.backgroundColor = "var(--maincolor2)";
     }
 
-    /**
-     * Compiles the file path based on the room and format
-     */
-    function compile()
-    {
-        if(room === "BridgeCommunityChurch")
-        {
-            compileSelectionBridgeCommunityChurch();
-        }            
-        else if(room === "ChristChurchCathedral")
-        {
-            compileSelectionChristChurchCathedral();
-        }
-        else if(room === "DowntownPresbyterianChurch")
-        {
-            compileSelectionDowntownPresbyterianChurch();
-        }
-        else if(room === "FirstBaptistChurchCapitolHill")
-        {
-            compileSelectionFirstBaptistChurchCapitolHill();
-        }
-        else if(room === "HolyTrinityEpiscopalChurch")
-        {
-            compileSelectionHolyTrinityEpiscopalChurch();
-        }
-        else if(room === "UnitedMethodistChurch")
-        {
-            compileSelectionUnitedMethodistChurch();
-        }
+    function compile() {
+        if (room === "BridgeCommunityChurch")              compileSelectionBridgeCommunityChurch();
+        else if (room === "ChristChurchCathedral")         compileSelectionChristChurchCathedral();
+        else if (room === "DowntownPresbyterianChurch")     compileSelectionDowntownPresbyterianChurch();
+        else if (room === "FirstBaptistChurchCapitolHill")  compileSelectionFirstBaptistChurchCapitolHill();
+        else if (room === "HolyTrinityEpiscopalChurch")     compileSelectionHolyTrinityEpiscopalChurch();
+        else if (room === "UnitedMethodistChurch")          compileSelectionUnitedMethodistChurch();
     }
 
-    /**
-     * Plays if isPlaying === false, stops sound if isPlaying === true
-     */
-    function playpause()
-    {
-        playStereoFormat();
+    async function playpause() {
+        await playStereoFormat();
     }
 
     function setMix(value) {
-        // Normalize slider value (0–100 → 0–1)
-        const mix = value / 100;
-        
-        // Update displayed percentage label
         document.getElementById("mixlabel").innerText = `${value}%`;
-        
-        // Update global mix gain values
-        setConvolutionMix(mix);
+        setConvolutionMix(value / 100);
     }
+
+    function switchTab(tabId, btnEl) {
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tabId + '-panel').classList.add('active');
+        btnEl.classList.add('active');
+    }
+
+    // ── Church Info Modal ─────────────────────────────────────────────────────
+    function showChurchInfo() {
+        const data = churchData[room];
+        if (!data) return;
+
+        document.getElementById('church-info-name').textContent = data.name;
+        document.getElementById('church-info-address').textContent = data.address;
+        document.getElementById('church-info-date').textContent = 'Measured: ' + data.measured;
+
+        document.getElementById('church-info-history').innerHTML =
+            data.history.map(p => `<p>${p}</p>`).join('');
+
+        document.getElementById('church-info-dimensions').innerHTML =
+            Object.entries(data.dimensions)
+                .map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`)
+                .join('');
+
+        document.getElementById('church-info-receivers').innerHTML =
+            Object.entries(data.receivers)
+                .map(([k, v]) => `<tr><td>${k} to Speakers</td><td>${v}</td></tr>`)
+                .join('');
+
+        document.getElementById('church-info-modal').classList.add('open');
+    }
+
+    function closeChurchInfo() {
+        document.getElementById('church-info-modal').classList.remove('open');
+    }
+
 </script>
 </html>

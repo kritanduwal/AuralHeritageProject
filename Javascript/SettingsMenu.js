@@ -64,32 +64,61 @@ function switchRoom(selectedRoom) {
     }
 
     compile();
+
+    const infoBtn = document.getElementById('church-info-btn');
+    if (infoBtn) infoBtn.style.display = (selectedRoom !== 'Select a Church') ? 'flex' : 'none';
 }
 
-function selectSource()
-{
-    let input = document.createElement('input');
-    input.type = 'file';
-    input.onchange = e => {
-        let file = e.target.files[0];
-        if(file.type === 'audio/wav' || 'audio/mpeg')
-        {
-            if(isPlaying)
-            {
-                playpause();
-            }
-            document.getElementById("srcselectlabel").innerHTML = file.name;
-            let reader = new FileReader();
-            reader.readAsArrayBuffer(file);
-            reader.onload = readerEvent => {
-                let fileContent = readerEvent.target.result;
-                initSource(fileContent);
-            }
-        }
-        else
-        {
-            window.alert("error, incorrect file format");
-        }
+async function selectSource() {
+    try {
+        const res = await fetch('/api/source-files');
+        if (!res.ok) throw new Error('no server');
+        const files = await res.json();
+        showSourceModal(files);
+    } catch {
+        openNativeFilePicker();
     }
+}
+
+function showSourceModal(files) {
+    const list = document.getElementById('source-file-list');
+    list.innerHTML = '';
+    files.forEach(file => {
+        const btn = document.createElement('button');
+        btn.className = 'source-file-item';
+        btn.textContent = file;
+        btn.onclick = () => loadSourceFromServer(file);
+        list.appendChild(btn);
+    });
+    document.getElementById('source-modal').classList.add('open');
+}
+
+async function loadSourceFromServer(filename) {
+    closeSourceModal();
+    if (isPlaying) await playpause();
+    document.getElementById('srcselectlabel').textContent = filename;
+    const res = await fetch('/Source Files/' + encodeURIComponent(filename));
+    const arrayBuffer = await res.arrayBuffer();
+    ctx.decodeAudioData(arrayBuffer, data => sourceBuffer = data);
+}
+
+function closeSourceModal() {
+    document.getElementById('source-modal').classList.remove('open');
+}
+
+function openNativeFilePicker() {
+    closeSourceModal();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.wav,.mp3,audio/wav,audio/mpeg';
+    input.onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (isPlaying) playpause();
+        document.getElementById('srcselectlabel').textContent = file.name;
+        const reader = new FileReader();
+        reader.readAsArrayBuffer(file);
+        reader.onload = ev => initSource(ev.target.result);
+    };
     input.click();
 }

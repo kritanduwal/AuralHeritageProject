@@ -8,20 +8,23 @@
 /* Controls Container */
 #controls-container {
     background-color: var(--maincolor);
-    padding: 4px;
+    padding: 20px 32px;
     box-shadow: var(--card-shadow);
     display: flex;
     flex-wrap: wrap;
-    gap: 250px;
+    column-gap: clamp(24px, 6vw, 72px);
+    row-gap: 20px;
     align-items: flex-start;
-    justify-content: center;
+    justify-content: space-evenly;
 }
 
 .control-section {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    min-width: 200px;
+    flex: 1 1 200px;
+    max-width: 300px;
+    min-width: 180px;
 }
 
 .control-label {
