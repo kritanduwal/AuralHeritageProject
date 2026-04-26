@@ -52,6 +52,13 @@ async function loadAudioBuffer(audioContext, url) {
     return await audioContext.decodeAudioData(arrayBuffer);
 }
 
+function updatePlayButton() {
+    const btn = document.getElementById('play');
+    if (!btn) return;
+    btn.textContent = isPlaying ? 'pause_circle_filled' : 'play_circle_filled';
+    btn.classList.toggle('playing', isPlaying);
+}
+
 /**
  * Stereo format player
  */
@@ -61,6 +68,8 @@ async function playStereoFormat() {
             source.stop();
         }
         isPlaying = false;
+        updatePlayButton();
+        return;
     } else {
         irLeftUrl = reverb + "1.wav";
         irRightUrl = reverb + "2.wav";
@@ -104,6 +113,7 @@ async function playStereoFormat() {
         source.loop = true;
         source.start();
         isPlaying = true;
+        updatePlayButton();
     }
 }
 
