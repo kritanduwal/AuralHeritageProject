@@ -197,6 +197,7 @@ input, button, select, textarea {
     font-size: 15px;
     line-height: 1.7;
     color: #333;
+    text-align: justify;
 }
 
 .info-section ol, .info-section ul {
@@ -233,6 +234,7 @@ input, button, select, textarea {
     color: #555;
     margin: 0;
     line-height: 1.5;
+    text-align: justify;
 }
 
 /* ── Church Info Button (in view, bottom-left) ── */
@@ -341,6 +343,7 @@ input, button, select, textarea {
     line-height: 1.75;
     color: #333;
     margin: 0 0 12px;
+    text-align: justify;
 }
 
 .church-info-data {
@@ -414,6 +417,7 @@ input, button, select, textarea {
     color: #444;
     line-height: 1.6;
     margin-bottom: 6px;
+    text-align: justify;
 }
 
 /* ── About — Church Card meta line ── */
