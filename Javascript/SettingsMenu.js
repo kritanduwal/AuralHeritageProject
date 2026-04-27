@@ -69,6 +69,13 @@ function switchRoom(selectedRoom) {
     if (infoBtn) infoBtn.style.display = (selectedRoom !== 'Select a Church') ? 'flex' : 'none';
 }
 
+const BUNDLED_SOURCE_FILES = [
+    'AcGtr.wav',
+    'Chorus_New.wav',
+    'Clarinet.wav',
+    'Sermon_Dr. William Barber.wav'
+];
+
 async function selectSource() {
     try {
         const res = await fetch('/api/source-files');
@@ -76,7 +83,7 @@ async function selectSource() {
         const files = await res.json();
         showSourceModal(files);
     } catch {
-        openNativeFilePicker();
+        showSourceModal(BUNDLED_SOURCE_FILES);
     }
 }
 

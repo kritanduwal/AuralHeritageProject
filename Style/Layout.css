@@ -237,23 +237,23 @@ input, button, select, textarea {
     text-align: justify;
 }
 
-/* ── Church Info Button (in view, bottom-left) ── */
+/* ── Church Info Button (in view, top-left, below Pannellum controls) ── */
 #church-info-btn {
     position: absolute;
-    bottom: 16px;
-    left: 16px;
+    top: 5px;
+    left: 35px;
     z-index: 2;
     background-color: rgba(0, 32, 91, 0.85);
     color: #fff;
     border: none;
     border-radius: 24px;
-    padding: 10px 18px;
-    font-size: 14px;
+    padding: 12px 22px;
+    font-size: 16px;
     font-weight: 500;
     cursor: pointer;
     display: none;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     box-shadow: var(--card-shadow);
     transition: background-color 0.2s;
     backdrop-filter: blur(4px);
@@ -264,7 +264,7 @@ input, button, select, textarea {
 }
 
 #church-info-btn .material-icons {
-    font-size: 18px;
+    font-size: 22px;
     color: #fff;
 }
 
@@ -531,21 +531,7 @@ input, button, select, textarea {
     color: #fff;
 }
 
-/* ── Church diagram dimensions (unchanged) ── */
-#RSBui {
-    width: 478px;
-    height: 255px;
-    background-image: url("../Images/RSB/Image Rotation 4.png");
-    background-size: 480px;
-}
-
-#CSAui {
-    width: 478px;
-    height: 280px;
-    background-image: url("../Images/CSA/Rotation.png");
-    background-size: 478px 280px;
-}
-
+/* ── Church diagram dimensions ── */
 #BridgeCommunityChurchui {
     width: 287px;
     height: 214px;
