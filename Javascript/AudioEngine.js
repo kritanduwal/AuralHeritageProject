@@ -15,9 +15,7 @@ let convolutionMix = 1.0; // start with full convolution mix
 let stereoDryGain = null;
 let stereoWetGainLeft = null;
 let stereoWetGainRight = null;
-let stereoL = ctx.createConvolver();
 let stereoLBuffer;
-let stereoR = ctx.createConvolver();
 let stereoRBuffer;
 
 /**
