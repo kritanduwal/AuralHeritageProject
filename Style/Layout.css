@@ -25,12 +25,34 @@ input, button, select, textarea {
 #appbar {
     background: linear-gradient(135deg, #001540 0%, #00205b 50%, #1a4a9e 100%);
     color: var(--text-color-white);
-    padding: 20px 32px;
+    padding: 14px 32px;
     font-size: var(--font-size);
     box-shadow: var(--card-shadow);
     position: relative;
     z-index: 3;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.appbar-logos {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-shrink: 0;
+}
+
+.appbar-logo {
+    height: 38px;
+    width: auto;
+    object-fit: contain;
+    display: block;
+}
+
+.appbar-logo--invert {
+    filter: brightness(0) invert(1);
 }
 
 .app-title {

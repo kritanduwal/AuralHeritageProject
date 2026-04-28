@@ -10,7 +10,7 @@ let sourceBuffer;
 
 let isPlaying = false;
 
-// Convolution mix control
+// Room reverberation (Convolution Mix) control
 let convolutionMix = 1.0; // start with full convolution mix
 let stereoDryGain = null;
 let stereoWetGainLeft = null;
@@ -27,7 +27,7 @@ function setConvolutionMix(mix) {
     const now = ctx.currentTime;
 
     if (stereoDryGain && stereoWetGainLeft && stereoWetGainRight) {
-        stereoDryGain.gain.linearRampToValueAtTime(1 - (mix/2), now + 0.05);
+        stereoDryGain.gain.linearRampToValueAtTime(1 - (mix * 0.75), now + 0.05);
         stereoWetGainLeft.gain.linearRampToValueAtTime(mix, now + 0.05);
         stereoWetGainRight.gain.linearRampToValueAtTime(mix, now + 0.05);
     }
@@ -89,7 +89,7 @@ async function playStereoFormat() {
         stereoWetGainLeft = ctx.createGain();
         stereoWetGainRight = ctx.createGain();
         // Set initial mix values
-        stereoDryGain.gain.value = 1 - (convolutionMix / 2);
+        stereoDryGain.gain.value = 1 - (convolutionMix * 0.75);
         stereoWetGainLeft.gain.value = convolutionMix;
         stereoWetGainRight.gain.value = convolutionMix;
         // Connect source to both dry and wet paths
