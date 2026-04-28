@@ -70,10 +70,11 @@ function switchRoom(selectedRoom) {
 }
 
 const BUNDLED_SOURCE_FILES = [
-    'AcGtr.wav',
+    'Acoustic guitar.wav',
     'Chorus_New.wav',
     'Clarinet.wav',
-    'Sermon_Dr. William Barber.wav'
+    'Sermon_Dr. William Barber.wav',
+    'Trumpet.wav'
 ];
 
 async function selectSource() {

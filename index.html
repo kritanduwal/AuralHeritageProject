@@ -40,6 +40,14 @@
     <!-- App Bar -->
     <div id="appbar">
         <div class="app-title">Aural Heritage Preservation of Historic American Churches</div>
+        <div class="appbar-logos">
+            <a href="https://creativeartscollective.com/" target="_blank" rel="noopener noreferrer">
+                <img src="https://blogs.belmont.edu/new-creative-arts-collective/files/2025/10/horizontal-lockup-cac-centered-light.svg" alt="The Creative Arts Collective for Christian Life and Faith" class="appbar-logo">
+            </a>
+            <a href="https://www.belmont.edu/" target="_blank" rel="noopener noreferrer">
+                <img src="https://www.belmont.edu/_assets/img/logo.svg" alt="Belmont University" class="appbar-logo appbar-logo--invert">
+            </a>
+        </div>
     </div>
 
     <!-- Controls Container -->
@@ -58,15 +66,15 @@
         </div>
 
         <div class="control-section">
-            <label class="control-label">Convolution Mix</label>
+            <label class="control-label">Room Reverberation</label>
             <div class="slider-container">
                 <div class="slider-row">
                     <input type="range" id="convmix" min="0" max="100" step="10" value="100" oninput="setMix(this.value)">
                     <span class="slider-value" id="mixlabel">100%</span>
                 </div>
                 <div class="slider-endpoints">
-                    <span>Dry</span>
-                    <span>Wet</span>
+                    <span>Less</span>
+                    <span>More</span>
                 </div>
             </div>
         </div>
@@ -163,9 +171,7 @@
                 <h2>About the Project</h2>
                 <p>
                     As historically significant church buildings are remodeled and destroyed, we also lose the aural
-                    heritage that has shaped America's diverse Christian narratives. This project, led by
-                    <strong>The Creative Arts Collective for Christian Life and Faith at Belmont University</strong>,
-                    has the following specific objectives:
+                    heritage that has shaped America's diverse Christian narratives. This project has the following specific objectives:
                 </p>
                 <ol>
                     <li>Capture and preserve the aural heritage data of historically significant American churches</li>
@@ -177,6 +183,21 @@
                     and open access. The data is documented as impulse responses (IRs) digital audio files widely
                     used in audio engineering, acoustics, and music research.
                 </p>
+                <p>
+                    This project is generously supported by <a href="https://creativeartscollective.com/" target="_blank" rel="noopener noreferrer">The Creative Arts Collective for Christian Life and Faith</a>.
+                </p>
+            </div>
+
+            <div class="info-section">
+                <h2>Research Team</h2>
+                <p><strong>Supervisor</strong></p>
+                <p><a href="https://www.belmont.edu/profiles/doyuen-ko/" target="_blank" rel="noopener noreferrer">Dr. Doyuen Ko</a> (Audio Engineering Technology, Belmont University)</p>
+                <p><strong>Graduate Research Assistants</strong></p>
+                <ul>
+                    <li>Kritan Duwal</li>
+                    <li>Lee Smith</li>
+                    <li>Sihyeon Park</li>
+                </ul>
             </div>
 
             <div class="info-section">
@@ -264,8 +285,8 @@
                         available.
                     </li>
                     <li>
-                        <strong>Adjust Convolution Mix</strong> - The slider controls how much of the church reverb is
-                        applied. All the way left (Dry) plays the source with no reverb; all the way right (Wet) applies
+                        <strong>Adjust Room Reverberation</strong> - The slider controls how much of the church reverb is
+                        applied. All the way left (Less) plays the source with no reverb; all the way right (More) applies
                         the full acoustic character of the space.
                     </li>
                     <li>
