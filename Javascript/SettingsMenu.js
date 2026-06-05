@@ -70,12 +70,19 @@ function switchRoom(selectedRoom) {
 }
 
 const BUNDLED_SOURCE_FILES = [
-    'Acoustic guitar.wav',
-    'Chorus_New.wav',
-    'Clarinet.wav',
-    'Sermon_Dr. William Barber.wav',
-    'Trumpet.wav'
+    { filename: 'Acoustic guitar.wav',          label: 'Acoustic Guitar' },
+    { filename: 'Chorus_New.wav',               label: 'Chorus' },
+    { filename: 'Clarinet.wav',                 label: 'Clarinet' },
+    { filename: 'Sermon_Dr. William Barber.wav',label: 'Sermon – Dr. William Barber' },
+    { filename: 'Trumpet.wav',                  label: 'Trumpet' },
 ];
+
+function formatSourceName(filename) {
+    return filename
+        .replace(/\.[^/.]+$/, '')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+}
 
 async function selectSource() {
     try {
@@ -88,23 +95,31 @@ async function selectSource() {
     }
 }
 
+const BUNDLED_LABEL_MAP = Object.fromEntries(
+    BUNDLED_SOURCE_FILES.map(f => [f.filename, f.label])
+);
+
 function showSourceModal(files) {
     const list = document.getElementById('source-file-list');
     list.innerHTML = '';
     files.forEach(file => {
+        const filename = typeof file === 'string' ? file : file.filename;
+        const label    = typeof file === 'string'
+            ? (BUNDLED_LABEL_MAP[file] || formatSourceName(file))
+            : file.label;
         const btn = document.createElement('button');
         btn.className = 'source-file-item';
-        btn.textContent = file;
-        btn.onclick = () => loadSourceFromServer(file);
+        btn.textContent = label;
+        btn.onclick = () => loadSourceFromServer(filename, label);
         list.appendChild(btn);
     });
     document.getElementById('source-modal').classList.add('open');
 }
 
-async function loadSourceFromServer(filename) {
+async function loadSourceFromServer(filename, label) {
     closeSourceModal();
     if (isPlaying) await playpause();
-    document.getElementById('srcselectlabel').textContent = filename;
+    document.getElementById('srcselectlabel').textContent = label || formatSourceName(filename);
     const res = await fetch('/Source Files/' + encodeURIComponent(filename));
     const arrayBuffer = await res.arrayBuffer();
     ctx.decodeAudioData(arrayBuffer, data => sourceBuffer = data);
@@ -123,7 +138,7 @@ function openNativeFilePicker() {
         const file = e.target.files[0];
         if (!file) return;
         if (isPlaying) playpause();
-        document.getElementById('srcselectlabel').textContent = file.name;
+        document.getElementById('srcselectlabel').textContent = formatSourceName(file.name);
         const reader = new FileReader();
         reader.readAsArrayBuffer(file);
         reader.onload = ev => initSource(ev.target.result);
