@@ -595,3 +595,17 @@ input, button, select, textarea {
     background-image: url("../Images/Church Street United Methodist Church, Knoxville/United Methodist Church Diagram.png");
     background-size: 206px 302px;
 }
+
+#FirstPresbyterianChurchKYui {
+    width: 260px;
+    height: 294px;
+    background-image: url("../Images/First Presbyterian Church, KY/First Presbyterian KY diagram.png");
+    background-size: 260px 294px;
+}
+
+#CaneRidgeMeetingHouseui {
+    width: 287px;
+    height: 238px;
+    background-image: url("../Images/Cane Ridge Meeting House, KY/Cane Ridge diagram.png");
+    background-size: 287px 238px;
+}

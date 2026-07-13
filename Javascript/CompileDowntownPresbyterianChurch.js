@@ -16,27 +16,37 @@ function compileSelectionDowntownPresbyterianChurch()
         if(rcvpos === 'rpR1_DowntownPresbyterianChurch')
         {
             setImage("Images/Downtown Presbyterian Church/Downtown Presbyterian Church_R1.JPG");
-            viewer.lookAt(0, 0, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 0, 120, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR2_DowntownPresbyterianChurch')
         {
             setImage("Images/Downtown Presbyterian Church/Downtown Presbyterian Church_R2.JPG");
-            viewer.lookAt(0, 0, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 0, 120, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR3_DowntownPresbyterianChurch')
         {
             setImage("Images/Downtown Presbyterian Church/Downtown Presbyterian Church_R3.JPG");
-            viewer.lookAt(0, 0, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 0, 120, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR4_DowntownPresbyterianChurch')
         {
             setImage("Images/Downtown Presbyterian Church/Downtown Presbyterian Church_R4.JPG");
-            viewer.lookAt(0, 0, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 0, 120, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR5_DowntownPresbyterianChurch')
         {
             setImage("Images/Downtown Presbyterian Church/Downtown Presbyterian Church_R5.JPG");
-            viewer.lookAt(0, 0, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 0, 120, { duration: 1000 });
+            }, 100);
         }
 
         document.getElementById("play").disabled = false;

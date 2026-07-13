@@ -17,6 +17,8 @@
     <script src="Javascript/CompileFirstBaptistChurchCapitolHill.js" type="text/javascript"></script>
     <script src="Javascript/CompileHolyTrinityEpiscopalChurch.js" type="text/javascript"></script>
     <script src="Javascript/CompileUnitedMethodistChurch.js" type="text/javascript"></script>
+    <script src="Javascript/CompileCaneRidgeMeetingHouse.js" type="text/javascript"></script>
+    <script src="Javascript/CompileFirstPresbyterianChurchKY.js" type="text/javascript"></script>
     <script src="Javascript/AudioEngine.js" type="text/javascript"></script>
     <script src="Javascript/SettingsMenu.js" type="text/javascript"></script>
 
@@ -28,6 +30,8 @@
     <link rel="stylesheet" href="Style/FirstBaptistChurchCapitolHillButtons.css">
     <link rel="stylesheet" href="Style/HolyTrinityEpiscopalChurchButtons.css">
     <link rel="stylesheet" href="Style/UnitedMethodistChurchButtons.css">
+    <link rel="stylesheet" href="Style/CaneRidgeMeetingHouseButtons.css">
+    <link rel="stylesheet" href="Style/FirstPresbyterianChurchKYButtons.css">
     <link rel="stylesheet" href="Style/Layout.css">
     <link rel="stylesheet" href="Style/Root.css">
     <link rel="stylesheet" href="Style/SettingsMenu.css">
@@ -62,6 +66,8 @@
                 <option value="FirstBaptistChurchCapitolHill">First Baptist Church Capitol Hill – Nashville, TN</option>
                 <option value="HolyTrinityEpiscopalChurch">Holy Trinity Episcopal Church – Nashville, TN</option>
                 <option value="UnitedMethodistChurch">Church Street United Methodist Church – Knoxville, TN</option>
+                <option value="CaneRidgeMeetingHouse">Cane Ridge Meeting House – Paris, KY</option>
+                <option value="FirstPresbyterianChurchKY">First Presbyterian Church – Lexington, KY</option>
             </select>
         </div>
 
@@ -154,6 +160,32 @@
                     <input type="button" id="rpR4_UnitedMethodistChurch" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_UnitedMethodistChurch')">
                 </div>
 
+                <div id="CaneRidgeMeetingHouseui" class="ui" style="display: none;">
+                    <input type="button" id="spS_CaneRidgeMeetingHouse" class="yellowsquare" value="S" onclick="updateSrcpos('spS_CaneRidgeMeetingHouse')">
+                    <input type="button" id="rpR1_CaneRidgeMeetingHouse" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_CaneRidgeMeetingHouse')">
+                    <input type="button" id="rpR2_CaneRidgeMeetingHouse" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_CaneRidgeMeetingHouse')">
+                    <input type="button" id="rpR3_CaneRidgeMeetingHouse" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_CaneRidgeMeetingHouse')">
+                    <input type="button" id="rpR4_CaneRidgeMeetingHouse" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_CaneRidgeMeetingHouse')">
+                    <input type="button" id="rpR5_CaneRidgeMeetingHouse" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_CaneRidgeMeetingHouse')">
+                    <input type="button" id="rpR6_CaneRidgeMeetingHouse" class="bluebutton" value="R6" onclick="updateRcvpos('rpR6_CaneRidgeMeetingHouse')">
+                    <input type="button" id="rpR7_CaneRidgeMeetingHouse" class="bluebutton" value="R7" onclick="updateRcvpos('rpR7_CaneRidgeMeetingHouse')">
+                    <input type="button" id="rpR8_CaneRidgeMeetingHouse" class="bluebutton" value="R8" onclick="updateRcvpos('rpR8_CaneRidgeMeetingHouse')">
+                    <input type="button" id="rpR9_CaneRidgeMeetingHouse" class="bluebutton" value="R9" onclick="updateRcvpos('rpR9_CaneRidgeMeetingHouse')">
+                </div>
+
+                <div id="FirstPresbyterianChurchKYui" class="ui" style="display: none;">
+                    <input type="button" id="spS_FirstPresbyterianChurchKY" class="yellowsquare" value="S" onclick="updateSrcpos('spS_FirstPresbyterianChurchKY')">
+                    <input type="button" id="rpR1_FirstPresbyterianChurchKY" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_FirstPresbyterianChurchKY')">
+                    <input type="button" id="rpR2_FirstPresbyterianChurchKY" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_FirstPresbyterianChurchKY')">
+                    <input type="button" id="rpR3_FirstPresbyterianChurchKY" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_FirstPresbyterianChurchKY')">
+                    <input type="button" id="rpR4_FirstPresbyterianChurchKY" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_FirstPresbyterianChurchKY')">
+                    <input type="button" id="rpR5_FirstPresbyterianChurchKY" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_FirstPresbyterianChurchKY')">
+                    <input type="button" id="rpR6_FirstPresbyterianChurchKY" class="bluebutton" value="R6" onclick="updateRcvpos('rpR6_FirstPresbyterianChurchKY')">
+                    <input type="button" id="rpR7_FirstPresbyterianChurchKY" class="bluebutton" value="R7" onclick="updateRcvpos('rpR7_FirstPresbyterianChurchKY')">
+                    <input type="button" id="rpR8_FirstPresbyterianChurchKY" class="bluebutton" value="R8" onclick="updateRcvpos('rpR8_FirstPresbyterianChurchKY')">
+                    <input type="button" id="rpR9_FirstPresbyterianChurchKY" class="bluebutton" value="R9" onclick="updateRcvpos('rpR9_FirstPresbyterianChurchKY')">
+                </div>
+
                 <div id="error">error: source-receiver combination not found</div>
 
                 <!-- Church Info Button (shown when a church is selected) -->
@@ -194,9 +226,10 @@
                 <p><a href="https://www.belmont.edu/profiles/doyuen-ko/" target="_blank" rel="noopener noreferrer">Dr. Doyuen Ko</a> (Audio Engineering Technology, Belmont University)</p>
                 <p><strong>Graduate Research Assistants</strong></p>
                 <ul>
-                    <li>Kritan Duwal</li>
-                    <li>Lee Smith</li>
-                    <li>Sihyeon Park</li>
+                    <li><a href="https://www.linkedin.com/in/kritan-duwal-187470192/" target="_blank" rel="noopener noreferrer">Kritan Duwal</a></li>
+                    <li><a href="https://www.linkedin.com/in/lee-smith-70a237290/" target="_blank" rel="noopener noreferrer">Lee Smith</a></li>
+                    <li><a href="https://www.linkedin.com/in/sihyeon-park-77763a3a8/" target="_blank" rel="noopener noreferrer">Sihyeon Park</a></li>
+                    <li><a href="https://www.linkedin.com/in/omar-urrutia-86339824a/" target="_blank" rel="noopener noreferrer">Omar Urrutia</a></li>
                 </ul>
             </div>
 
@@ -258,6 +291,16 @@
                         <h3>Downtown Presbyterian Church</h3>
                         <p class="church-meta">154 Rep. John Lewis Way N., Nashville, TN &bull; Est. 1814</p>
                         <p>Designed by William Strickland in the Egyptian Revival style and completed in 1851. Considered by many to be "the single most important Egyptian Revival building in the world." Designated a historic landmark in 1993.</p>
+                    </div>
+                    <div class="church-card">
+                        <h3>Cane Ridge Meeting House</h3>
+                        <p class="church-meta">1655 Cane Ridge Rd, Paris, KY &bull; Built 1791</p>
+                        <p>A log church built by Scots-Irish Presbyterians in Bourbon County. Site of the 1801 Cane Ridge Revival, the climax of the Second Great Awakening, drawing an estimated 20,000&ndash;30,000 people. A stone shrine was built over the structure in 1957 to preserve it.</p>
+                    </div>
+                    <div class="church-card">
+                        <h3>First Presbyterian Church</h3>
+                        <p class="church-meta">171 Market St, Lexington, KY &bull; Founded 1784</p>
+                        <p>The oldest congregation in continuous existence in Lexington. Pastor Robert J. Breckinridge, a noted anti-slavery voice, hosted Abraham Lincoln at a Thanksgiving service in 1847. The current Gothic Revival building was completed in 1872, designed by Cincinnatus Shryock.</p>
                     </div>
                 </div>
             </div>

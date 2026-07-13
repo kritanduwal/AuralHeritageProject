@@ -16,22 +16,30 @@ function compileSelectionUnitedMethodistChurch()
         if(rcvpos === 'rpR1_UnitedMethodistChurch')
         {
             setImage("Images/Church Street United Methodist Church, Knoxville/Church Street United Methodist Church_R1.JPG");
-            viewer.lookAt(0, 0, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 0, 120, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR2_UnitedMethodistChurch')
         {
             setImage("Images/Church Street United Methodist Church, Knoxville/Church Street United Methodist Church_R2.JPG");
-            viewer.lookAt(0, 0, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 0, 120, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR3_UnitedMethodistChurch')
         {
             setImage("Images/Church Street United Methodist Church, Knoxville/Church Street United Methodist Church_R3.JPG");
-            viewer.lookAt(0, 0, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 0, 120, { duration: 1000 });
+            }, 100);
         }
         else if(rcvpos === 'rpR4_UnitedMethodistChurch')
         {
             setImage("Images/Church Street United Methodist Church, Knoxville/Church Street United Methodist Church_R4.JPG");
-            viewer.lookAt(0, 0, 100);
+            setTimeout(() => {
+                viewer.lookAt(0, 0, 120, { duration: 1000 });
+            }, 100);
         }
 
         document.getElementById("play").disabled = false;
