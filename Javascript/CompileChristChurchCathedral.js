@@ -19,56 +19,56 @@ function compileSelectionChristChurchCathedral()
         {
             setImage("Images/Christ Church Cathedral/Christ Church Cathedral_R1.JPG");
             setTimeout(() => {
-                viewer.lookAt(0, 180, 100, { duration: 1000 });
+                viewer.lookAt(0, 180, 120, { duration: 1000 });
             }, 100);
         }
         else if(rcvpos === 'rpR2_ChristChurchCathedral')
         {
             setImage("Images/Christ Church Cathedral/Christ Church Cathedral_R2.JPG");
             setTimeout(() => {
-                viewer.lookAt(0, 180, 100, { duration: 1000 });
+                viewer.lookAt(0, 180, 120, { duration: 1000 });
             }, 100);
         }
         else if(rcvpos === 'rpR3_ChristChurchCathedral')
         {
             setImage("Images/Christ Church Cathedral/Christ Church Cathedral_R3.JPG");
             setTimeout(() => {
-                viewer.lookAt(0, 180, 100, { duration: 1000 });
+                viewer.lookAt(0, 180, 120, { duration: 1000 });
             }, 100);
         }
         else if(rcvpos === 'rpR4_ChristChurchCathedral')
         {
             setImage("Images/Christ Church Cathedral/Christ Church Cathedral_R4.JPG");
             setTimeout(() => {
-                viewer.lookAt(0, 210, 100, { duration: 1000 });
+                viewer.lookAt(0, 210, 120, { duration: 1000 });
             }, 100);
         }
         else if(rcvpos === 'rpR5_ChristChurchCathedral')
         {
             setImage("Images/Christ Church Cathedral/Christ Church Cathedral_R5.JPG");
             setTimeout(() => {
-                viewer.lookAt(0, 210, 100, { duration: 1000 });
+                viewer.lookAt(0, 210, 120, { duration: 1000 });
             }, 100);
         }
         else if(rcvpos === 'rpR6_ChristChurchCathedral')
         {
             setImage("Images/Christ Church Cathedral/Christ Church Cathedral_R6.JPG");
             setTimeout(() => {
-                viewer.lookAt(0, 150, 100, { duration: 1000 });
+                viewer.lookAt(0, 150, 120, { duration: 1000 });
             }, 100);
         }
         else if(rcvpos === 'rpR7_ChristChurchCathedral')
         {
             setImage("Images/Christ Church Cathedral/Christ Church Cathedral_R7.JPG");
             setTimeout(() => {
-                viewer.lookAt(0, 150, 100, { duration: 1000 });
+                viewer.lookAt(0, 150, 120, { duration: 1000 });
             }, 100);
         }
         else if(rcvpos === 'rpR8_ChristChurchCathedral')
         {
             setImage("Images/Christ Church Cathedral/Christ Church Cathedral_R8.JPG");
             setTimeout(() => {
-                viewer.lookAt(0, 180, 100, { duration: 1000 });
+                viewer.lookAt(0, 180, 120, { duration: 1000 });
             }, 100);
         }
 

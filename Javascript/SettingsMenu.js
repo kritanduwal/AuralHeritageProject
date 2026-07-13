@@ -22,6 +22,8 @@ function switchRoom(selectedRoom) {
         document.getElementById("FirstBaptistChurchCapitolHillui").style.display = "none";
         document.getElementById("HolyTrinityEpiscopalChurchui").style.display = "none";
         document.getElementById("UnitedMethodistChurchui").style.display = "none";
+        document.getElementById("CaneRidgeMeetingHouseui").style.display = "none";
+        document.getElementById("FirstPresbyterianChurchKYui").style.display = "none";
     }
 
     // Update room and related settings    
@@ -60,6 +62,18 @@ function switchRoom(selectedRoom) {
         srcpos = "spS_UnitedMethodistChurch";
         srctype = "st1_UnitedMethodistChurch";
         rcvpos = "rpR1_UnitedMethodistChurch";
+        setImage("Images/wp1909404.jpg");
+    } else if (room === "CaneRidgeMeetingHouse") {
+        document.getElementById("CaneRidgeMeetingHouseui").style.display = "flex";
+        srcpos = "spS_CaneRidgeMeetingHouse";
+        srctype = "st1_CaneRidgeMeetingHouse";
+        rcvpos = "rpR1_CaneRidgeMeetingHouse";
+        setImage("Images/wp1909404.jpg");
+    } else if (room === "FirstPresbyterianChurchKY") {
+        document.getElementById("FirstPresbyterianChurchKYui").style.display = "flex";
+        srcpos = "spS_FirstPresbyterianChurchKY";
+        srctype = "st1_FirstPresbyterianChurchKY";
+        rcvpos = "rpR1_FirstPresbyterianChurchKY";
         setImage("Images/wp1909404.jpg");
     }
 

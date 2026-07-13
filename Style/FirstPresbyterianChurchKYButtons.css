@@ -1,0 +1,71 @@
+/*
+    First Presbyterian Church, KY Buttons
+
+    description: Positioning for the First Presbyterian Church, KY room buttons
+    author: Kritan Duwal
+ */
+
+/* Source position */
+#spS_FirstPresbyterianChurchKY
+{
+    position: absolute;
+    top: 45px;
+    left: 151px;
+}
+
+/* Receiver positions */
+#rpR1_FirstPresbyterianChurchKY
+{
+    position: absolute;
+    top: 85px;
+    left: 151px;
+}
+#rpR2_FirstPresbyterianChurchKY
+{
+    position: absolute;
+    top: 136px;
+    left: 151px;
+}
+#rpR3_FirstPresbyterianChurchKY
+{
+    position: absolute;
+    top: 202px;
+    left: 151px;
+}
+#rpR4_FirstPresbyterianChurchKY
+{
+    position: absolute;
+    top: 85px;
+    left: 87px;
+}
+#rpR5_FirstPresbyterianChurchKY
+{
+    position: absolute;
+    top: 136px;
+    left: 87px;
+}
+#rpR6_FirstPresbyterianChurchKY
+{
+    position: absolute;
+    top: 202px;
+    left: 87px;
+}
+
+#rpR7_FirstPresbyterianChurchKY
+{
+    position: absolute;
+    top: 85px;
+    left: 217px;
+}
+#rpR8_FirstPresbyterianChurchKY
+{
+    position: absolute;
+    top: 136px;
+    left: 217px;
+}
+#rpR9_FirstPresbyterianChurchKY
+{
+    position: absolute;
+    top: 202px;
+    left: 217px;
+}

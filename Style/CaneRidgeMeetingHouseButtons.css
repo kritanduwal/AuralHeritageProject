@@ -1,0 +1,70 @@
+/*
+    Cane Ridge Meeting House Buttons
+
+    description: Positioning for the Cane Ridge Meeting House room buttons
+    author: Kritan Duwal
+ */
+
+/* Source position */
+#spS_CaneRidgeMeetingHouse
+{
+    position: absolute;
+    top: 85px;
+    left: 48px;
+}
+
+/* Receiver positions */
+#rpR1_CaneRidgeMeetingHouse
+{
+    position: absolute;
+    top: 85px;
+    left: 87px;
+}
+#rpR2_CaneRidgeMeetingHouse
+{
+    position: absolute;
+    top: 85px;
+    left: 111px;
+}
+#rpR3_CaneRidgeMeetingHouse
+{
+    position: absolute;
+    top: 30px;
+    left: 76px;
+}
+#rpR4_CaneRidgeMeetingHouse
+{
+    position: absolute;
+    top: 6px;
+    left: 76px;
+}
+#rpR5_CaneRidgeMeetingHouse
+{
+    position: absolute;
+    top: 145px;
+    left: 76px;
+}
+#rpR6_CaneRidgeMeetingHouse
+{
+    position: absolute;
+    top: 213px;
+    left: 76px;
+}
+#rpR7_CaneRidgeMeetingHouse
+{
+    position: absolute;
+    top: 135px;
+    left: 182px;
+}
+#rpR8_CaneRidgeMeetingHouse
+{
+    position: absolute;
+    top: 88px;
+    left: 214px;
+}
+#rpR9_CaneRidgeMeetingHouse
+{
+    position: absolute;
+    top: 36px;
+    left: 184px;
+}
