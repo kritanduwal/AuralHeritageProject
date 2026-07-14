@@ -112,7 +112,115 @@ async function playStereoFormat() {
         source.start();
         isPlaying = true;
         updatePlayButton();
+
+        //downloadConvolvedAudio(); // Uncomment to download the convolved output for testing
     }
+}
+
+/**
+ * Renders the convolved (wet+dry mixed) output offline and downloads it as a WAV file.
+ * Mirrors the live graph built in playStereoFormat() but through an OfflineAudioContext
+ * so it can be rendered without playback. Useful for testing the convolution result.
+ */
+async function downloadConvolvedAudio() {
+    if (!sourceBuffer || !stereoLBuffer || !stereoRBuffer) {
+        console.warn('downloadConvolvedAudio: source or impulse responses not loaded yet.');
+        return;
+    }
+
+    const offlineCtx = new OfflineAudioContext(2, sourceBuffer.length, ctx.sampleRate);
+
+    const offlineSource = offlineCtx.createBufferSource();
+    offlineSource.buffer = sourceBuffer;
+
+    const convolverL = offlineCtx.createConvolver();
+    convolverL.buffer = stereoLBuffer;
+    const convolverR = offlineCtx.createConvolver();
+    convolverR.buffer = stereoRBuffer;
+
+    const splitter = offlineCtx.createChannelSplitter(1);
+    const merger = offlineCtx.createChannelMerger(2);
+
+    const dryGain = offlineCtx.createGain();
+    const wetGainLeft = offlineCtx.createGain();
+    const wetGainRight = offlineCtx.createGain();
+    dryGain.gain.value = Math.min(1.0, Math.pow(0.35, (10 * convolutionMix - 1) / 9));
+    wetGainLeft.gain.value = convolutionMix;
+    wetGainRight.gain.value = convolutionMix;
+
+    offlineSource.connect(splitter);
+    offlineSource.connect(dryGain);
+    splitter.connect(convolverL, 0);
+    splitter.connect(convolverR, 0);
+    convolverL.connect(wetGainLeft);
+    convolverR.connect(wetGainRight);
+    wetGainLeft.connect(merger, 0, 0);
+    wetGainRight.connect(merger, 0, 1);
+    dryGain.connect(merger, 0, 0);
+    dryGain.connect(merger, 0, 1);
+    merger.connect(offlineCtx.destination);
+
+    offlineSource.start();
+    const renderedBuffer = await offlineCtx.startRendering();
+
+    const wavBlob = audioBufferToWav(renderedBuffer);
+    const url = URL.createObjectURL(wavBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'convolved-output.wav';
+    link.click();
+    URL.revokeObjectURL(url);
+}
+
+/**
+ * Encodes an AudioBuffer into a 16-bit PCM WAV file Blob
+ */
+function audioBufferToWav(buffer) {
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const numFrames = buffer.length;
+    const bytesPerSample = 2;
+    const blockAlign = numChannels * bytesPerSample;
+    const dataSize = numFrames * blockAlign;
+
+    const arrayBuffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(arrayBuffer);
+
+    const writeString = (offset, str) => {
+        for (let i = 0; i < str.length; i++) {
+            view.setUint8(offset + i, str.charCodeAt(i));
+        }
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bytesPerSample * 8, true);
+    writeString(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    const channels = [];
+    for (let ch = 0; ch < numChannels; ch++) {
+        channels.push(buffer.getChannelData(ch));
+    }
+
+    let offset = 44;
+    for (let i = 0; i < numFrames; i++) {
+        for (let ch = 0; ch < numChannels; ch++) {
+            const sample = Math.max(-1, Math.min(1, channels[ch][i]));
+            view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+            offset += 2;
+        }
+    }
+
+    return new Blob([arrayBuffer], { type: 'audio/wav' });
 }
 
 //file loading
