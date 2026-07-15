@@ -25,7 +25,7 @@ input, button, select, textarea {
 #appbar {
     background: linear-gradient(135deg, #001540 0%, #00205b 50%, #1a4a9e 100%);
     color: var(--text-color-white);
-    padding: 14px 32px;
+    padding: 14px 5%;
     font-size: var(--font-size);
     box-shadow: var(--card-shadow);
     position: relative;
@@ -64,7 +64,7 @@ input, button, select, textarea {
     display: flex;
     background-color: var(--maincolor);
     border-bottom: 2px solid #e0e0e0;
-    padding: 0 24px;
+    padding: 0 5%;
     flex-shrink: 0;
     z-index: 2;
 }
