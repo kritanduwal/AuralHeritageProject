@@ -34,6 +34,32 @@ function setConvolutionMix(mix) {
 }
 
 /**
+ * Determines the pre-convolution gain reduction (in dB) to apply to the IRs
+ * for the current room/receiver position combination.
+ * First Presbyterian Church, KY: R2/R5/R8 get -3dB, R3/R6/R9 get -6dB, R1/R4/R7 are unchanged.
+ */
+function getIrGainReductionDb() {
+    if (room !== "FirstPresbyterianChurchKY") return 0;
+
+    if (/^rpR(2|5|8)_/.test(rcvpos)) return 3;
+    if (/^rpR(3|6|9)_/.test(rcvpos)) return 6;
+    return 0;
+}
+
+/**
+ * Scales every sample of an AudioBuffer in place by the linear gain
+ * equivalent to the given dB reduction.
+ */
+function applyGainReductionToBuffer(buffer, reductionDb) {
+    if (!reductionDb) return;
+    const gain = Math.pow(10, -reductionDb / 20);
+    const data = buffer.getChannelData(0); // IR files are mono
+    for (let i = 0; i < data.length; i++) {
+        data[i] *= gain;
+    }
+}
+
+/**
  * Initializes Stereo format convolution
  */
 async function initStereoConvolution(irLeftUrl, irRightUrl)
@@ -41,6 +67,11 @@ async function initStereoConvolution(irLeftUrl, irRightUrl)
     // Load IRs
     stereoLBuffer = await loadAudioBuffer(ctx, irLeftUrl);
     stereoRBuffer = await loadAudioBuffer(ctx, irRightUrl);
+
+    // Apply per-position gain reduction to the IRs before convolution
+    const reductionDb = getIrGainReductionDb();
+    applyGainReductionToBuffer(stereoLBuffer, reductionDb);
+    applyGainReductionToBuffer(stereoRBuffer, reductionDb);
 }
 
 // Utility to load audio buffer from a URL
