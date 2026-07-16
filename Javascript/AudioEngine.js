@@ -41,8 +41,8 @@ function setConvolutionMix(mix) {
 function getIrGainReductionDb() {
     if (room !== "FirstPresbyterianChurchKY") return 0;
 
-    if (/^rpR(2|5|8)_/.test(rcvpos)) return 3;
-    if (/^rpR(3|6|9)_/.test(rcvpos)) return 6;
+    if (/^rpR(2|5|8)_/.test(rcvpos)) return 6;
+    if (/^rpR(3|6|9)_/.test(rcvpos)) return 12;
     return 0;
 }
 
