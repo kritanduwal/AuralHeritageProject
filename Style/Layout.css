@@ -271,26 +271,27 @@ input, button, select, textarea {
     color: #555;
     margin: 0;
     line-height: 1.5;
-    text-align: justify;
+    text-align: left;
 }
 
-/* ── Church Info Button (in view, top-left, below Pannellum controls) ── */
+/* ── Church Info Button (in view, top-left, beside Pannellum controls) ── */
 #church-info-btn {
     position: absolute;
-    top: 5px;
-    left: 35px;
+    top: 4px;
+    left: 42px;
     z-index: 2;
     background-color: rgba(0, 32, 91, 0.85);
     color: #fff;
     border: none;
-    border-radius: 24px;
-    padding: 12px 22px;
+    border-radius: 14px;
+    height: 28px;
+    padding: 0 16px;
     font-size: 16px;
     font-weight: 500;
     cursor: pointer;
     display: none;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     box-shadow: var(--card-shadow);
     transition: background-color 0.2s;
     backdrop-filter: blur(4px);
@@ -301,7 +302,7 @@ input, button, select, textarea {
 }
 
 #church-info-btn .material-icons {
-    font-size: 22px;
+    font-size: 20px;
     color: #fff;
 }
 
