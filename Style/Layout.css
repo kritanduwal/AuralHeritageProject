@@ -74,7 +74,7 @@ input, button, select, textarea {
     border: none;
     padding: 12px 24px;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 700;
     color: #666;
     cursor: pointer;
     border-bottom: 3px solid transparent;
@@ -94,14 +94,14 @@ input, button, select, textarea {
 /* ── Footer ── */
 #site-footer {
     flex-shrink: 0;
-    padding: 6px 5% 10px;
+    padding: 0 5% 10px;
     text-align: center;
     background-color: #f5f5f5;
 }
 
 #site-footer p {
     margin: 2px 0;
-    font-size: 11px;
+    font-size: 13px;
     line-height: 1.5;
     color: #777;
 }
@@ -110,7 +110,7 @@ input, button, select, textarea {
 #content-area {
     flex: 1;
     min-height: 0;
-    margin: 10px 5% 16px;
+    margin: 10px 5% 6px;
     border-radius: 4px;
     overflow: hidden;
     box-shadow: var(--card-shadow);
@@ -684,8 +684,8 @@ input, button, select, textarea {
 }
 
 #StAugustineIsletaui {
-    width: 236px;
-    height: 375px;
+    width: 203px;
+    height: 322px;
     background-image: url("../Images/St Augustine Isleta, NM/St Augustine Diagram.png");
-    background-size: 236px 375px;
+    background-size: 203px 322px;
 }

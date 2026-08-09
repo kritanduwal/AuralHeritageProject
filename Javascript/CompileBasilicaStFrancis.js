@@ -26,21 +26,21 @@ function compileSelectionBasilicaStFrancis()
         {
             setImage("Images/Basilica St. Francis, IN/St Francis_IN_R1.JPG");
             setTimeout(() => {
-                viewer.lookAt(0, 0, 120, { duration: 1000 });
+                viewer.lookAt(0, 1, 120, { duration: 1000 });
             }, 100);
         }
         else if(rcvpos === 'rpR2_BasilicaStFrancis')
         {
             setImage("Images/Basilica St. Francis, IN/St Francis_IN_R2.JPG");
             setTimeout(() => {
-                viewer.lookAt(0, 0, 120, { duration: 1000 });
+                viewer.lookAt(-2, 4, 120, { duration: 1000 });
             }, 100);
         }
         else if(rcvpos === 'rpR3_BasilicaStFrancis')
         {
             setImage("Images/Basilica St. Francis, IN/St Francis_IN_R3.JPG");
             setTimeout(() => {
-                viewer.lookAt(0, 0, 120, { duration: 1000 });
+                viewer.lookAt(-2, 3, 120, { duration: 1000 });
             }, 100);
         }
         else if(rcvpos === 'rpR4_BasilicaStFrancis')

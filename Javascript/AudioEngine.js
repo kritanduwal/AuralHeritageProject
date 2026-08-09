@@ -60,16 +60,31 @@ function setConvolutionMix(mix) {
 }
 
 /**
+ * Pre-convolution gain reduction (in dB) applied to the IRs, per room and
+ * receiver position. Receivers left out of a room's entry, and rooms left out
+ * entirely, are played back unchanged.
+ */
+const IR_GAIN_REDUCTION_DB = {
+    FirstPresbyterianChurchKY:     { R2: 1.5, R5: 1.5, R8: 1.5, R3: 3, R6: 3, R9: 3 },
+    CaneRidgeMeetingHouse:         { R7: 1.5, R8: 1.5, R9: 1.5, R5: 3, R6: 3},
+    BasilicaStFrancis:             { R4: 1, R5: 1, R2: 1.5, R6: 2.5, R7: 2.5, R3: 3, R8: 4.5 },
+    MonasteryImmaculateConception: { R2: 1.5, R5: 1.5, R6: 1.5, R3: 3, R4: 4.5 },
+    StAugustineIsleta:             { R2: 1.5, R3: 3, R4: 4.5, R5: 6 },
+    OurLadyOfGuadalupe:            { R2: 1.5, R3: 3, R4: 4.5 }
+};
+
+/**
  * Determines the pre-convolution gain reduction (in dB) to apply to the IRs
  * for the current room/receiver position combination.
- * First Presbyterian Church, KY: R2/R5/R8 get -1.5dB, R3/R6/R9 get -3dB, R1/R4/R7 are unchanged.
  */
 function getIrGainReductionDb() {
-    if (room !== "FirstPresbyterianChurchKY") return 0;
+    const roomReductions = IR_GAIN_REDUCTION_DB[room];
+    if (!roomReductions) return 0;
 
-    if (/^rpR(2|5|8)_/.test(rcvpos)) return 1.5;
-    if (/^rpR(3|6|9)_/.test(rcvpos)) return 3;
-    return 0;
+    const receiver = /^rp(R\d+)_/.exec(rcvpos);
+    if (!receiver) return 0;
+
+    return roomReductions[receiver[1]] || 0;
 }
 
 /**
