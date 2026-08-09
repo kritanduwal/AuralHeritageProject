@@ -639,3 +639,17 @@ input, button, select, textarea {
     background-image: url("../Images/Monastery Immaculate Conception, IN/MIC Diagram.png");
     background-size: 239px 383px;
 }
+
+#OurLadyOfGuadalupeui {
+    width: 259px;
+    height: 287px;
+    background-image: url("../Images/Our Lady of Guadalupe, NM/Guadalupe_SantaFe Diagram.png");
+    background-size: 259px 287px;
+}
+
+#StAugustineIsletaui {
+    width: 236px;
+    height: 375px;
+    background-image: url("../Images/St Augustine Isleta, NM/St Augustine Diagram.png");
+    background-size: 236px 375px;
+}

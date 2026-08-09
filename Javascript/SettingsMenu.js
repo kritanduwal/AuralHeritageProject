@@ -26,6 +26,8 @@ function switchRoom(selectedRoom) {
         document.getElementById("FirstPresbyterianChurchKYui").style.display = "none";
         document.getElementById("BasilicaStFrancisui").style.display = "none";
         document.getElementById("MonasteryImmaculateConceptionui").style.display = "none";
+        document.getElementById("OurLadyOfGuadalupeui").style.display = "none";
+        document.getElementById("StAugustineIsletaui").style.display = "none";
     }
 
     // Update room and related settings    
@@ -88,6 +90,18 @@ function switchRoom(selectedRoom) {
         srcpos = "spS_MonasteryImmaculateConception";
         srctype = "st1_MonasteryImmaculateConception";
         rcvpos = "rpR1_MonasteryImmaculateConception";
+        setImage("Images/wp1909404.jpg");
+    } else if (room === "OurLadyOfGuadalupe") {
+        document.getElementById("OurLadyOfGuadalupeui").style.display = "flex";
+        srcpos = "spS_OurLadyOfGuadalupe";
+        srctype = "st1_OurLadyOfGuadalupe";
+        rcvpos = "rpR1_OurLadyOfGuadalupe";
+        setImage("Images/wp1909404.jpg");
+    } else if (room === "StAugustineIsleta") {
+        document.getElementById("StAugustineIsletaui").style.display = "flex";
+        srcpos = "spS_StAugustineIsleta";
+        srctype = "st1_StAugustineIsleta";
+        rcvpos = "rpR1_StAugustineIsleta";
         setImage("Images/wp1909404.jpg");
     }
 
