@@ -24,6 +24,8 @@ function switchRoom(selectedRoom) {
         document.getElementById("UnitedMethodistChurchui").style.display = "none";
         document.getElementById("CaneRidgeMeetingHouseui").style.display = "none";
         document.getElementById("FirstPresbyterianChurchKYui").style.display = "none";
+        document.getElementById("BasilicaStFrancisui").style.display = "none";
+        document.getElementById("MonasteryImmaculateConceptionui").style.display = "none";
     }
 
     // Update room and related settings    
@@ -74,6 +76,18 @@ function switchRoom(selectedRoom) {
         srcpos = "spS_FirstPresbyterianChurchKY";
         srctype = "st1_FirstPresbyterianChurchKY";
         rcvpos = "rpR1_FirstPresbyterianChurchKY";
+        setImage("Images/wp1909404.jpg");
+    } else if (room === "BasilicaStFrancis") {
+        document.getElementById("BasilicaStFrancisui").style.display = "flex";
+        srcpos = "spS_BasilicaStFrancis";
+        srctype = "st1_BasilicaStFrancis";
+        rcvpos = "rpR1_BasilicaStFrancis";
+        setImage("Images/wp1909404.jpg");
+    } else if (room === "MonasteryImmaculateConception") {
+        document.getElementById("MonasteryImmaculateConceptionui").style.display = "flex";
+        srcpos = "spS_MonasteryImmaculateConception";
+        srctype = "st1_MonasteryImmaculateConception";
+        rcvpos = "rpR1_MonasteryImmaculateConception";
         setImage("Images/wp1909404.jpg");
     }
 

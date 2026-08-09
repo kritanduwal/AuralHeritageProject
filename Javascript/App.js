@@ -8,7 +8,7 @@ const churchData = {
     BridgeCommunityChurch: {
         name: "Bridge Community Church",
         address: "4916 Franklin Pike, Nashville, TN 37220",
-        measured: "June 13, 2025, 10:30 AM – 1:30 PM",
+        measured: "June 13, 2025",
         history: [
             "Bridge Community Church is a Korean immigrant church located on Franklin Pike in Nashville, Tennessee. The church is affiliated with both the Southern Baptist Convention and the Korean Baptist Convention of America. The church's mission statement focuses on community, family, and connection.",
             "The church building itself has a very unique history. It was originally a house owned by country singer Hank Williams. Williams' family lived in the house until 1975, when his widow Audrey passed away. Originally a simple house when purchased by the Williams family in 1949, the building was enlarged by Mrs. Williams and served as a showplace home for Hank Williams, Jr. Many of the planned renovations were not completed by the time of Mrs. Williams' passing in 1975 and ownership of the house became contested. The house sat unused for some time until WJRB radio owner Mac Sanders stumbled upon it. Sanders spent nearly a year negotiating and finally purchased the house in 1978 with the goal of restoring and preserving it. The house was subsequently purchased by the Baptist church and is currently being rented to Bridge Community Church. This church is a unique piece of the fabric of Nashville's history."
@@ -19,7 +19,7 @@ const churchData = {
     ChristChurchCathedral: {
         name: "Christ Church Cathedral",
         address: "900 Broadway, Nashville, TN 37203",
-        measured: "June 12, 2025, 10:30 AM – 1:30 PM",
+        measured: "June 12, 2025",
         history: [
             "Christ Church Cathedral is an Episcopal church located on Broadway in downtown Nashville, Tennessee. The church's first Vestry was elected in June 1829 and the original cornerstone was laid approximately a year later. The church was consecrated on July 6, 1831, officially making it the first Episcopal church in Tennessee. The congregation grew over the next several years, expanding to 72 members by 1837.",
             "The church continued to thrive even during difficult times. Christ Church was one of the few churches that managed to avoid occupation during the Civil War, as the lighting made it an impractical place to house troops. This made it so that Christ Church was the only regularly operating church at certain times during the war; baptisms, confirmations, burials, and weddings still took place at the cathedral.",
@@ -32,7 +32,7 @@ const churchData = {
     DowntownPresbyterianChurch: {
         name: "Downtown Presbyterian Church",
         address: "154 Rep. John Lewis Way N., Nashville, TN 37219",
-        measured: "July 11, 2025, 10:30 AM – 1:00 PM",
+        measured: "July 11, 2025",
         history: [
             "Downtown Presbyterian Church is a presbyterian church located on Rep. John Lewis Way North in downtown Nashville, Tennessee. The First Presbyterian Church of Nashville was constructed in 1814 at the corner of what is now Church Street and Rep. John Lewis Way North and later destroyed in a fire in 1832. A second structure was built in the same location and met a similar fate in 1848. Following the second fire, the local presbyterian community hired William Strickland, the architect who designed the Tennessee state capitol building, to submit a design for a replacement.",
             "The new church was built in the Egyptian Revival style, which was seeing a renewed surge in popularity following Napoleon's Egyptian campaign in the late 1700s. Funding issues delayed Strickland and construction of his elaborate design was not completed until 1851. The finished product did not quite match Strickland's original vision; the interior decorations ended up being rather modest. During the Civil War, Downtown Presbyterian was seized by the government and converted into a hospital. After the war, the congregation resumed work on both the interior and exterior of the church. In the 1880s, German painters Theo Knoch and John Schleicher were hired to renovate the inside of the church. Among their contributions were two floor-to-ceiling paintings of the Temple of Karnak, intricate stenciled walls, and a coffered ceiling. Other parts of the church underwent improvements over the next several decades; for example, the pipe organ was enlarged in 1914. Downtown Presbyterian continued to serve as a haven during times of strife, being used as a shelter for flood victims in 1927 and 1937 as well as a place for soldiers on leave in Nashville during World War II. In 1954, the original congregation considered leaving Nashville and reestablishing their church elsewhere. After much discussion, it was determined that the members who did not want to leave the original location would take over ownership of the church. In 1955, after this schism, the Downtown Presbyterian Church as it is known today was formed.",
@@ -44,7 +44,7 @@ const churchData = {
     FirstBaptistChurchCapitolHill: {
         name: "First Baptist Church Capitol Hill",
         address: "625 Rosa L. Parks Blvd., Nashville, TN 37203",
-        measured: "June 10, 2025, 9:00 AM – 12:00 PM",
+        measured: "June 10, 2025",
         history: [
             "First Baptist Church, Capitol Hill is a Baptist church located on Rosa L. Parks Boulevard in downtown Nashville, Tennessee. It is a historic predominantly African American church with strong ties to the Civil Rights Movement in Tennessee. The First Baptist Church, Nashville first began accepting Black members in 1843, including enslaved people. In October of 1847, the First Baptist Church's African American congregation established the First Colored Baptist Mission. The next year, the congregation began holding their own separate services. This faction of the church became known as the First Colored Baptist Mission.",
             "During the Civil War, the Union Army occupied the city and impacted the operations of many local churches. The First Baptist Church was confiscated by the army and its pastor was arrested, but the mission continued operating. The mission petitioned for independence from the First Baptist Church in March of 1865; this request was granted and the deed to the First Baptist Church was given to the mission on August 13, 1865. The General Assembly granted a charter to what was then known as the First Colored Baptist Church of Nashville on May 26, 1866. At this time, the church's congregation consisted of 780 members. The church also served the greater Baptist community outside of its congregation by hosting founding meetings for the first national Baptist Conventions. The First Colored Baptist Church purchased a plot of land on which to construct a new church on August 6, 1872, and started using the new building in 1873. By 1884, the church had approximately 2,800 members. Internal issues caused the congregation to split in 1887; this division led to the formation of the Mount Olive Baptist Church. The church was destroyed in a fire in 1893, and the internal struggles continued during this time of turmoil, but the church was able to rebuild.",
@@ -56,7 +56,7 @@ const churchData = {
     HolyTrinityEpiscopalChurch: {
         name: "Church of the Holy Trinity",
         address: "615 6th Avenue S., Nashville, TN 37203",
-        measured: "June 11, 2025, 9:00 AM – 12:00 PM",
+        measured: "June 11, 2025",
         history: [
             "The Church of the Holy Trinity is an episcopal church located on 6th Avenue South in downtown Nashville, Tennessee. The church was established in 1849 when Rector Charles S. Tomes of Christ Church Episcopal left his former church to create a \"free Church\" that would not rely on taxes for financial support. Originally called St. Paul's Mission, the church was located in what was then known as South Nashville, a town that was considered completely separate from Nashville proper.",
             "The cornerstone of the current building was placed on May 7, 1852, by Bishop James Hervey Otey. The building itself was designed by New York-based architectural firm Dudley and Wills in the style of an English Parish Church. The design is Gothic and contains many features that are typical of the firm's style, including native stone and open-hammered ceiling beams. Further additions were made over the years, including a stone baptismal font gifted to the church in 1860 and a tower containing a bell constructed in 1861.",
@@ -68,7 +68,7 @@ const churchData = {
     UnitedMethodistChurch: {
         name: "Church Street United Methodist Church",
         address: "900 Henley Street, Knoxville, TN 37902",
-        measured: "June 27, 2025, 2:00 PM – 5:00 PM",
+        measured: "June 27, 2025",
         history: [
             "Church Street United Methodist Church is a Methodist church located on Henley Street in downtown Knoxville, Tennessee. The first Knoxville Methodist Church was initially constructed in 1816 in a different location on what is now E. Hill Avenue. In 1844, the Methodist Episcopal Church split into North and South locations; the congregation belonged to the South location. Like many cities in the southeast, Knoxville was occupied by Confederate forces during the Civil War. In 1861, both Methodist Episcopal Churches were used as medical and housing facilities for Confederate troops. Despite the occupation, the South church continued to operate. The church was then confiscated by Union forces in 1863 and used as a hospital. Methodist Episcopal Church, South reestablished itself in 1866, regaining the property seven years after the Civil War ended.",
             "A Victorian Gothic church was constructed on the same property in 1878 but unfortunately burned down in 1928. Afterwards, the congregation held a vote and agreed to construct a new building on a larger property on Henley Street. Architects Charles I. Barber and John Russell Pope were hired to design the church in the Gothic Revival style. The congregation pushed through financial difficulties in 1929, and the church was completed in 1931. The first service was held on January 25 of that year, attended by 1,000 worshipers. The Methodist Episcopal Church and the Methodist Protestant Church united in 1939 to form the Methodist Church. The current denomination came to be when the Evangelical United Brethren Church merged in 1968. Over the next several decades, Church Street United Methodist continued to influence the Knoxville community by establishing new churches and other Methodist organizations. The church celebrated its bicentennial in 2016.",
@@ -80,7 +80,7 @@ const churchData = {
     CaneRidgeMeetingHouse: {
         name: "Cane Ridge Meeting House",
         address: "1655 Cane Ridge Rd, Paris, KY 40361",
-        measured: "June 11, 2026, 9:30 AM – 11:30 AM",
+        measured: "June 11, 2026",
         history: [
             "Cane Ridge Meeting House is a log church located on Cane Ridge Road in Bourbon County, Kentucky. The building was constructed in 1791 by a group of Scots-Irish Presbyterians from North Carolina. The settlers used a collection of local woods, using blue ash logs for walls, and oak and chestnut trees for beams and roof supports. The original floor was made of dirt, there were no windows, and the congregation sat on puncheon benches. By 1798, a puncheon log floor was laid on top of the dirt, windows were cut in the walls, and chinking was put between the logs. African American slaves sat in the gallery on the second floor, which could only be accessed via ladders outside of the church. Around 1795, the congregation's anti-slavery movement was led by minister Robert W. Finley. Presbyterian minister Barton Warren Stone, Cane Ridge's most famous preacher, arrived in 1796. Two years later, he was ordained in the Meeting House.",
             "The Second Great Awakening in the early 19th century was a series of revivals in the American Christian Faith. The week of August 6th, 1801, Cane Ridge hosted its own revival, bringing Christians from near and far. Baptist and Methodist preachers joined the Presbyterian ministers in proclaiming the word of God. Approximately 20,000 to 30,000 people were in attendance. 3,000 to 4,000 of those found new faith, and the event marked the climax of the Western Great Revival.",
@@ -93,7 +93,7 @@ const churchData = {
     FirstPresbyterianChurchKY: {
         name: "First Presbyterian Church",
         address: "171 Market St, Lexington, KY 40507",
-        measured: "June 10, 2026, 2:00 PM – 4:00 PM",
+        measured: "June 10, 2026",
         history: [
             "First Presbyterian Church is a presbyterian church located on 171 Market Street in downtown Lexington, Kentucky. Founded in 1784, First Presbyterian Church is the oldest congregation in continuous existence in Lexington. The church's first structure, originally known as \"Mount Zion Church,\" was likely a log cabin established at the current site of the University of Kentucky's Scovell Hall. In 1790, the second structure was erected: a frame building on North Mill Street about 100 feet north of Main Street. Nine years later, the gallery and a cupola with a bell were added. The church trustees determined that the building was too close to the town's business center, and was torn down on September 2nd, 1807.",
             "The same year, a brick building was constructed on the southwest corner of Second and Broadway. The two-storied building measured 80 x 50 feet. It featured a steeple and spire that reached 104 feet from ground level. The new location included a parking lot and sheds to shelter carriages and horses during services, as well as a session house. On Thanksgiving Day of 1847, Abraham Lincoln and his family listened to a sermon delivered by Robert Jefferson Breckinridge, the church's pastor. Breckinridge was widely known for his anti-slavery writings and played a role in preventing Kentucky from seceding from the union. He described slavery as \"an ulcer eating its way into the very heart of the state.\" Lincoln continued to attend Breckinridge's services and the two became friends. In 1857, the building was torn down due to repairs, and a new structure dedicated to Breckinridge was erected on the same site.",
@@ -103,6 +103,33 @@ const churchData = {
         ],
         dimensions: { "Width": "50.69 ft", "Length": "80.84 ft", "Height (Floor to Ceiling)": "30.05 ft", "Height (Stage to Ceiling)": "28.02 ft", "Height (Floor to Balcony)": "13.25 ft", "Stage Width": "22.90 ft", "Mic Array Height": "6.40 ft", "Speaker Height": "3.94 ft" },
         receivers: { "R1": "17.40 ft", "R2": "29.88 ft", "R3": "47.09 ft", "R4": "20.65 ft", "R5": "31.58 ft", "R6": "47.82 ft", "R7": "23.26 ft", "R8": "33.11 ft", "R9": "48.40 ft" }
+    },
+    BasilicaStFrancis: {
+        name: "Basilica of St. Francis Xavier Proto-Cathedral",
+        address: "205 Church St, Vincennes, IN 47591",
+        measured: "July 21, 2026",
+        history: [
+            "Basilica of St. Francis Xavier Proto-Cathedral is a Catholic church located on Church Street in Vincennes, Indiana. Known as \"Indiana's Oldest Church,\" the parish of St. Francis Xavier is the oldest congregation in Indiana. In the early 1730s, French officer Sieur de Vincennes established a fort on the banks of the Wabash River. A settlement of French Canadian fur traders and Piankeshaw Indians grew up around the fort, and the first church was built around 1734. It was a small log church consisting of upright posts, with mud daubing and a bark roof. In 1763, the settlement came under British control and the Jesuits were expelled. The parish, however, grew from 400 to 700 people.",
+            "The second log church was constructed in 1770. On July 20, 1778, Father Pierre Gibault, popular amongst the people of Vincennes, persuaded the citizens to sign an oath of allegiance to the United States and turn over the fort. In 1784, Father Gibault became the church's first resident priest in over two decades. In 1786, a third church, 22 feet wide by 66 feet long and bell tower, was built. Gibault's successor, Father Benedict Joseph Flaget (1792) became known as the \"Father of Parochial Education in Indiana\" for setting up a school in the old church. Flaget's successor, Father John Francis Rivet (1795) became \"Indiana's First Public School Teacher\" for setting up Jefferson Academy, the town's first public school.",
+            "The current St. Francis Xavier Church was erected on March 30, 1826, by Father John Leo Champomier. The church is 60 feet wide by 115 feet long, and features inside-pillars made of giant yellow poplar trees. The church's plans were copied from the Basilica of St. Joseph Proto-Cathedral in Bardstown, Kentucky. The church walls are marked with paintings from Wilhelm Lamprecht of Munich, Germany. Some of these include murals of the Crucifixion, St. Francis Xavier, and the Madonna and Child with Saints Simon, Celestine, Stephen, and Maurice. The stations of the cross were painted in Paris by Bouasse Lebel, and the stained glass windows were made by the Von Gerichten Art Glass Company of Columbus, Ohio.",
+            "In 1834, St. Francis Xavier was named the cathedral of the new Diocese of Vincennes by Pope Gregory XVI. A bell tower was added in the early 1840s, and the sanctuary was raised to accommodate a crypt. The crypt contains the remains of the four bishops of Vincennes: Simon Bruté, Celestine de la Hailandière, John Stephen Bazin, and Maurice de St. Palais. In 1840, the Old Cathedral Library was built to house early church records and Bishop Bruté's personal library, comprising over five thousand books.",
+            "Throughout the 20th century, St. Francis Xavier received significant recognition. In 1968, the Lilly Foundation gave a grant to Monsignor Leo Conti to build a new library. Two years later, Pope Paul VI elevated the Old Cathedral to Minor Basilica, a status reserved for the most historic of churches."
+        ],
+        dimensions: { "Width": "57.22 ft", "Length": "108.97 ft", "Height (Floor to Ceiling)": "37.34 ft", "Height (Stage to Ceiling)": "33.39 ft", "Height (Floor to Balcony)": "12.64 ft", "Stage Height": "3.95 ft", "Balcony to Width Edge": "13.00 ft", "Balcony to Back Wall": "32.14 ft", "Mic Array Height": "6.20 ft", "Speaker Height": "3.94 ft" },
+        receivers: { "R1": "13.77 ft", "R2": "32.55 ft", "R3": "44.78 ft", "R4": "30.21 ft", "R5": "30.04 ft", "R6": "45.78 ft", "R7": "45.93 ft", "R8": "50.46 ft" }
+    },
+    MonasteryImmaculateConception: {
+        name: "Monastery Immaculate Conception",
+        address: "802 E 10th St, Ferdinand, IN 47532",
+        measured: "July 20, 2026",
+        history: [
+            "Monastery Immaculate Conception is a Catholic monastery, listed on the National Register of Historic Places, located on East 10th Street in Ferdinand, Indiana. Known as the \"Castle on the Hill,\" the church features Italian marble floors, German hand-carved woodwork, an 87-foot-high dome, and a collection of 89 angels in the interior. The monastery grounds include the Lourdes Shrine, Outdoor Stations of the Cross, Rosary Steps, Statue of Our Lady of Fatima, and Statue of Our Lady of Guadalupe.",
+            "The Ferdinand Benedictines, founded in 1867 by Sisters Benedicta Berns, Xaveria Schroder, Rose Chapelle, and Clara Vollmer, are the second largest community of Benedictine sisters in the United States. The Catholic settlement of Ferdinand needed teachers who could speak German, and thus the four sisters from St. Walburg began teaching at the Ferdinand parish school. In 1871, the community became independent of St. Walburg Monastery. Sister Berns was elected first prioress, and in 1886, the sisters moved to the quadrangle, a traditional monastic structure northeast of St. Ferdinand Parish. Over the course of a century, the teaching ministry expanded to more than 75 schools in 12 states and five countries. From 1915 to 1924, the current church was constructed under Mother Seraphine Kordes.",
+            "Despite the Ferdinand Benedictines massive growth throughout most of the 20th century, the community experienced declining numbers. Corporate changes such as closings of St. Benedict College (1970) and Marian Heights Academy (2000) occurred, as well as the opening of Kordes Retreat Center (1978). Kordes offered programs for spiritual renewal and personal growth, and served as a hospitality center for outside groups. In 2017, the programs were moved to the new Benedictine Hospitality Center as part of the Spirituality Ministry. In 2015 and 2016, the campus experienced a number of openings and transformations: St. Benedict's Brew Works, Monastery Event Hall, and an affordable housing building for senior citizens (Benet Hall). Full restoration of the Romanesque church, completed in 2005, was an Official Project of Save America's Treasures.",
+            "A statement from the Sisters of St. Benedict website: \"...we continue to live faithfully the 1,500-year-old tradition of Benedictine life- we seek God together, pray daily, and share our lives and ministries with others. Today, Monastery Immaculate Conception stands as a tangible sign of our sisters' enduring faith, presence of peace, and a beacon of hope for all God's people.\""
+        ],
+        dimensions: { "Width (Column to Column)": "33.28 ft", "Width (Narrow)": "57.27 ft", "Width (Wide)": "72.06 ft", "Length": "151.43 ft", "Height (Floor to Ceiling)": "87.61 ft", "Height (Stage to Ceiling)": "85.58 ft", "Mic Array Height": "6.20 ft", "Speaker Height": "3.94 ft", "Stage Depth": "14.84 ft", "Stage Width": "12.54 ft", "Stage Height": "2.03 ft" },
+        receivers: { "R1": "12.98 ft", "R2": "37.64 ft", "R3": "52.55 ft", "R4": "71.80 ft", "R5": "38.17 ft", "R6": "38.11 ft" }
     }
 };
 
@@ -161,6 +188,8 @@ function compile() {
     else if (room === "UnitedMethodistChurch")          compileSelectionUnitedMethodistChurch();
     else if (room === "CaneRidgeMeetingHouse")          compileSelectionCaneRidgeMeetingHouse();
     else if (room === "FirstPresbyterianChurchKY")      compileSelectionFirstPresbyterianChurchKY();
+    else if (room === "BasilicaStFrancis")              compileSelectionBasilicaStFrancis();
+    else if (room === "MonasteryImmaculateConception")  compileSelectionMonasteryImmaculateConception();
 }
 
 async function playpause() {
