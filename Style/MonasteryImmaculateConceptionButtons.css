@@ -1,0 +1,52 @@
+/*
+    Monastery Immaculate Conception Buttons
+
+    description: Positioning for the Monastery Immaculate Conception room buttons
+    author: Kritan Duwal
+ */
+
+/* Source position */
+#spS_MonasteryImmaculateConception
+{
+    position: absolute;
+    top: 161px;
+    left: 91px;
+}
+
+/* Receiver positions */
+#rpR1_MonasteryImmaculateConception
+{
+    position: absolute;
+    top: 210px;
+    left: 91px;
+}
+#rpR2_MonasteryImmaculateConception
+{
+    position: absolute;
+    top: 248px;
+    left: 91px;
+}
+#rpR3_MonasteryImmaculateConception
+{
+    position: absolute;
+    top: 282px;
+    left: 91px;
+}
+#rpR4_MonasteryImmaculateConception
+{
+    position: absolute;
+    top: 317px;
+    left: 91px;
+}
+#rpR5_MonasteryImmaculateConception
+{
+    position: absolute;
+    top: 210px;
+    left: 22px;
+}
+#rpR6_MonasteryImmaculateConception
+{
+    position: absolute;
+    top: 210px;
+    left: 166px;
+}

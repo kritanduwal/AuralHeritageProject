@@ -1,0 +1,64 @@
+/*
+    Basilica St. Francis Buttons
+
+    description: Positioning for the Basilica of St. Francis Xavier Proto-Cathedral room buttons
+    author: Kritan Duwal
+ */
+
+/* Source position */
+#spS_BasilicaStFrancis
+{
+    position: absolute;
+    top: 80px;
+    left: 96px;
+}
+
+/* Receiver positions */
+#rpR1_BasilicaStFrancis
+{
+    position: absolute;
+    top: 137px;
+    left: 96px;
+}
+#rpR2_BasilicaStFrancis
+{
+    position: absolute;
+    top: 174px;
+    left: 96px;
+}
+#rpR3_BasilicaStFrancis
+{
+    position: absolute;
+    top: 210px;
+    left: 96px;
+}
+#rpR4_BasilicaStFrancis
+{
+    position: absolute;
+    top: 154px;
+    left: 37px;
+}
+#rpR5_BasilicaStFrancis
+{
+    position: absolute;
+    top: 154px;
+    left: 155px;
+}
+#rpR6_BasilicaStFrancis
+{
+    position: absolute;
+    top: 203px;
+    left: 37px;
+}
+#rpR7_BasilicaStFrancis
+{
+    position: absolute;
+    top: 203px;
+    left: 155px;
+}
+#rpR8_BasilicaStFrancis
+{
+    position: absolute;
+    top: 236px;
+    left: 96px;
+}

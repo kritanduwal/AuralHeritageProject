@@ -622,6 +622,20 @@ input, button, select, textarea {
 #CaneRidgeMeetingHouseui {
     width: 287px;
     height: 238px;
-    background-image: url("../Images/Cane Ridge Meeting House, KY/Cane Ridge diagram.png");
+    background-image: url("../Images/Cane Ridge Meeting House, KY/Cane Ridge Diagram.png");
     background-size: 287px 238px;
+}
+
+#BasilicaStFrancisui {
+    width: 240px;
+    height: 345px;
+    background-image: url("../Images/Basilica St. Francis, IN/St Francis Diagram.png");
+    background-size: 240px 345px;
+}
+
+#MonasteryImmaculateConceptionui {
+    width: 239px;
+    height: 383px;
+    background-image: url("../Images/Monastery Immaculate Conception, IN/MIC Diagram.png");
+    background-size: 239px 383px;
 }

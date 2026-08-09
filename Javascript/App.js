@@ -103,6 +103,33 @@ const churchData = {
         ],
         dimensions: { "Width": "50.69 ft", "Length": "80.84 ft", "Height (Floor to Ceiling)": "30.05 ft", "Height (Stage to Ceiling)": "28.02 ft", "Height (Floor to Balcony)": "13.25 ft", "Stage Width": "22.90 ft", "Mic Array Height": "6.40 ft", "Speaker Height": "3.94 ft" },
         receivers: { "R1": "17.40 ft", "R2": "29.88 ft", "R3": "47.09 ft", "R4": "20.65 ft", "R5": "31.58 ft", "R6": "47.82 ft", "R7": "23.26 ft", "R8": "33.11 ft", "R9": "48.40 ft" }
+    },
+    BasilicaStFrancis: {
+        name: "Basilica of St. Francis Xavier Proto-Cathedral",
+        address: "205 Church St, Vincennes, IN 47591",
+        measured: "July 21, 2026",
+        history: [
+            "Basilica of St. Francis Xavier Proto-Cathedral is a Catholic church located on Church Street in Vincennes, Indiana. Known as \"Indiana's Oldest Church,\" the parish of St. Francis Xavier is the oldest congregation in Indiana. In the early 1730s, French officer Sieur de Vincennes established a fort on the banks of the Wabash River. A settlement of French Canadian fur traders and Piankeshaw Indians grew up around the fort, and the first church was built around 1734. It was a small log church consisting of upright posts, with mud daubing and a bark roof. In 1763, the settlement came under British control and the Jesuits were expelled. The parish, however, grew from 400 to 700 people.",
+            "The second log church was constructed in 1770. On July 20, 1778, Father Pierre Gibault, popular amongst the people of Vincennes, persuaded the citizens to sign an oath of allegiance to the United States and turn over the fort. In 1784, Father Gibault became the church's first resident priest in over two decades. In 1786, a third church, 22 feet wide by 66 feet long and bell tower, was built. Gibault's successor, Father Benedict Joseph Flaget (1792) became known as the \"Father of Parochial Education in Indiana\" for setting up a school in the old church. Flaget's successor, Father John Francis Rivet (1795) became \"Indiana's First Public School Teacher\" for setting up Jefferson Academy, the town's first public school.",
+            "The current St. Francis Xavier Church was erected on March 30, 1826, by Father John Leo Champomier. The church is 60 feet wide by 115 feet long, and features inside-pillars made of giant yellow poplar trees. The church's plans were copied from the Basilica of St. Joseph Proto-Cathedral in Bardstown, Kentucky. The church walls are marked with paintings from Wilhelm Lamprecht of Munich, Germany. Some of these include murals of the Crucifixion, St. Francis Xavier, and the Madonna and Child with Saints Simon, Celestine, Stephen, and Maurice. The stations of the cross were painted in Paris by Bouasse Lebel, and the stained glass windows were made by the Von Gerichten Art Glass Company of Columbus, Ohio.",
+            "In 1834, St. Francis Xavier was named the cathedral of the new Diocese of Vincennes by Pope Gregory XVI. A bell tower was added in the early 1840s, and the sanctuary was raised to accommodate a crypt. The crypt contains the remains of the four bishops of Vincennes: Simon Bruté, Celestine de la Hailandière, John Stephen Bazin, and Maurice de St. Palais. In 1840, the Old Cathedral Library was built to house early church records and Bishop Bruté's personal library, comprising over five thousand books.",
+            "Throughout the 20th century, St. Francis Xavier received significant recognition. In 1968, the Lilly Foundation gave a grant to Monsignor Leo Conti to build a new library. Two years later, Pope Paul VI elevated the Old Cathedral to Minor Basilica, a status reserved for the most historic of churches."
+        ],
+        dimensions: { "Width": "57.22 ft", "Length": "108.97 ft", "Height (Floor to Ceiling)": "37.34 ft", "Height (Stage to Ceiling)": "33.39 ft", "Height (Floor to Balcony)": "12.64 ft", "Stage Height": "3.95 ft", "Balcony to Width Edge": "13.00 ft", "Balcony to Back Wall": "32.14 ft", "Mic Array Height": "6.20 ft", "Speaker Height": "3.94 ft" },
+        receivers: { "R1": "13.77 ft", "R2": "32.55 ft", "R3": "44.78 ft", "R4": "30.21 ft", "R5": "30.04 ft", "R6": "45.78 ft", "R7": "45.93 ft", "R8": "50.46 ft" }
+    },
+    MonasteryImmaculateConception: {
+        name: "Monastery Immaculate Conception",
+        address: "802 E 10th St, Ferdinand, IN 47532",
+        measured: "July 20, 2026",
+        history: [
+            "Monastery Immaculate Conception is a Catholic monastery, listed on the National Register of Historic Places, located on East 10th Street in Ferdinand, Indiana. Known as the \"Castle on the Hill,\" the church features Italian marble floors, German hand-carved woodwork, an 87-foot-high dome, and a collection of 89 angels in the interior. The monastery grounds include the Lourdes Shrine, Outdoor Stations of the Cross, Rosary Steps, Statue of Our Lady of Fatima, and Statue of Our Lady of Guadalupe.",
+            "The Ferdinand Benedictines, founded in 1867 by Sisters Benedicta Berns, Xaveria Schroder, Rose Chapelle, and Clara Vollmer, are the second largest community of Benedictine sisters in the United States. The Catholic settlement of Ferdinand needed teachers who could speak German, and thus the four sisters from St. Walburg began teaching at the Ferdinand parish school. In 1871, the community became independent of St. Walburg Monastery. Sister Berns was elected first prioress, and in 1886, the sisters moved to the quadrangle, a traditional monastic structure northeast of St. Ferdinand Parish. Over the course of a century, the teaching ministry expanded to more than 75 schools in 12 states and five countries. From 1915 to 1924, the current church was constructed under Mother Seraphine Kordes.",
+            "Despite the Ferdinand Benedictines massive growth throughout most of the 20th century, the community experienced declining numbers. Corporate changes such as closings of St. Benedict College (1970) and Marian Heights Academy (2000) occurred, as well as the opening of Kordes Retreat Center (1978). Kordes offered programs for spiritual renewal and personal growth, and served as a hospitality center for outside groups. In 2017, the programs were moved to the new Benedictine Hospitality Center as part of the Spirituality Ministry. In 2015 and 2016, the campus experienced a number of openings and transformations: St. Benedict's Brew Works, Monastery Event Hall, and an affordable housing building for senior citizens (Benet Hall). Full restoration of the Romanesque church, completed in 2005, was an Official Project of Save America's Treasures.",
+            "A statement from the Sisters of St. Benedict website: \"...we continue to live faithfully the 1,500-year-old tradition of Benedictine life- we seek God together, pray daily, and share our lives and ministries with others. Today, Monastery Immaculate Conception stands as a tangible sign of our sisters' enduring faith, presence of peace, and a beacon of hope for all God's people.\""
+        ],
+        dimensions: { "Width (Column to Column)": "33.28 ft", "Width (Narrow)": "57.27 ft", "Width (Wide)": "72.06 ft", "Length": "151.43 ft", "Height (Floor to Ceiling)": "87.61 ft", "Height (Stage to Ceiling)": "85.58 ft", "Mic Array Height": "6.20 ft", "Speaker Height": "3.94 ft", "Stage Depth": "14.84 ft", "Stage Width": "12.54 ft", "Stage Height": "2.03 ft" },
+        receivers: { "R1": "12.98 ft", "R2": "37.64 ft", "R3": "52.55 ft", "R4": "71.80 ft", "R5": "38.17 ft", "R6": "38.11 ft" }
     }
 };
 
@@ -161,6 +188,8 @@ function compile() {
     else if (room === "UnitedMethodistChurch")          compileSelectionUnitedMethodistChurch();
     else if (room === "CaneRidgeMeetingHouse")          compileSelectionCaneRidgeMeetingHouse();
     else if (room === "FirstPresbyterianChurchKY")      compileSelectionFirstPresbyterianChurchKY();
+    else if (room === "BasilicaStFrancis")              compileSelectionBasilicaStFrancis();
+    else if (room === "MonasteryImmaculateConception")  compileSelectionMonasteryImmaculateConception();
 }
 
 async function playpause() {
