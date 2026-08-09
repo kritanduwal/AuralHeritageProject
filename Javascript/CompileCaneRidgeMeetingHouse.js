@@ -17,7 +17,7 @@ function compileSelectionCaneRidgeMeetingHouse()
         {
             setImage("Images/Cane Ridge Meeting House, KY/Cane Ridge Meeting House, KY_R1.jpg");
             setTimeout(() => {
-                viewer.lookAt(0, 0, 120, { duration: 1000 });
+                viewer.lookAt(0, 4, 120, { duration: 1000 });
             }, 100);
         }
         else if(rcvpos === 'rpR2_CaneRidgeMeetingHouse')
