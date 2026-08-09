@@ -5,7 +5,7 @@
 
 function compileSelectionUnitedMethodistChurch()
 {
-    reverb = "Ambisonic Files/Church Street United Methodist Church, Knoxville/" + "Church Street United" + "_" + 
+    reverb = "IR/Church Street United Methodist Church, Knoxville/" + "Church Street United" + "_" + 
         document.getElementById(rcvpos).value + "-";
     
     if(urlExists(reverb))

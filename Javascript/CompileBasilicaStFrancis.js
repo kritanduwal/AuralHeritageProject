@@ -10,11 +10,11 @@ function compileSelectionBasilicaStFrancis()
     // R8 recordings are named with a "balcony" prefix instead of following the standard pattern
     if(rcv === 'R8')
     {
-        reverb = "Ambisonic Files/Basilica St. Francis, IN/" + "St Francis_IN_balcony " + rcv + "-";
+        reverb = "IR/Basilica St. Francis, IN/" + "St Francis_IN_balcony " + rcv + "-";
     }
     else
     {
-        reverb = "Ambisonic Files/Basilica St. Francis, IN/" + "St Francis_IN" + "_" + rcv + "-";
+        reverb = "IR/Basilica St. Francis, IN/" + "St Francis_IN" + "_" + rcv + "-";
     }
 
     if(urlExists(reverb))

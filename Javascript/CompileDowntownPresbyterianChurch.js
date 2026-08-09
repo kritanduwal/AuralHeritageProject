@@ -5,7 +5,7 @@
 
 function compileSelectionDowntownPresbyterianChurch()
 {
-    reverb = "Ambisonic Files/Downtown Presbyterian Church/" + "Downtown Presbyterian" + "_" + 
+    reverb = "IR/Downtown Presbyterian Church/" + "Downtown Presbyterian" + "_" + 
         document.getElementById(rcvpos).value + "-";
     
     if(urlExists(reverb))
