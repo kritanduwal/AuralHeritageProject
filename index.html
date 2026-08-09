@@ -54,10 +54,10 @@
         <div class="app-title">Aural Heritage Preservation of Historic American Churches</div>
         <div class="appbar-logos">
             <a href="https://creativeartscollective.com/" target="_blank" rel="noopener noreferrer">
-                <img src="https://blogs.belmont.edu/new-creative-arts-collective/files/2025/10/horizontal-lockup-cac-centered-light.svg" alt="The Creative Arts Collective for Christian Life and Faith" class="appbar-logo">
+                <img src="https://blogs.belmont.edu/new-creative-arts-collective/files/2025/10/horizontal-lockup-cac-centered-light.svg" alt="The Creative Arts Collective for Christian Life and Faith" class="appbar-logo" onerror="this.style.display='none'">
             </a>
             <a href="https://www.belmont.edu/" target="_blank" rel="noopener noreferrer">
-                <img src="https://www.belmont.edu/_assets/img/logo.svg" alt="Belmont University" class="appbar-logo appbar-logo--invert">
+                <img src="https://www.belmont.edu/_assets/img/logo.svg" alt="Belmont University" class="appbar-logo appbar-logo--invert" onerror="this.style.display='none'">
             </a>
         </div>
     </div>
@@ -117,6 +117,11 @@
         <!-- Main View Panel -->
         <div id="main-panel" class="tab-panel active">
             <div id="view">
+                <!-- Panorama container. Kept separate from #view because pannellum's
+                     destroy() clears its container's innerHTML, which would take the
+                     overlays below with it. -->
+                <div id="panorama"></div>
+
                 <!-- Church UI Overlays -->
                 <div id="BridgeCommunityChurchui" class="ui" style="display: none;">
                     <input type="button" id="spS_BridgeCommunityChurch" class="yellowsquare" value="S" onclick="updateSrcpos('spS_BridgeCommunityChurch')">
@@ -239,7 +244,16 @@
                     <input type="button" id="rpR6_OurLadyOfGuadalupe" class="bluebutton" value="R6" onclick="updateRcvpos('rpR6_OurLadyOfGuadalupe')">
                 </div>
 
-                <div id="error">error: source-receiver combination not found</div>
+                <div id="error">
+                    <span id="error-message">error: source-receiver combination not found</span>
+                    <span id="error-resource"></span>
+                </div>
+
+                <!-- Fullscreen toggle. Keeps pannellum's own control markup and
+                     styling, but targets #view so the overlays stay visible. -->
+                <div class="pnlm-controls-container">
+                    <div id="fullscreen-btn" class="pnlm-fullscreen-toggle-button pnlm-sprite pnlm-fullscreen-toggle-button-inactive pnlm-controls pnlm-control" onclick="toggleFullscreen()" title="Toggle fullscreen"></div>
+                </div>
 
                 <!-- Church Info Button (shown when a church is selected) -->
                 <button id="church-info-btn" onclick="showChurchInfo()">

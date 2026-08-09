@@ -159,6 +159,8 @@ const churchData = {
 };
 
 // ── Page state ────────────────────────────────────────────────────────────
+const DEFAULT_PANORAMA = "Images/default.jpg";
+
 let room = "";
 let reverb;
 let viewer;
@@ -168,18 +170,108 @@ let rcvpos = "";
 destroyView();
 
 function setImage(image) {
-    viewer = pannellum.viewer('view', {
+    // Tear down the previous viewer before building the next one. Stacked
+    // viewers leak WebGL contexts until the browser drops the oldest, which
+    // leaves the view black, and a panorama that fails to load would otherwise
+    // just uncover the previous one instead of showing that anything is wrong.
+    if (viewer) {
+        try {
+            viewer.destroy();
+        } catch (err) {
+            console.error(err);
+        }
+        viewer = undefined;
+    }
+
+    viewer = pannellum.viewer('panorama', {
         "type": "equirectangular",
         "panorama": image,
         "autoLoad": true,
         "showZoomCtrl": false,
+        "showFullscreenCtrl": false,
         "mouseZoom": false,
         "compass": false
     });
+
+    // pannellum reports load failures (and WebGL problems) through this event;
+    // its own message box is hidden in CSS so the file name can be shown with it
+    viewer.on('error', msg => {
+        showResourceError(msg ? "error: " + msg : "error: panorama image could not be retrieved", image);
+
+        // Drop back to the neutral backdrop so the view leaves the failed scene.
+        // Deferred so the viewer is not destroyed while it dispatches, and
+        // skipped for the backdrop itself so a missing default cannot loop.
+        if (image !== DEFAULT_PANORAMA) {
+            setTimeout(() => setImage(DEFAULT_PANORAMA), 0);
+        }
+    });
+}
+
+// ── Missing resource reporting ────────────────────────────────────────────
+const DEFAULT_ERROR_MESSAGE = "error: source-receiver combination not found";
+
+/**
+ * Decodes a URL for display, falling back to the raw value if it is malformed
+ */
+function readableUrl(url) {
+    try {
+        return decodeURI(url);
+    } catch {
+        return url;
+    }
+}
+
+/**
+ * Writes the error banner's contents without changing its visibility, so the
+ * compile functions stay in charge of when the banner is shown
+ * @param message Short description of what went wrong
+ * @param url     The resource that could not be retrieved, or "" for none
+ */
+function setResourceError(message, url) {
+    document.getElementById("error-message").textContent = message;
+    document.getElementById("error-resource").textContent = url ? readableUrl(url) : "";
+}
+
+/**
+ * Fills in the error banner and shows it immediately
+ */
+function showResourceError(message, url) {
+    setResourceError(message, url);
+    document.getElementById("error").style.display = "flex";
+}
+
+/**
+ * Restores the default error text and hides the banner
+ */
+function clearResourceError() {
+    setResourceError(DEFAULT_ERROR_MESSAGE, "");
+    document.getElementById("error").style.display = "none";
+}
+
+/**
+ * Confirms a church diagram can be retrieved. The diagrams are applied as CSS
+ * background images, so a 404 leaves an empty panel with no event to catch.
+ * The URL is read back from the computed style rather than duplicated here.
+ * @param uiId Id of the room's button overlay element
+ */
+function verifyRoomDiagram(uiId) {
+    const ui = document.getElementById(uiId);
+    if (!ui) return;
+
+    const match = /url\(["']?(.+?)["']?\)/.exec(getComputedStyle(ui).backgroundImage);
+    if (!match) return;
+
+    const url = match[1];
+    const probe = new Image();
+    probe.onerror = () => showResourceError(
+        "error: church diagram could not be retrieved",
+        url.replace(location.origin + "/", "")
+    );
+    probe.src = url;
 }
 
 function destroyView() {
-    setImage("Images/wp1909404.jpg");
+    setImage(DEFAULT_PANORAMA);
 }
 
 function updateSrcpos(val) {
@@ -271,6 +363,18 @@ function closeChurchInfo() {
     document.getElementById('church-info-modal').classList.remove('open');
 }
 
+/**
+ * Toggles fullscreen on #view rather than on the panorama alone, so the church
+ * buttons, error banner, and play control come along
+ */
+function toggleFullscreen() {
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        document.getElementById('view').requestFullscreen();
+    }
+}
+
 // Keep the church info modal inside whichever element owns fullscreen so it stays visible
 document.addEventListener('fullscreenchange', () => {
     const modal = document.getElementById('church-info-modal');
@@ -279,4 +383,8 @@ document.addEventListener('fullscreenchange', () => {
     } else {
         document.body.appendChild(modal);
     }
+
+    // Same class pannellum toggles on its own control to swap the sprite
+    document.getElementById('fullscreen-btn').classList
+        .toggle('pnlm-fullscreen-toggle-button-active', !!document.fullscreenElement);
 });

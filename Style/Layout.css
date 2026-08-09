@@ -139,6 +139,18 @@ input, button, select, textarea {
     position: relative;
     border-radius: 4px;
     background-color: var(--text-color);
+    /* Makes #view the containing block for its fixed-position children, so the
+       play button stays anchored to the view instead of the viewport. This came
+       for free from pannellum's .pnlm-container until the panorama moved into
+       its own element; do not remove. */
+    contain: content;
+}
+
+/* pannellum's own container; the overlays sit above it inside #view */
+#panorama {
+    width: 100%;
+    height: 100%;
+    border-radius: 4px;
 }
 
 /* ── Church UI Overlays ── */
@@ -194,18 +206,42 @@ input, button, select, textarea {
 /* ── Error Message ── */
 #error {
     position: absolute;
-    width: 300px;
-    height: 50px;
+    width: min(560px, 80%);
     top: 48%;
     left: 50%;
-    margin-left: -150px;
-    margin-top: -25px;
+    transform: translate(-50%, -50%);
+    z-index: 3;
     display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
     text-align: center;
     color: var(--maincolor2);
     font-size: 18px;
     font-family: var(--font);
     font-weight: lighter;
+}
+
+/* Path of the file that could not be retrieved */
+#error-resource {
+    max-width: 100%;
+    padding: 6px 10px;
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+#error-resource:empty {
+    display: none;
+}
+
+/* Suppress pannellum's own error box in favour of #error, which names the file */
+#view .pnlm-error-msg {
+    display: none !important;
 }
 
 /* ── About / Instructions Panels ── */
