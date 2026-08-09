@@ -21,6 +21,8 @@
     <script src="Javascript/CompileFirstPresbyterianChurchKY.js" type="text/javascript"></script>
     <script src="Javascript/CompileBasilicaStFrancis.js" type="text/javascript"></script>
     <script src="Javascript/CompileMonasteryImmaculateConception.js" type="text/javascript"></script>
+    <script src="Javascript/CompileOurLadyOfGuadalupe.js" type="text/javascript"></script>
+    <script src="Javascript/CompileStAugustineIsleta.js" type="text/javascript"></script>
     <script src="Javascript/AudioEngine.js" type="text/javascript"></script>
     <script src="Javascript/SettingsMenu.js" type="text/javascript"></script>
 
@@ -36,6 +38,8 @@
     <link rel="stylesheet" href="Style/FirstPresbyterianChurchKYButtons.css">
     <link rel="stylesheet" href="Style/BasilicaStFrancisButtons.css">
     <link rel="stylesheet" href="Style/MonasteryImmaculateConceptionButtons.css">
+    <link rel="stylesheet" href="Style/OurLadyOfGuadalupeButtons.css">
+    <link rel="stylesheet" href="Style/StAugustineIsletaButtons.css">
     <link rel="stylesheet" href="Style/Layout.css">
     <link rel="stylesheet" href="Style/Root.css">
     <link rel="stylesheet" href="Style/SettingsMenu.css">
@@ -50,10 +54,10 @@
         <div class="app-title">Aural Heritage Preservation of Historic American Churches</div>
         <div class="appbar-logos">
             <a href="https://creativeartscollective.com/" target="_blank" rel="noopener noreferrer">
-                <img src="https://blogs.belmont.edu/new-creative-arts-collective/files/2025/10/horizontal-lockup-cac-centered-light.svg" alt="The Creative Arts Collective for Christian Life and Faith" class="appbar-logo">
+                <img src="https://blogs.belmont.edu/new-creative-arts-collective/files/2025/10/horizontal-lockup-cac-centered-light.svg" alt="The Creative Arts Collective for Christian Life and Faith" class="appbar-logo" onerror="this.style.display='none'">
             </a>
             <a href="https://www.belmont.edu/" target="_blank" rel="noopener noreferrer">
-                <img src="https://www.belmont.edu/_assets/img/logo.svg" alt="Belmont University" class="appbar-logo appbar-logo--invert">
+                <img src="https://www.belmont.edu/_assets/img/logo.svg" alt="Belmont University" class="appbar-logo appbar-logo--invert" onerror="this.style.display='none'">
             </a>
         </div>
     </div>
@@ -74,6 +78,8 @@
                 <option value="FirstPresbyterianChurchKY">First Presbyterian Church – Lexington, KY</option>
                 <option value="BasilicaStFrancis">Basilica of St. Francis Xavier Proto-Cathedral – Vincennes, IN</option>
                 <option value="MonasteryImmaculateConception">Monastery Immaculate Conception – Ferdinand, IN</option>
+                <option value="StAugustineIsleta">St. Augustine Catholic Church – Isleta, NM</option>
+                <option value="OurLadyOfGuadalupe">Santuario de Nuestra Señora de Guadalupe – Santa Fe, NM</option>
             </select>
         </div>
 
@@ -111,6 +117,11 @@
         <!-- Main View Panel -->
         <div id="main-panel" class="tab-panel active">
             <div id="view">
+                <!-- Panorama container. Kept separate from #view because pannellum's
+                     destroy() clears its container's innerHTML, which would take the
+                     overlays below with it. -->
+                <div id="panorama"></div>
+
                 <!-- Church UI Overlays -->
                 <div id="BridgeCommunityChurchui" class="ui" style="display: none;">
                     <input type="button" id="spS_BridgeCommunityChurch" class="yellowsquare" value="S" onclick="updateSrcpos('spS_BridgeCommunityChurch')">
@@ -214,7 +225,35 @@
                     <input type="button" id="rpR6_MonasteryImmaculateConception" class="bluebutton" value="R6" onclick="updateRcvpos('rpR6_MonasteryImmaculateConception')">
                 </div>
 
-                <div id="error">error: source-receiver combination not found</div>
+                <div id="StAugustineIsletaui" class="ui" style="display: none;">
+                    <input type="button" id="spS_StAugustineIsleta" class="yellowsquare" value="S" onclick="updateSrcpos('spS_StAugustineIsleta')">
+                    <input type="button" id="rpR1_StAugustineIsleta" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_StAugustineIsleta')">
+                    <input type="button" id="rpR2_StAugustineIsleta" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_StAugustineIsleta')">
+                    <input type="button" id="rpR3_StAugustineIsleta" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_StAugustineIsleta')">
+                    <input type="button" id="rpR4_StAugustineIsleta" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_StAugustineIsleta')">
+                    <input type="button" id="rpR5_StAugustineIsleta" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_StAugustineIsleta')">
+                </div>
+
+                <div id="OurLadyOfGuadalupeui" class="ui" style="display: none;">
+                    <input type="button" id="spS_OurLadyOfGuadalupe" class="yellowsquare" value="S" onclick="updateSrcpos('spS_OurLadyOfGuadalupe')">
+                    <input type="button" id="rpR1_OurLadyOfGuadalupe" class="bluebutton" value="R1" onclick="updateRcvpos('rpR1_OurLadyOfGuadalupe')">
+                    <input type="button" id="rpR2_OurLadyOfGuadalupe" class="bluebutton" value="R2" onclick="updateRcvpos('rpR2_OurLadyOfGuadalupe')">
+                    <input type="button" id="rpR3_OurLadyOfGuadalupe" class="bluebutton" value="R3" onclick="updateRcvpos('rpR3_OurLadyOfGuadalupe')">
+                    <input type="button" id="rpR4_OurLadyOfGuadalupe" class="bluebutton" value="R4" onclick="updateRcvpos('rpR4_OurLadyOfGuadalupe')">
+                    <input type="button" id="rpR5_OurLadyOfGuadalupe" class="bluebutton" value="R5" onclick="updateRcvpos('rpR5_OurLadyOfGuadalupe')">
+                    <input type="button" id="rpR6_OurLadyOfGuadalupe" class="bluebutton" value="R6" onclick="updateRcvpos('rpR6_OurLadyOfGuadalupe')">
+                </div>
+
+                <div id="error">
+                    <span id="error-message">error: source-receiver combination not found</span>
+                    <span id="error-resource"></span>
+                </div>
+
+                <!-- Fullscreen toggle. Keeps pannellum's own control markup and
+                     styling, but targets #view so the overlays stay visible. -->
+                <div class="pnlm-controls-container">
+                    <div id="fullscreen-btn" class="pnlm-fullscreen-toggle-button pnlm-sprite pnlm-fullscreen-toggle-button-inactive pnlm-controls pnlm-control" onclick="toggleFullscreen()" title="Toggle fullscreen"></div>
+                </div>
 
                 <!-- Church Info Button (shown when a church is selected) -->
                 <button id="church-info-btn" onclick="showChurchInfo()">
@@ -266,20 +305,38 @@
 
             <div class="info-section">
                 <h2>Recording Equipment</h2>
+                <p style="font-size:14px;color:#555;margin-bottom:20px;">
+                    The microphone array and playback rig varied between measurement trips. The configuration used
+                    at each church is listed below by state.
+                </p>
                 <div class="equipment-grid">
                     <div class="equipment-card">
-                        <h3>Microphones</h3>
+                        <h3>Tennessee Churches</h3>
                         <ul>
                             <li><strong>Front L/R:</strong> Earthworks QTC 40 - Omnidirectional, 3 Hz-40 kHz, 140 dB max SPL</li>
                             <li><strong>Rear L/R:</strong> Earthworks QTC 1 - Omnidirectional, 4 Hz-40 kHz, 142 dB max SPL</li>
                             <li><strong>Center:</strong> Rode SoundField NT-SF1 - 4-channel Ambisonic, 20 Hz-20 kHz</li>
+                            <li><strong>Monitors:</strong> JBL 308P MKII 8" Powered Studio Monitor - 112 W, 37 Hz-24 kHz</li>
+                            <li><strong>Subwoofer:</strong> JBL LSR6312SP - 28 Hz-80 Hz</li>
+                            <li><strong>Interface:</strong> Focusrite Clarett+ 8Pre USB-C - 24-bit/192 kHz, 8 preamps</li>
                         </ul>
                     </div>
                     <div class="equipment-card">
-                        <h3>Playback &amp; Recording</h3>
+                        <h3>Kentucky &amp; Indiana Churches</h3>
                         <ul>
+                            <li><strong>Front L/R:</strong> Earthworks QTC 1 - Omnidirectional, 4 Hz-40 kHz, 142 dB max SPL</li>
+                            <li><strong>Center:</strong> Rode SoundField NT-SF1 - 4-channel Ambisonic, 20 Hz-20 kHz</li>
                             <li><strong>Monitors:</strong> JBL 308P MKII 8" Powered Studio Monitor - 112 W, 37 Hz-24 kHz</li>
                             <li><strong>Subwoofer:</strong> JBL LSR6312SP - 28 Hz-80 Hz</li>
+                            <li><strong>Interface:</strong> Focusrite Clarett+ 8Pre USB-C - 24-bit/192 kHz, 8 preamps</li>
+                        </ul>
+                    </div>
+                    <div class="equipment-card">
+                        <h3>New Mexico Churches</h3>
+                        <ul>
+                            <li><strong>Front L/R:</strong> Earthworks QTC 1 - Omnidirectional, 4 Hz-40 kHz, 142 dB max SPL</li>
+                            <li><strong>Center:</strong> Rode SoundField NT-SF1 - 4-channel Ambisonic, 20 Hz-20 kHz</li>
+                            <li><strong>Speaker:</strong> Yamaha DXR12 12" Powered Loudspeaker - sole playback source, no subwoofer</li>
                             <li><strong>Interface:</strong> Focusrite Clarett+ 8Pre USB-C - 24-bit/192 kHz, 8 preamps</li>
                         </ul>
                     </div>
@@ -342,6 +399,16 @@
                         <h3>Monastery Immaculate Conception</h3>
                         <p class="church-meta">802 E 10th St, Ferdinand, IN &bull; Est. 1867</p>
                         <p>Home of the Ferdinand Benedictines, the second largest community of Benedictine sisters in the United States. Known as the "Castle on the Hill," the Romanesque church was built from 1915 to 1924 and features Italian marble floors, German hand-carved woodwork, an 87-foot-high dome, and 89 angels in its interior. Listed on the National Register of Historic Places; its full restoration was an Official Project of Save America's Treasures.</p>
+                    </div>
+                    <div class="church-card">
+                        <h3>St. Augustine Catholic Church</h3>
+                        <p class="church-meta">71 Tribal Rd 35, Isleta, NM &bull; Est. 1613</p>
+                        <p>One of the oldest mission churches in the United States, originally named St. Anthony and renamed in 1716. Built of adobe made on site, with walls roughly 10 feet thick at the base and a roof carried on overhead logs called vigas. An extensive 1962 renovation under Father Staadtmueller restored the traditional pueblo-style flat roof and refinished the exterior in cement plaster.</p>
+                    </div>
+                    <div class="church-card">
+                        <h3>Santuario de Nuestra Se&ntilde;ora de Guadalupe</h3>
+                        <p class="church-meta">100 S Guadalupe St, Santa Fe, NM &bull; Built 1776&ndash;1795</p>
+                        <p>The oldest extant shrine to Our Lady of Guadalupe in the United States, built of adobe on a cruciform plan for Santa Fe's Guadalupe District. Its vigas, corbels, and choir loft came from La Castrense, a Santa Fe military chapel. Designated a historic site on three trails &mdash; the Santa Fe Trail, El Camino Real de Tierra Adentro, and the Old Spanish National Historic Trail.</p>
                     </div>
                 </div>
             </div>
@@ -406,7 +473,6 @@
     <!-- Footer -->
     <footer id="site-footer">
         <p>&copy; 2026 The Creative Arts Collective for Christian Life &amp; Faith, Belmont University. All rights reserved.</p>
-        <p>All photographs and audio recordings featured in this project were captured by the research team, under the supervision of Dr. Doyuen Ko, with the express consent of the participating churches. Distribution, reproduction, or commercial sale of this data, in whole or in part, is strictly prohibited without prior written permission.</p>
     </footer>
 
     <!-- Source File Modal -->

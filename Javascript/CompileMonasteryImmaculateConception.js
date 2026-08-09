@@ -5,7 +5,7 @@
 
 function compileSelectionMonasteryImmaculateConception()
 {
-    reverb = "Ambisonic Files/Monastery Immaculate Conception, IN/" + "MIC_IN" + "_" +
+    reverb = "IR/Monastery Immaculate Conception, IN/" + "MIC_IN" + "_" +
         document.getElementById(rcvpos).value + "-";
 
     if(urlExists(reverb))

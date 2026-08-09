@@ -5,7 +5,7 @@
 
 function compileSelectionHolyTrinityEpiscopalChurch()
 {
-    reverb = "Ambisonic Files/Holy Trinity Episcopal Church/" + "Holy Trinity Church" + "_" + 
+    reverb = "IR/Holy Trinity Episcopal Church/" + "Holy Trinity Church" + "_" + 
         document.getElementById(rcvpos).value + "-";
     
     if(urlExists(reverb))

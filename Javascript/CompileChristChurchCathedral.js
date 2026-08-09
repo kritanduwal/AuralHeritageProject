@@ -5,7 +5,7 @@
 
 function compileSelectionChristChurchCathedral()
 {
-    reverb = "Ambisonic Files/Christ Church Cathedral/" + "Christ Church Cathedral" + "_" + 
+    reverb = "IR/Christ Church Cathedral/" + "Christ Church Cathedral" + "_" + 
         // document.getElementById(srcpos).value + "_" +
         // document.getElementById(srctype).value + "_" + 
         document.getElementById(rcvpos).value + "-";

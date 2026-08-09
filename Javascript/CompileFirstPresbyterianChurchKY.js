@@ -5,7 +5,7 @@
 
 function compileSelectionFirstPresbyterianChurchKY()
 {
-    reverb = "Ambisonic Files/First Presbyterian Church, KY/" + "FPC KY" + "_" +
+    reverb = "IR/First Presbyterian Church, KY/" + "FPC KY" + "_" +
         document.getElementById(rcvpos).value + "-";
 
     if(urlExists(reverb))

@@ -130,10 +130,37 @@ const churchData = {
         ],
         dimensions: { "Width (Column to Column)": "33.28 ft", "Width (Narrow)": "57.27 ft", "Width (Wide)": "72.06 ft", "Length": "151.43 ft", "Height (Floor to Ceiling)": "87.61 ft", "Height (Stage to Ceiling)": "85.58 ft", "Mic Array Height": "6.20 ft", "Speaker Height": "3.94 ft", "Stage Depth": "14.84 ft", "Stage Width": "12.54 ft", "Stage Height": "2.03 ft" },
         receivers: { "R1": "12.98 ft", "R2": "37.64 ft", "R3": "52.55 ft", "R4": "71.80 ft", "R5": "38.17 ft", "R6": "38.11 ft" }
+    },
+    OurLadyOfGuadalupe: {
+        name: "Santuario de Nuestra Señora de Guadalupe",
+        address: "100 S Guadalupe St, Santa Fe, NM 87501",
+        measured: "July 30, 2026",
+        history: [
+            "Santuario de Nuestra Señora de Guadalupe is a Catholic shrine located on South Guadalupe Street, in Santa Fe, New Mexico. The cruciform adobe church is the oldest extant shrine to Our Lady of Guadalupe in the United States. The Santuario was built between 1776 and 1795 for the growing 18th century Santa Fe neighborhood, historically known as the Guadalupe District. The vigas (ceiling beams), corbels (brackets), and choir loft came from La Castrense, a military chapel in Santa Fe (1760-1859). Outside stands a 12-foot-tall bronze statue of Nuestra Señora de Guadalupe, created in 2008 by Mexican artist Doña Georgina Faria.",
+            "Known today as the \"Patroness of the Americas,\" Our Lady of Guadalupe is Mother Mary who appeared in 1531 to a recently converted Saint Juan Diego. She wanted a church to be built on a location which is now Mexico City. She left her holy image on his cloak as a sign of her appearance and to advocate for the building of the church. Devotion to Our Lady of Guadalupe spread quickly and was brought along the Rio Grande River by Spanish colonists in the 17th and 18th centuries.",
+            "El Santuario de Nuestra Señora de Guadalupe is designated as a historic site on the Santa Fe Trail, El Camino Real de Tierra Adentro and Old Spanish National Historic Trail. El Camino Real de Tierra Adentro, also known as the \"Royal Inland Road\" or \"Silver Route,\" is a 2600km trade route connecting Mexico City, Texas, and New Mexico. Over the course of 300 years, the route nurtured social, cultural, and religious links between the Spanish and Amerindians. There are five existing World Heritage sites along this road. The Old Spanish National Historic Trail is a 1100km mule pack route traversing six states: California, Nevada, Utah, Arizona, Colorado, and New Mexico. According to the National Park Service website, \"Santa Fe emerged as the hub of the overland continental trade network linking Mexico and United States markets,\" because of its location on these three historic trails."
+        ],
+        dimensions: { "Width (Narrow)": "21.80 ft", "Width (Wide)": "55.65 ft", "Length": "84.24 ft", "Length (Side)": "21.85 ft", "Height (Floor to Ceiling)": "23.10 ft", "Height (Floor to Balcony)": "12.05 ft", "Mic Array Height": "6.20 ft", "Speaker Height": "4.91 ft" },
+        receivers: { "R1": "12.37 ft", "R2": "27.78 ft", "R3": "39.97 ft", "R4": "54.51 ft", "R5": "17.56 ft", "R6": "19.90 ft" }
+    },
+    StAugustineIsleta: {
+        name: "St. Augustine Catholic Church",
+        address: "71 Tribal Rd 35, Isleta, NM 87022",
+        measured: "July 29, 2026",
+        history: [
+            "St. Augustine Catholic Church is a Catholic church located on 71 Tribal Road 35 in Isleta, New Mexico. Established in 1613, St. Augustine (originally named St. Anthony) is one of the oldest mission churches in the United States. In the 17th century, almost all mission churches were constructed from adobe (sun-dried mud brick), the most readily available building material in most pueblos. The adobes for the Isleta church were made at the scene. The walls are approximately 10 feet thick at the base and taper to four feet at the top. Large overhead logs called vigas are set on corbels at each end of the church. Once the vigas were mounted on the corbels on roof level (three feet below the tops of the walls), small branches were laid over the vigas as closely as possible. Swamp reeds and earth were placed over the branches and tamped down. The earth would harden and would allow for rainfall to flow down towards the wooden drains. The original church measured 93.5 feet long, 25 feet wide, and 22 feet tall. There were no windows, benches, or pews. Isleta church had to be annually covered with mud plaster to protect the adobes from weather erosion. Recently, a permanent finish of hard cement plaster was applied over wire to replace the routine mud finish.",
+            "By the 18th century, after Spanish occupation, Isleta was abandoned for decades. In 1776, a general inspection of the missions and towns in New Mexico was made by Father Francisco Atanasio Dominguez. Father Dominguez's report began with a description of the church and the surrounding land. Father Dominguez noted that Isleta is \"unusually generous in contributing livestock for the support of the priest and the church activities.\" The pastor at the time, Father José Junco from Tlaxcala, Mexico, was condemned by Father Dominguez for conducting business with a portion of the food and livestock reserved for mission use. General inspection reports were not routine, therefore, there are major gaps in the history of Isleta and other pueblos.",
+            "In 1962, Isleta church underwent an extensive renovation under Father Staadtmueller. The renovation didn't restore the original appearance of the church. However, it was a massive improvement from the renovation of 1923. The pitched roof was replaced with the traditional pueblo-style flat roof; the towers were replaced by towers of a simpler design; and the exterior of the building was refinished with cement plaster. In the interior of the church, Isleta-made pews were installed, the rectory was renovated, but the old statues and paintings were left for historic purposes. In 1975, an HVAC system was installed by Monsignor Francis Reinberg.",
+            "In 1716, the church was renamed St. Augustine. There is a claim to be made for Isleta church to be the oldest church in New Mexico, alongside the mission at Acoma. Nonetheless, St. Augustine Catholic Church remains one of the oldest churches in the United States."
+        ],
+        dimensions: { "Width": "24.39 ft", "Length": "105.93 ft", "Height (Floor to Ceiling)": "21.57 ft", "Height (Stage to Ceiling)": "19.75 ft", "Height (Floor to Balcony)": "11.33 ft", "Mic Array Height": "6.20 ft", "Speaker Height": "4.91 ft" },
+        receivers: { "R1": "14.81 ft", "R2": "36.22 ft", "R3": "52.07 ft", "R4": "71.64 ft", "R5": "90.17 ft" }
     }
 };
 
 // ── Page state ────────────────────────────────────────────────────────────
+const DEFAULT_PANORAMA = "Images/default.jpg";
+
 let room = "";
 let reverb;
 let viewer;
@@ -143,18 +170,108 @@ let rcvpos = "";
 destroyView();
 
 function setImage(image) {
-    viewer = pannellum.viewer('view', {
+    // Tear down the previous viewer before building the next one. Stacked
+    // viewers leak WebGL contexts until the browser drops the oldest, which
+    // leaves the view black, and a panorama that fails to load would otherwise
+    // just uncover the previous one instead of showing that anything is wrong.
+    if (viewer) {
+        try {
+            viewer.destroy();
+        } catch (err) {
+            console.error(err);
+        }
+        viewer = undefined;
+    }
+
+    viewer = pannellum.viewer('panorama', {
         "type": "equirectangular",
         "panorama": image,
         "autoLoad": true,
         "showZoomCtrl": false,
+        "showFullscreenCtrl": false,
         "mouseZoom": false,
         "compass": false
     });
+
+    // pannellum reports load failures (and WebGL problems) through this event;
+    // its own message box is hidden in CSS so the file name can be shown with it
+    viewer.on('error', msg => {
+        showResourceError(msg ? "error: " + msg : "error: panorama image could not be retrieved", image);
+
+        // Drop back to the neutral backdrop so the view leaves the failed scene.
+        // Deferred so the viewer is not destroyed while it dispatches, and
+        // skipped for the backdrop itself so a missing default cannot loop.
+        if (image !== DEFAULT_PANORAMA) {
+            setTimeout(() => setImage(DEFAULT_PANORAMA), 0);
+        }
+    });
+}
+
+// ── Missing resource reporting ────────────────────────────────────────────
+const DEFAULT_ERROR_MESSAGE = "error: source-receiver combination not found";
+
+/**
+ * Decodes a URL for display, falling back to the raw value if it is malformed
+ */
+function readableUrl(url) {
+    try {
+        return decodeURI(url);
+    } catch {
+        return url;
+    }
+}
+
+/**
+ * Writes the error banner's contents without changing its visibility, so the
+ * compile functions stay in charge of when the banner is shown
+ * @param message Short description of what went wrong
+ * @param url     The resource that could not be retrieved, or "" for none
+ */
+function setResourceError(message, url) {
+    document.getElementById("error-message").textContent = message;
+    document.getElementById("error-resource").textContent = url ? readableUrl(url) : "";
+}
+
+/**
+ * Fills in the error banner and shows it immediately
+ */
+function showResourceError(message, url) {
+    setResourceError(message, url);
+    document.getElementById("error").style.display = "flex";
+}
+
+/**
+ * Restores the default error text and hides the banner
+ */
+function clearResourceError() {
+    setResourceError(DEFAULT_ERROR_MESSAGE, "");
+    document.getElementById("error").style.display = "none";
+}
+
+/**
+ * Confirms a church diagram can be retrieved. The diagrams are applied as CSS
+ * background images, so a 404 leaves an empty panel with no event to catch.
+ * The URL is read back from the computed style rather than duplicated here.
+ * @param uiId Id of the room's button overlay element
+ */
+function verifyRoomDiagram(uiId) {
+    const ui = document.getElementById(uiId);
+    if (!ui) return;
+
+    const match = /url\(["']?(.+?)["']?\)/.exec(getComputedStyle(ui).backgroundImage);
+    if (!match) return;
+
+    const url = match[1];
+    const probe = new Image();
+    probe.onerror = () => showResourceError(
+        "error: church diagram could not be retrieved",
+        url.replace(location.origin + "/", "")
+    );
+    probe.src = url;
 }
 
 function destroyView() {
-    setImage("Images/wp1909404.jpg");
+    setImage(DEFAULT_PANORAMA);
 }
 
 function updateSrcpos(val) {
@@ -190,6 +307,8 @@ function compile() {
     else if (room === "FirstPresbyterianChurchKY")      compileSelectionFirstPresbyterianChurchKY();
     else if (room === "BasilicaStFrancis")              compileSelectionBasilicaStFrancis();
     else if (room === "MonasteryImmaculateConception")  compileSelectionMonasteryImmaculateConception();
+    else if (room === "OurLadyOfGuadalupe")             compileSelectionOurLadyOfGuadalupe();
+    else if (room === "StAugustineIsleta")              compileSelectionStAugustineIsleta();
 }
 
 async function playpause() {
@@ -244,6 +363,18 @@ function closeChurchInfo() {
     document.getElementById('church-info-modal').classList.remove('open');
 }
 
+/**
+ * Toggles fullscreen on #view rather than on the panorama alone, so the church
+ * buttons, error banner, and play control come along
+ */
+function toggleFullscreen() {
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    } else {
+        document.getElementById('view').requestFullscreen();
+    }
+}
+
 // Keep the church info modal inside whichever element owns fullscreen so it stays visible
 document.addEventListener('fullscreenchange', () => {
     const modal = document.getElementById('church-info-modal');
@@ -252,4 +383,8 @@ document.addEventListener('fullscreenchange', () => {
     } else {
         document.body.appendChild(modal);
     }
+
+    // Same class pannellum toggles on its own control to swap the sprite
+    document.getElementById('fullscreen-btn').classList
+        .toggle('pnlm-fullscreen-toggle-button-active', !!document.fullscreenElement);
 });

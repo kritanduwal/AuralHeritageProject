@@ -5,7 +5,7 @@
 
 function compileSelectionFirstBaptistChurchCapitolHill()
 {
-    reverb = "Ambisonic Files/First Baptist Church Capitol Hill/" + "First Baptist Church" + "_" +
+    reverb = "IR/First Baptist Church Capitol Hill/" + "First Baptist Church" + "_" +
         document.getElementById(rcvpos).value + "-";
     
     if(urlExists(reverb))

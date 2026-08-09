@@ -8,6 +8,32 @@ let ctx = new AudioContext();
 let source;
 let sourceBuffer;
 
+/**
+ * Raised when a file could not be fetched, carrying the URL so the failing
+ * resource can be named in the view instead of only in the console
+ */
+class MissingResourceError extends Error {
+    constructor(url, status) {
+        super(`${status} while retrieving ${url}`);
+        this.name = 'MissingResourceError';
+        this.url = url;
+        this.status = status;
+    }
+}
+
+/**
+ * Surfaces a failed file retrieval in the view, naming the resource
+ * @param err  The caught error; a MissingResourceError carries the URL and status
+ * @param what Human-readable name of the resource kind, e.g. "impulse response"
+ * @param url  Fallback URL for errors that do not carry one
+ */
+function reportResourceFailure(err, what, url) {
+    const failed = (err && err.url) || url;
+    const reason = (err && err.status) ? `could not be retrieved (${err.status})` : "could not be loaded";
+    showResourceError(`error: ${what} ${reason}`, failed);
+    console.error(err);
+}
+
 let isPlaying = false;
 
 // Room reverberation (Convolution Mix) control
@@ -36,13 +62,13 @@ function setConvolutionMix(mix) {
 /**
  * Determines the pre-convolution gain reduction (in dB) to apply to the IRs
  * for the current room/receiver position combination.
- * First Presbyterian Church, KY: R2/R5/R8 get -3dB, R3/R6/R9 get -6dB, R1/R4/R7 are unchanged.
+ * First Presbyterian Church, KY: R2/R5/R8 get -1.5dB, R3/R6/R9 get -3dB, R1/R4/R7 are unchanged.
  */
 function getIrGainReductionDb() {
     if (room !== "FirstPresbyterianChurchKY") return 0;
 
-    if (/^rpR(2|5|8)_/.test(rcvpos)) return 6;
-    if (/^rpR(3|6|9)_/.test(rcvpos)) return 12;
+    if (/^rpR(2|5|8)_/.test(rcvpos)) return 1.5;
+    if (/^rpR(3|6|9)_/.test(rcvpos)) return 3;
     return 0;
 }
 
@@ -77,6 +103,9 @@ async function initStereoConvolution(irLeftUrl, irRightUrl)
 // Utility to load audio buffer from a URL
 async function loadAudioBuffer(audioContext, url) {
     const response = await fetch(url);
+    if (!response.ok) {
+        throw new MissingResourceError(url, response.status);
+    }
     const arrayBuffer = await response.arrayBuffer();
     return await audioContext.decodeAudioData(arrayBuffer);
 }
@@ -102,7 +131,16 @@ async function playStereoFormat() {
     } else {
         irLeftUrl = reverb + "1.wav";
         irRightUrl = reverb + "2.wav";
-        await initStereoConvolution(irLeftUrl, irRightUrl);
+
+        try {
+            await initStereoConvolution(irLeftUrl, irRightUrl);
+        } catch (err) {
+            reportResourceFailure(err, "impulse response", irLeftUrl);
+            document.getElementById("play").disabled = true;
+            isPlaying = false;
+            updatePlayButton();
+            return;
+        }
 
         // Create source
         source = ctx.createBufferSource();
@@ -267,7 +305,15 @@ function urlExists(url)
     let reverb = url + "1.wav";
     http.open('GET', reverb, false);
     http.send();
-    return http.status !== 404;
+
+    // Prime the banner with the missing file; the compile functions show it
+    if (http.status === 404) {
+        setResourceError("error: impulse response could not be retrieved (404)", reverb);
+        return false;
+    }
+
+    clearResourceError();
+    return true;
 }
 
 /**
@@ -281,11 +327,19 @@ function initSource(file)
 
 function loadSource()
 {
+    const url = 'Source Files/Clarinet.wav';
     let request = new XMLHttpRequest();
-    request.open("GET", 'Source Files/Clarinet.wav', true);
+    request.open("GET", url, true);
     request.responseType = "arraybuffer";
     request.onload = function () {
+        if (request.status === 404) {
+            reportResourceFailure(new MissingResourceError(url, 404), "source file", url);
+            return;
+        }
         ctx.decodeAudioData(request.response, (data) => sourceBuffer = data);
+    };
+    request.onerror = function () {
+        reportResourceFailure(null, "source file", url);
     };
     request.send();
 }

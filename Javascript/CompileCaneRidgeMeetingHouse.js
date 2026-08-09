@@ -5,7 +5,7 @@
 
 function compileSelectionCaneRidgeMeetingHouse()
 {
-    reverb = "Ambisonic Files/Cane Ridge Meeting House, KY/" + "Cane Ridge KY" + "_" +
+    reverb = "IR/Cane Ridge Meeting House, KY/" + "Cane Ridge KY" + "_" +
         document.getElementById(rcvpos).value + "-";
 
     if(urlExists(reverb))

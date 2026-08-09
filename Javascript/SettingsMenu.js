@@ -26,6 +26,8 @@ function switchRoom(selectedRoom) {
         document.getElementById("FirstPresbyterianChurchKYui").style.display = "none";
         document.getElementById("BasilicaStFrancisui").style.display = "none";
         document.getElementById("MonasteryImmaculateConceptionui").style.display = "none";
+        document.getElementById("OurLadyOfGuadalupeui").style.display = "none";
+        document.getElementById("StAugustineIsletaui").style.display = "none";
     }
 
     // Update room and related settings    
@@ -34,64 +36,77 @@ function switchRoom(selectedRoom) {
         srcpos = "spS_BridgeCommunityChurch";
         srctype = "st1_BridgeCommunityChurch";
         rcvpos = "rpR1_BridgeCommunityChurch";
-        setImage("Images/wp1909404.jpg");
+        setImage(DEFAULT_PANORAMA);
     } else if (room === "ChristChurchCathedral") {
         document.getElementById("ChristChurchCathedralui").style.display = "flex";
         srcpos = "spS_ChristChurchCathedral";
         srctype = "st1_ChristChurchCathedral";
         rcvpos = "rpR1_ChristChurchCathedral";
-        setImage("Images/wp1909404.jpg");
+        setImage(DEFAULT_PANORAMA);
     } else if (room === "DowntownPresbyterianChurch") {
         document.getElementById("DowntownPresbyterianChurchui").style.display = "flex";
         srcpos = "spS_DowntownPresbyterianChurch";
         srctype = "st1_DowntownPresbyterianChurch";
         rcvpos = "rpR1_DowntownPresbyterianChurch";
-        setImage("Images/wp1909404.jpg");
+        setImage(DEFAULT_PANORAMA);
     } else if (room === "FirstBaptistChurchCapitolHill") {
         document.getElementById("FirstBaptistChurchCapitolHillui").style.display = "flex";
         srcpos = "spS_FirstBaptistChurchCapitolHill";
         srctype = "st1_FirstBaptistChurchCapitolHill";
         rcvpos = "rpR1_FirstBaptistChurchCapitolHill";
-        setImage("Images/wp1909404.jpg");
+        setImage(DEFAULT_PANORAMA);
     } else if (room === "HolyTrinityEpiscopalChurch") {
         document.getElementById("HolyTrinityEpiscopalChurchui").style.display = "flex";
         srcpos = "spS_HolyTrinityEpiscopalChurch";
         srctype = "st1_HolyTrinityEpiscopalChurch";
         rcvpos = "rpR1_HolyTrinityEpiscopalChurch";
-        setImage("Images/wp1909404.jpg");
+        setImage(DEFAULT_PANORAMA);
     } else if (room === "UnitedMethodistChurch") {
         document.getElementById("UnitedMethodistChurchui").style.display = "flex";
         srcpos = "spS_UnitedMethodistChurch";
         srctype = "st1_UnitedMethodistChurch";
         rcvpos = "rpR1_UnitedMethodistChurch";
-        setImage("Images/wp1909404.jpg");
+        setImage(DEFAULT_PANORAMA);
     } else if (room === "CaneRidgeMeetingHouse") {
         document.getElementById("CaneRidgeMeetingHouseui").style.display = "flex";
         srcpos = "spS_CaneRidgeMeetingHouse";
         srctype = "st1_CaneRidgeMeetingHouse";
         rcvpos = "rpR1_CaneRidgeMeetingHouse";
-        setImage("Images/wp1909404.jpg");
+        setImage(DEFAULT_PANORAMA);
     } else if (room === "FirstPresbyterianChurchKY") {
         document.getElementById("FirstPresbyterianChurchKYui").style.display = "flex";
         srcpos = "spS_FirstPresbyterianChurchKY";
         srctype = "st1_FirstPresbyterianChurchKY";
         rcvpos = "rpR1_FirstPresbyterianChurchKY";
-        setImage("Images/wp1909404.jpg");
+        setImage(DEFAULT_PANORAMA);
     } else if (room === "BasilicaStFrancis") {
         document.getElementById("BasilicaStFrancisui").style.display = "flex";
         srcpos = "spS_BasilicaStFrancis";
         srctype = "st1_BasilicaStFrancis";
         rcvpos = "rpR1_BasilicaStFrancis";
-        setImage("Images/wp1909404.jpg");
+        setImage(DEFAULT_PANORAMA);
     } else if (room === "MonasteryImmaculateConception") {
         document.getElementById("MonasteryImmaculateConceptionui").style.display = "flex";
         srcpos = "spS_MonasteryImmaculateConception";
         srctype = "st1_MonasteryImmaculateConception";
         rcvpos = "rpR1_MonasteryImmaculateConception";
-        setImage("Images/wp1909404.jpg");
+        setImage(DEFAULT_PANORAMA);
+    } else if (room === "OurLadyOfGuadalupe") {
+        document.getElementById("OurLadyOfGuadalupeui").style.display = "flex";
+        srcpos = "spS_OurLadyOfGuadalupe";
+        srctype = "st1_OurLadyOfGuadalupe";
+        rcvpos = "rpR1_OurLadyOfGuadalupe";
+        setImage(DEFAULT_PANORAMA);
+    } else if (room === "StAugustineIsleta") {
+        document.getElementById("StAugustineIsletaui").style.display = "flex";
+        srcpos = "spS_StAugustineIsleta";
+        srctype = "st1_StAugustineIsleta";
+        rcvpos = "rpR1_StAugustineIsleta";
+        setImage(DEFAULT_PANORAMA);
     }
 
     compile();
+    verifyRoomDiagram(room + "ui");
 
     const infoBtn = document.getElementById('church-info-btn');
     if (infoBtn) infoBtn.style.display = (selectedRoom !== 'Select a Church') ? 'flex' : 'none';
@@ -147,10 +162,18 @@ function showSourceModal(files) {
 async function loadSourceFromServer(filename, label) {
     closeSourceModal();
     if (isPlaying) await playpause();
-    document.getElementById('srcselectlabel').textContent = label || formatSourceName(filename);
-    const res = await fetch('/Source Files/' + encodeURIComponent(filename));
-    const arrayBuffer = await res.arrayBuffer();
-    ctx.decodeAudioData(arrayBuffer, data => sourceBuffer = data);
+
+    const url = '/Source Files/' + encodeURIComponent(filename);
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new MissingResourceError(url, res.status);
+        const arrayBuffer = await res.arrayBuffer();
+        ctx.decodeAudioData(arrayBuffer, data => sourceBuffer = data);
+        // Only claim the new source once it has actually been retrieved
+        document.getElementById('srcselectlabel').textContent = label || formatSourceName(filename);
+    } catch (err) {
+        reportResourceFailure(err, "source file", url);
+    }
 }
 
 function closeSourceModal() {

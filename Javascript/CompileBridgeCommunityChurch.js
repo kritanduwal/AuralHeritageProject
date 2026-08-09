@@ -5,7 +5,7 @@
 
 function compileSelectionBridgeCommunityChurch()
 {
-    reverb = "Ambisonic Files/Bridge Community Church/" + "Bridge Church" + "_" + 
+    reverb = "IR/Bridge Community Church/" + "Bridge Church" + "_" + 
         document.getElementById(rcvpos).value + "-";
     
     if(urlExists(reverb))
