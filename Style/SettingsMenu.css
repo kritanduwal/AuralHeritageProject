@@ -27,6 +27,14 @@
     min-width: 180px;
 }
 
+/* Church section sizes to its content: no growing past the longest church name */
+.control-section--church {
+    flex: 0 1 auto;
+    align-items: flex-start;
+    max-width: 100%;
+    min-width: 0;
+}
+
 .control-label {
     color: var(--text-color);
     font-size: 14px;
@@ -36,6 +44,8 @@
 
 /* Room Dropdown */
 #roomDropdown {
+    width: auto;
+    max-width: 100%;
     padding: 10px 12px;
     border-radius: 4px;
     border: 1px solid var(--buttoncolor1);
@@ -44,6 +54,7 @@
     font-family: var(--font);
     background-color: white;
     cursor: pointer;
+    text-overflow: ellipsis;
 }
 
 #roomDropdown:focus {
