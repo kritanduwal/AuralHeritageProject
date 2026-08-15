@@ -7,48 +7,19 @@
     <meta name="author" content="Kritan Duwal">
     <title>Aural Heritage Preservation of Historic American Churches</title>
 
-    <script src="https://www.gstatic.com/external_hosted/omnitone/build/omnitone.min.js"></script>
-    <script src="https://storage.googleapis.com/vrview/2.0/build/vrview.min.js"></script>
-    <script src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
-    <script src="Javascript/CompileBridgeCommunityChurch.js" type="text/javascript"></script>
-    <script src="Javascript/CompileChristChurchCathedral.js" type="text/javascript"></script>
-    <script src="Javascript/CompileDowntownPresbyterianChurch.js" type="text/javascript"></script>
-    <script src="Javascript/CompileFirstBaptistChurchCapitolHill.js" type="text/javascript"></script>
-    <script src="Javascript/CompileHolyTrinityEpiscopalChurch.js" type="text/javascript"></script>
-    <script src="Javascript/CompileUnitedMethodistChurch.js" type="text/javascript"></script>
-    <script src="Javascript/CompileCaneRidgeMeetingHouse.js" type="text/javascript"></script>
-    <script src="Javascript/CompileFirstPresbyterianChurchKY.js" type="text/javascript"></script>
-    <script src="Javascript/CompileBasilicaStFrancis.js" type="text/javascript"></script>
-    <script src="Javascript/CompileMonasteryImmaculateConception.js" type="text/javascript"></script>
-    <script src="Javascript/CompileOurLadyOfGuadalupe.js" type="text/javascript"></script>
-    <script src="Javascript/CompileStAugustineIsleta.js" type="text/javascript"></script>
-    <script src="Javascript/AudioEngine.js" type="text/javascript"></script>
-    <script src="Javascript/SettingsMenu.js" type="text/javascript"></script>
 
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="Style/BridgeCommunityChurchButtons.css">
-    <link rel="stylesheet" href="Style/ChristChurchCathedralButtons.css">
-    <link rel="stylesheet" href="Style/DowntownPresbyterianChurchButtons.css">
-    <link rel="stylesheet" href="Style/FirstBaptistChurchCapitolHillButtons.css">
-    <link rel="stylesheet" href="Style/HolyTrinityEpiscopalChurchButtons.css">
-    <link rel="stylesheet" href="Style/UnitedMethodistChurchButtons.css">
-    <link rel="stylesheet" href="Style/CaneRidgeMeetingHouseButtons.css">
-    <link rel="stylesheet" href="Style/FirstPresbyterianChurchKYButtons.css">
-    <link rel="stylesheet" href="Style/BasilicaStFrancisButtons.css">
-    <link rel="stylesheet" href="Style/MonasteryImmaculateConceptionButtons.css">
-    <link rel="stylesheet" href="Style/OurLadyOfGuadalupeButtons.css">
-    <link rel="stylesheet" href="Style/StAugustineIsletaButtons.css">
-    <link rel="stylesheet" href="Style/Layout.css">
     <link rel="stylesheet" href="Style/Root.css">
+    <link rel="stylesheet" href="Style/Layout.css">
+    <link rel="stylesheet" href="Style/ChurchButtons.css">
     <link rel="stylesheet" href="Style/SettingsMenu.css">
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
-<body onload="loadSource(); updateSliderBackground(100);">
+<body onload="initApp()">
     <!-- App Bar -->
     <div id="appbar">
         <div class="app-title">Aural Heritage Preservation of Historic American Churches</div>
@@ -461,7 +432,7 @@
                 <h2>Tips</h2>
                 <ul>
                     <li>Try the "Sermon" source file with a large church and a wet mix to hear how speech carries in the space.</li>
-                    <li>Switching receiver positions while audio is playing will not interrupt playback, changes take effect on the next play.</li>
+                    <li>Switching receiver positions while audio is playing takes effect straight away, so you can step around a church and hear the room change from where you stand.</li>
                     <li>The collection spans twelve churches across Tennessee, Kentucky, Indiana, and New Mexico. Play the same source file through several of them to hear how size, shape, and building materials shape the sound, from the intimate Cane Ridge Meeting House and its 27.59 ft ceiling to Monastery Immaculate Conception beneath an 87.61 ft dome.</li>
                 </ul>
             </div>
@@ -515,7 +486,12 @@
         </div>
     </div>
 
+    <!-- Loaded last so App.js can build the panorama viewer as soon as it runs.
+         Data first, then the view and audio layers that read it. -->
+    <script src="Javascript/ChurchData.js"></script>
+    <script src="Javascript/Rooms.js"></script>
+    <script src="Javascript/App.js"></script>
+    <script src="Javascript/AudioEngine.js"></script>
+    <script src="Javascript/SettingsMenu.js"></script>
 </body>
-
-<script src="Javascript/App.js" type="text/javascript"></script>
 </html>

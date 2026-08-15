@@ -55,8 +55,12 @@
 }
 
 /* Button Styles */
+
+/* Receiver and source markers are placed on their church's floorplan overlay by
+   the per-room offsets in ChurchButtons.css */
 .bluebutton {
     outline: none;
+    position: absolute;
     border-radius: 100%;
     height: var(--buttonsize);
     width: var(--buttonsize);
@@ -71,6 +75,7 @@
 
 .yellowsquare {
     outline: none;
+    position: absolute;
     border-radius: 15%;
     height: var(--buttonsize);
     width: var(--buttonsize);

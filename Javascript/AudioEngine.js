@@ -1,259 +1,347 @@
 /**
  * Audio routing, processing, and playback
+ *
+ * A dry copy of the source is mixed against a convolved ("wet") copy of it,
+ * one convolver per ear, using the impulse response pair recorded at the
+ * selected receiver position. See "Reverb ratios" in README.md for the mix law.
+ *
  * @author Ben Jordan, Kritan Duwal
  */
 
-let ctx = new AudioContext();
+const ctx = new AudioContext();
 
-let source;
-let sourceBuffer;
+/** Source file to load on startup; matches the label in index.html */
+const DEFAULT_SOURCE_FILE = 'Source Files/Clarinet.wav';
 
-/**
- * Raised when a file could not be fetched, carrying the URL so the failing
- * resource can be named in the view instead of only in the console
- */
-class MissingResourceError extends Error {
-    constructor(url, status) {
-        super(`${status} while retrieving ${url}`);
-        this.name = 'MissingResourceError';
-        this.url = url;
-        this.status = status;
-    }
-}
-
-/**
- * Surfaces a failed file retrieval in the view, naming the resource
- * @param err  The caught error; a MissingResourceError carries the URL and status
- * @param what Human-readable name of the resource kind, e.g. "impulse response"
- * @param url  Fallback URL for errors that do not carry one
- */
-function reportResourceFailure(err, what, url) {
-    const failed = (err && err.url) || url;
-    const reason = (err && err.status) ? `could not be retrieved (${err.status})` : "could not be loaded";
-    showResourceError(`error: ${what} ${reason}`, failed);
-    console.error(err);
-}
-
+let sourceBuffer = null;  // decoded source audio (instrument, choir, sermon…)
+let source = null;        // the running BufferSource, or null while stopped
+let activeGraph = null;   // gain nodes of the running graph, kept for retuning and teardown
 let isPlaying = false;
 
-// Room reverberation (Convolution Mix) control
-let convolutionMix = 1.0; // start with full convolution mix
-let stereoDryGain = null;
-let stereoWetGainLeft = null;
-let stereoWetGainRight = null;
-let stereoLBuffer;
-let stereoRBuffer;
+/**
+ * The impulse response pair the next play will use. Set by compile() whenever
+ * the room or receiver selection changes.
+ *   base   – path prefix; "1.wav" and "2.wav" complete the left/right pair
+ *   gainDb – level reduction for this position, in dB (0 = play as recorded)
+ */
+let currentIr = { base: "", gainDb: 0 };
+
+function setImpulseResponse(base, gainDb) {
+    currentIr = { base, gainDb };
+}
+
+// ── Wet / dry mix ─────────────────────────────────────────────────────────
+
+/** Wet/dry balance: 0 plays the bare source, 1 the full room. */
+let convolutionMix = 1.0;
 
 /**
- * Sets the convolution mix amount
+ * Dry gain at a fully wet mix, i.e. the bottom of the dry taper (-9.1 dB)
+ */
+const DRY_GAIN_AT_FULL_WET = 0.35;
+
+/**
+ * Dry-path gain for a given wet mix.
+ *
+ * The wet path follows the slider directly, so the dry path has to give way as
+ * reverb comes up or the two summed together get louder toward the wet end.
+ * It holds at unity through the first 10% of the slider, then falls linearly
+ * in dB to DRY_GAIN_AT_FULL_WET at 100%.
+ *
+ * @param mix Wet amount, 0 to 1
+ */
+function dryGainFor(mix) {
+    return Math.min(1.0, Math.pow(DRY_GAIN_AT_FULL_WET, (10 * mix - 1) / 9));
+}
+
+/** Converts a positive dB reduction to the linear gain that applies it */
+function reductionToGain(reductionDb) {
+    return Math.pow(10, -reductionDb / 20);
+}
+
+/**
+ * Sets the convolution mix amount, gliding to avoid zipper noise
  * @param mix Value from 0 to 1
  */
 function setConvolutionMix(mix) {
     convolutionMix = mix;
-    const now = ctx.currentTime;
+    if (!activeGraph) return;
 
-    if (stereoDryGain && stereoWetGainLeft && stereoWetGainRight) {
-        stereoDryGain.gain.linearRampToValueAtTime(Math.min(1.0, Math.pow(0.35, (10 * mix - 1) / 9)), now + 0.05);
-        stereoWetGainLeft.gain.linearRampToValueAtTime(mix, now + 0.05);
-        stereoWetGainRight.gain.linearRampToValueAtTime(mix, now + 0.05);
-    }
+    const target = ctx.currentTime + 0.05;
+    activeGraph.dryGain.gain.linearRampToValueAtTime(dryGainFor(mix), target);
+    activeGraph.wetGainLeft.gain.linearRampToValueAtTime(mix, target);
+    activeGraph.wetGainRight.gain.linearRampToValueAtTime(mix, target);
 }
 
 /**
- * Pre-convolution gain reduction (in dB) applied to the IRs, per room and
- * receiver position. Receivers left out of a room's entry, and rooms left out
- * entirely, are played back unchanged.
+ * Wires a source node through the wet/dry convolution graph to the context's
+ * destination.
+ *
+ *   source ─┬─ dryGain ───────────────────────────────► merger L+R
+ *           └─ irTrim ─ splitter ─┬─ convL ─ wetL ────► merger L
+ *                                 └─ convR ─ wetR ────► merger R
+ *
+ * @returns the gain nodes the mix slider retunes, plus the merger to unhook on stop
  */
-const IR_GAIN_REDUCTION_DB = {
-    FirstPresbyterianChurchKY:     { R2: 1.5, R5: 1.5, R8: 1.5, R3: 3, R6: 3, R9: 3 },
-    CaneRidgeMeetingHouse:         { R7: 1.5, R8: 1.5, R9: 1.5, R5: 3, R6: 3},
-    BasilicaStFrancis:             { R4: 1, R5: 1, R2: 1.5, R6: 2.5, R7: 2.5, R3: 3, R8: 4.5 },
-    MonasteryImmaculateConception: { R2: 1.5, R5: 1.5, R6: 1.5, R3: 3, R4: 4.5 },
-    StAugustineIsleta:             { R2: 1.5, R3: 3, R4: 4.5, R5: 6 },
-    OurLadyOfGuadalupe:            { R2: 1.5, R3: 3, R4: 4.5 }
-};
+function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irGainDb }) {
+    const convolverLeft = audioCtx.createConvolver();
+    convolverLeft.buffer = irLeft;
+    const convolverRight = audioCtx.createConvolver();
+    convolverRight.buffer = irRight;
 
-/**
- * Determines the pre-convolution gain reduction (in dB) to apply to the IRs
- * for the current room/receiver position combination.
- */
-function getIrGainReductionDb() {
-    const roomReductions = IR_GAIN_REDUCTION_DB[room];
-    if (!roomReductions) return 0;
+    // A ConvolverNode equal-power normalizes its impulse response when the
+    // buffer is assigned, so a per-position trim baked into the samples would
+    // be scaled straight back out. Trimming the signal on its way into the
+    // convolvers puts the reduction somewhere normalization cannot undo, and
+    // leaves the dry path — which taps the source directly — at full level.
+    const irTrim = audioCtx.createGain();
+    irTrim.gain.value = reductionToGain(irGainDb);
 
-    const receiver = /^rp(R\d+)_/.exec(rcvpos);
-    if (!receiver) return 0;
+    // A one-output splitter keeps channel 0 only, so a stereo source file is
+    // convolved as mono rather than folded into both ears.
+    const splitter = audioCtx.createChannelSplitter(1);
+    const merger = audioCtx.createChannelMerger(2);
 
-    return roomReductions[receiver[1]] || 0;
+    const dryGain = audioCtx.createGain();
+    const wetGainLeft = audioCtx.createGain();
+    const wetGainRight = audioCtx.createGain();
+    dryGain.gain.value = dryGainFor(mix);
+    wetGainLeft.gain.value = mix;
+    wetGainRight.gain.value = mix;
+
+    // Dry path: unconvolved source to both ears
+    sourceNode.connect(dryGain);
+    dryGain.connect(merger, 0, 0);
+    dryGain.connect(merger, 0, 1);
+
+    // Wet path: one convolver per ear, both fed the same mono signal
+    sourceNode.connect(irTrim);
+    irTrim.connect(splitter);
+    splitter.connect(convolverLeft, 0);
+    splitter.connect(convolverRight, 0);
+    convolverLeft.connect(wetGainLeft);
+    convolverRight.connect(wetGainRight);
+    wetGainLeft.connect(merger, 0, 0);
+    wetGainRight.connect(merger, 0, 1);
+
+    merger.connect(audioCtx.destination);
+
+    return { dryGain, wetGainLeft, wetGainRight, output: merger };
 }
 
-/**
- * Scales every sample of an AudioBuffer in place by the linear gain
- * equivalent to the given dB reduction.
- */
-function applyGainReductionToBuffer(buffer, reductionDb) {
-    if (!reductionDb) return;
-    const gain = Math.pow(10, -reductionDb / 20);
-    const data = buffer.getChannelData(0); // IR files are mono
-    for (let i = 0; i < data.length; i++) {
-        data[i] *= gain;
-    }
-}
+// ── File loading ──────────────────────────────────────────────────────────
 
 /**
- * Initializes Stereo format convolution
+ * Fetches and decodes an audio file
+ * @throws MissingResourceError if the file could not be retrieved
  */
-async function initStereoConvolution(irLeftUrl, irRightUrl)
-{
-    // Load IRs
-    stereoLBuffer = await loadAudioBuffer(ctx, irLeftUrl);
-    stereoRBuffer = await loadAudioBuffer(ctx, irRightUrl);
-
-    // Apply per-position gain reduction to the IRs before convolution
-    const reductionDb = getIrGainReductionDb();
-    applyGainReductionToBuffer(stereoLBuffer, reductionDb);
-    applyGainReductionToBuffer(stereoRBuffer, reductionDb);
-}
-
-// Utility to load audio buffer from a URL
 async function loadAudioBuffer(audioContext, url) {
     const response = await fetch(url);
     if (!response.ok) {
         throw new MissingResourceError(url, response.status);
     }
-    const arrayBuffer = await response.arrayBuffer();
-    return await audioContext.decodeAudioData(arrayBuffer);
-}
-
-function updatePlayButton() {
-    const btn = document.getElementById('play');
-    if (!btn) return;
-    btn.textContent = isPlaying ? 'pause_circle_filled' : 'play_circle_filled';
-    btn.classList.toggle('playing', isPlaying);
+    return audioContext.decodeAudioData(await response.arrayBuffer());
 }
 
 /**
- * Stereo format player
+ * Decoded impulse responses, keyed by URL and ordered oldest-first so the least
+ * recently used entries can be dropped. Switching receivers restarts playback,
+ * which would otherwise re-download and re-decode the same pair every time.
+ * Capped because a full set across twelve churches would run to hundreds of MB.
  */
-async function playStereoFormat() {
-    if (isPlaying === true) {
-        if (source) {
-            source.stop();
+const IR_CACHE_LIMIT = 8;
+const irCache = new Map();
+
+async function loadImpulseResponse(url) {
+    const cached = irCache.get(url);
+    if (cached) {
+        irCache.delete(url); // reinsert to mark as most recently used
+        irCache.set(url, cached);
+        return cached;
+    }
+
+    // The pending promise is cached, not the buffer, so two plays started in
+    // quick succession share one download instead of racing.
+    const pending = loadAudioBuffer(ctx, url);
+    irCache.set(url, pending);
+    try {
+        await pending;
+    } catch (err) {
+        irCache.delete(url); // let a later attempt retry rather than replay the failure
+        throw err;
+    }
+
+    while (irCache.size > IR_CACHE_LIMIT) {
+        irCache.delete(irCache.keys().next().value);
+    }
+    return pending;
+}
+
+/**
+ * Checks whether a receiver position has a recorded impulse response, priming
+ * the error banner (without showing it) when it does not
+ * @param base Path prefix of the pair, as built by impulseResponseBase()
+ */
+async function impulseResponseExists(base) {
+    const url = base + "1.wav";
+    try {
+        const response = await fetch(url, { method: 'HEAD' });
+        if (response.ok) {
+            clearResourceError();
+            return true;
         }
-        isPlaying = false;
-        updatePlayButton();
-        return;
-    } else {
-        irLeftUrl = reverb + "1.wav";
-        irRightUrl = reverb + "2.wav";
+        setResourceError(`error: impulse response could not be retrieved (${response.status})`, url);
+    } catch (err) {
+        console.error(err);
+        setResourceError("error: impulse response could not be loaded", url);
+    }
+    return false;
+}
 
-        try {
-            await initStereoConvolution(irLeftUrl, irRightUrl);
-        } catch (err) {
-            reportResourceFailure(err, "impulse response", irLeftUrl);
-            document.getElementById("play").disabled = true;
-            isPlaying = false;
-            updatePlayButton();
-            return;
-        }
+/** Replaces the playback source with an audio file fetched from the server */
+async function setSourceFromUrl(url) {
+    sourceBuffer = await loadAudioBuffer(ctx, url);
+}
 
-        // Create source
-        source = ctx.createBufferSource();
-        source.buffer = sourceBuffer;
-        // Create convolver nodes
-        convolverLeft = ctx.createConvolver();
-        convolverLeft.buffer = stereoLBuffer;
-        convolverRight = ctx.createConvolver();
-        convolverRight.buffer = stereoRBuffer;
-        // Create splitter and connect mono source to both convolvers
-        const splitter = ctx.createChannelSplitter(1);
-        merger = ctx.createChannelMerger(2);
-        // Create gain nodes for wet/dry mix
-        stereoDryGain = ctx.createGain();
-        stereoWetGainLeft = ctx.createGain();
-        stereoWetGainRight = ctx.createGain();
-        // Set initial mix values
-        stereoDryGain.gain.value = Math.min(1.0, Math.pow(0.35, (10 * convolutionMix - 1) / 9));
-        stereoWetGainLeft.gain.value = convolutionMix;
-        stereoWetGainRight.gain.value = convolutionMix;
-        // Connect source to both dry and wet paths
-        source.connect(splitter);
-        source.connect(stereoDryGain);
-        // Wet path: source -> convolver -> gain -> merger
-        splitter.connect(convolverLeft, 0);
-        splitter.connect(convolverRight, 0);
-        convolverLeft.connect(stereoWetGainLeft);
-        convolverRight.connect(stereoWetGainRight);
-        stereoWetGainLeft.connect(merger, 0, 0);  // Left channel
-        stereoWetGainRight.connect(merger, 0, 1); // Right channel
-        // Dry path: source -> gain -> merger
-        stereoDryGain.connect(merger, 0, 0);
-        stereoDryGain.connect(merger, 0, 1);
-        // Connect to output
-        merger.connect(ctx.destination);
-        // Start playback
-        source.loop = true;
-        source.start();
-        isPlaying = true;
-        updatePlayButton();
+/** Replaces the playback source with bytes already read from a local file */
+async function setSourceFromBuffer(arrayBuffer) {
+    sourceBuffer = await ctx.decodeAudioData(arrayBuffer);
+}
 
-        //downloadConvolvedAudio(); // Uncomment to download the convolved output for testing
+/** Loads the startup source file, reporting failure in the view */
+async function loadSource() {
+    try {
+        await setSourceFromUrl(DEFAULT_SOURCE_FILE);
+    } catch (err) {
+        reportResourceFailure(err, "source file", DEFAULT_SOURCE_FILE);
     }
 }
 
+// ── Playback ──────────────────────────────────────────────────────────────
+
+function setPlaying(playing) {
+    isPlaying = playing;
+
+    const btn = document.getElementById('play');
+    if (!btn) return;
+    btn.textContent = playing ? 'pause_circle_filled' : 'play_circle_filled';
+    btn.classList.toggle('playing', playing);
+}
+
+async function startPlayback() {
+    if (!sourceBuffer) {
+        showResourceError("error: source file has not finished loading", "");
+        return;
+    }
+    if (!currentIr.base) return;
+
+    let irLeft, irRight;
+    try {
+        [irLeft, irRight] = await Promise.all([
+            loadImpulseResponse(currentIr.base + "1.wav"),
+            loadImpulseResponse(currentIr.base + "2.wav")
+        ]);
+    } catch (err) {
+        reportResourceFailure(err, "impulse response", currentIr.base + "1.wav");
+        document.getElementById("play").disabled = true;
+        setPlaying(false);
+        return;
+    }
+
+    // A context constructed before any user gesture starts out suspended
+    await ctx.resume();
+
+    // Switching receivers restarts playback, so a second start can arrive while
+    // this one was still fetching. Tear down anything already running rather
+    // than leaving two graphs feeding the destination at once.
+    stopPlayback();
+
+    source = ctx.createBufferSource();
+    source.buffer = sourceBuffer;
+    source.loop = true;
+    activeGraph = buildConvolutionGraph(ctx, source, {
+        irLeft,
+        irRight,
+        mix: convolutionMix,
+        irGainDb: currentIr.gainDb
+    });
+
+    source.start();
+    setPlaying(true);
+
+    //downloadConvolvedAudio(); // Uncomment to download the convolved output for testing
+}
+
+function stopPlayback() {
+    if (source) {
+        try {
+            source.stop();
+        } catch (err) {
+            console.error(err);
+        }
+        source.disconnect();
+        source = null;
+    }
+
+    // Unhooking the merger releases the whole graph for collection; leaving it
+    // attached to the destination would pin every node of every past playback.
+    if (activeGraph) {
+        activeGraph.output.disconnect();
+        activeGraph = null;
+    }
+
+    setPlaying(false);
+}
+
+async function playpause() {
+    if (isPlaying) {
+        stopPlayback();
+        return;
+    }
+    await startPlayback();
+}
+
+// ── Offline render (development aid) ──────────────────────────────────────
+
 /**
- * Renders the convolved (wet+dry mixed) output offline and downloads it as a WAV file.
- * Mirrors the live graph built in playStereoFormat() but through an OfflineAudioContext
- * so it can be rendered without playback. Useful for testing the convolution result.
+ * Renders the convolved (wet+dry mixed) output offline and downloads it as a
+ * WAV file. Runs the same graph as playback through an OfflineAudioContext so
+ * the result can be inspected without recording the browser's output.
  */
 async function downloadConvolvedAudio() {
-    if (!sourceBuffer || !stereoLBuffer || !stereoRBuffer) {
+    if (!sourceBuffer || !currentIr.base) {
         console.warn('downloadConvolvedAudio: source or impulse responses not loaded yet.');
         return;
     }
 
-    const offlineCtx = new OfflineAudioContext(2, sourceBuffer.length, ctx.sampleRate);
+    const [irLeft, irRight] = await Promise.all([
+        loadImpulseResponse(currentIr.base + "1.wav"),
+        loadImpulseResponse(currentIr.base + "2.wav")
+    ]);
+
+    // Room for the source plus the reverb tail it leaves behind
+    const frames = sourceBuffer.length + irLeft.length;
+    const offlineCtx = new OfflineAudioContext(2, frames, ctx.sampleRate);
 
     const offlineSource = offlineCtx.createBufferSource();
     offlineSource.buffer = sourceBuffer;
-
-    const convolverL = offlineCtx.createConvolver();
-    convolverL.buffer = stereoLBuffer;
-    const convolverR = offlineCtx.createConvolver();
-    convolverR.buffer = stereoRBuffer;
-
-    const splitter = offlineCtx.createChannelSplitter(1);
-    const merger = offlineCtx.createChannelMerger(2);
-
-    const dryGain = offlineCtx.createGain();
-    const wetGainLeft = offlineCtx.createGain();
-    const wetGainRight = offlineCtx.createGain();
-    dryGain.gain.value = Math.min(1.0, Math.pow(0.35, (10 * convolutionMix - 1) / 9));
-    wetGainLeft.gain.value = convolutionMix;
-    wetGainRight.gain.value = convolutionMix;
-
-    offlineSource.connect(splitter);
-    offlineSource.connect(dryGain);
-    splitter.connect(convolverL, 0);
-    splitter.connect(convolverR, 0);
-    convolverL.connect(wetGainLeft);
-    convolverR.connect(wetGainRight);
-    wetGainLeft.connect(merger, 0, 0);
-    wetGainRight.connect(merger, 0, 1);
-    dryGain.connect(merger, 0, 0);
-    dryGain.connect(merger, 0, 1);
-    merger.connect(offlineCtx.destination);
+    buildConvolutionGraph(offlineCtx, offlineSource, {
+        irLeft,
+        irRight,
+        mix: convolutionMix,
+        irGainDb: currentIr.gainDb
+    });
 
     offlineSource.start();
     const renderedBuffer = await offlineCtx.startRendering();
 
-    const wavBlob = audioBufferToWav(renderedBuffer);
-    const url = URL.createObjectURL(wavBlob);
+    const url = URL.createObjectURL(audioBufferToWav(renderedBuffer));
     const link = document.createElement('a');
     link.href = url;
     link.download = 'convolved-output.wav';
     link.click();
-    URL.revokeObjectURL(url);
+    // Revoked on a later turn of the event loop so the download can start
+    setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 /**
@@ -305,56 +393,4 @@ function audioBufferToWav(buffer) {
     }
 
     return new Blob([arrayBuffer], { type: 'audio/wav' });
-}
-
-//file loading
-
-/**
- * Checks if a file exists
- * @param url The file url
- * @returns {boolean} if the file exists
- */
-function urlExists(url)
-{
-    let http = new XMLHttpRequest();
-    let reverb = url + "1.wav";
-    http.open('GET', reverb, false);
-    http.send();
-
-    // Prime the banner with the missing file; the compile functions show it
-    if (http.status === 404) {
-        setResourceError("error: impulse response could not be retrieved (404)", reverb);
-        return false;
-    }
-
-    clearResourceError();
-    return true;
-}
-
-/**
- * Loads a source file
- * @param url The source file
- */
-function initSource(file)
-{
-    ctx.decodeAudioData(file, (data) => sourceBuffer = data);
-}
-
-function loadSource()
-{
-    const url = 'Source Files/Clarinet.wav';
-    let request = new XMLHttpRequest();
-    request.open("GET", url, true);
-    request.responseType = "arraybuffer";
-    request.onload = function () {
-        if (request.status === 404) {
-            reportResourceFailure(new MissingResourceError(url, 404), "source file", url);
-            return;
-        }
-        ctx.decodeAudioData(request.response, (data) => sourceBuffer = data);
-    };
-    request.onerror = function () {
-        reportResourceFailure(null, "source file", url);
-    };
-    request.send();
 }
