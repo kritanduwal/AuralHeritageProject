@@ -1,0 +1,449 @@
+/*
+    Church Buttons
+
+    description: Positions of the source (S) and receiver (R1, R2...) buttons on
+                 each church's floorplan diagram. Coordinates are pixel offsets
+                 from the top-left of that room's #<Room>ui overlay, whose size
+                 and diagram image are set in Layout.css.
+
+                 'position: absolute' is shared by .bluebutton and .yellowsquare
+                 in Root.css, so only the offsets appear here.
+    author: Kritan Duwal
+ */
+
+/* ── Bridge Community Church ── */
+#spS_BridgeCommunityChurch {
+    top: 25px;
+    left: 115px;
+}
+
+#rpR1_BridgeCommunityChurch {
+    top: 63px;
+    left: 115px;
+}
+
+#rpR2_BridgeCommunityChurch {
+    top: 135px;
+    left: 115px;
+}
+
+#rpR3_BridgeCommunityChurch {
+    top: 97px;
+    left: 23px;
+}
+
+#rpR4_BridgeCommunityChurch {
+    top: 97px;
+    left: 207px;
+}
+
+/* ── Christ Church Cathedral ── */
+#spS_ChristChurchCathedral {
+    top: 44px;
+    left: 153px;
+}
+
+#rpR1_ChristChurchCathedral {
+    top: 85px;
+    left: 153px;
+}
+
+#rpR2_ChristChurchCathedral {
+    top: 135px;
+    left: 153px;
+}
+
+#rpR3_ChristChurchCathedral {
+    top: 200px;
+    left: 153px;
+}
+
+#rpR4_ChristChurchCathedral {
+    top: 85px;
+    left: 88px;
+}
+
+#rpR5_ChristChurchCathedral {
+    top: 135px;
+    left: 88px;
+}
+
+#rpR6_ChristChurchCathedral {
+    top: 85px;
+    left: 218px;
+}
+
+#rpR7_ChristChurchCathedral {
+    top: 135px;
+    left: 218px;
+}
+
+#rpR8_ChristChurchCathedral {
+    top: 27px;
+    left: 153px;
+}
+
+/* ── Downtown Presbyterian Church ── */
+#spS_DowntownPresbyterianChurch {
+    top: 68px;
+    left: 140px;
+}
+
+#rpR1_DowntownPresbyterianChurch {
+    top: 105px;
+    left: 140px;
+}
+
+#rpR2_DowntownPresbyterianChurch {
+    top: 158px;
+    left: 140px;
+}
+
+#rpR3_DowntownPresbyterianChurch {
+    top: 221px;
+    left: 140px;
+}
+
+#rpR4_DowntownPresbyterianChurch {
+    top: 158px;
+    left: 75px;
+}
+
+#rpR5_DowntownPresbyterianChurch {
+    top: 158px;
+    left: 205px;
+}
+
+/* ── First Baptist Church Capitol Hill ── */
+#spS_FirstBaptistChurchCapitolHill {
+    top: 36px;
+    left: 145px;
+}
+
+#rpR1_FirstBaptistChurchCapitolHill {
+    top: 69px;
+    left: 145px;
+}
+
+#rpR2_FirstBaptistChurchCapitolHill {
+    top: 102px;
+    left: 145px;
+}
+
+#rpR3_FirstBaptistChurchCapitolHill {
+    top: 136px;
+    left: 145px;
+}
+
+#rpR4_FirstBaptistChurchCapitolHill {
+    top: 102px;
+    left: 50px;
+}
+
+#rpR5_FirstBaptistChurchCapitolHill {
+    top: 102px;
+    left: 240px;
+}
+
+/* ── Holy Trinity Episcopal Church ── */
+#spS_HolyTrinityEpiscopalChurch {
+    top: 77px;
+    left: 60px;
+}
+
+#rpR1_HolyTrinityEpiscopalChurch {
+    top: 151px;
+    left: 60px;
+}
+
+#rpR2_HolyTrinityEpiscopalChurch {
+    top: 225px;
+    left: 60px;
+}
+
+#rpR3_HolyTrinityEpiscopalChurch {
+    top: 303px;
+    left: 60px;
+}
+
+#rpR4_HolyTrinityEpiscopalChurch {
+    top: 374px;
+    left: 60px;
+}
+
+/* ── Church Street United Methodist Church ── */
+#spS_UnitedMethodistChurch {
+    top: 20px;
+    left: 77px;
+}
+
+#rpR1_UnitedMethodistChurch {
+    top: 70px;
+    left: 77px;
+}
+
+#rpR2_UnitedMethodistChurch {
+    top: 130px;
+    left: 77px;
+}
+
+#rpR3_UnitedMethodistChurch {
+    top: 193px;
+    left: 77px;
+}
+
+#rpR4_UnitedMethodistChurch {
+    top: 262px;
+    left: 77px;
+}
+
+/* ── Cane Ridge Meeting House ── */
+#spS_CaneRidgeMeetingHouse {
+    top: 85px;
+    left: 48px;
+}
+
+#rpR1_CaneRidgeMeetingHouse {
+    top: 85px;
+    left: 87px;
+}
+
+#rpR2_CaneRidgeMeetingHouse {
+    top: 85px;
+    left: 111px;
+}
+
+#rpR3_CaneRidgeMeetingHouse {
+    top: 145px;
+    left: 76px;
+}
+
+#rpR4_CaneRidgeMeetingHouse {
+    top: 30px;
+    left: 76px;
+}
+
+#rpR5_CaneRidgeMeetingHouse {
+    top: 6px;
+    left: 76px;
+}
+
+#rpR6_CaneRidgeMeetingHouse {
+    top: 213px;
+    left: 76px;
+}
+
+#rpR7_CaneRidgeMeetingHouse {
+    top: 135px;
+    left: 182px;
+}
+
+#rpR8_CaneRidgeMeetingHouse {
+    top: 88px;
+    left: 214px;
+}
+
+#rpR9_CaneRidgeMeetingHouse {
+    top: 36px;
+    left: 184px;
+}
+
+/* ── First Presbyterian Church, KY ── */
+#spS_FirstPresbyterianChurchKY {
+    top: 48px;
+    left: 145px;
+}
+
+#rpR1_FirstPresbyterianChurchKY {
+    top: 89px;
+    left: 145px;
+}
+
+#rpR2_FirstPresbyterianChurchKY {
+    top: 140px;
+    left: 145px;
+}
+
+#rpR3_FirstPresbyterianChurchKY {
+    top: 209px;
+    left: 145px;
+}
+
+#rpR4_FirstPresbyterianChurchKY {
+    top: 89px;
+    left: 77px;
+}
+
+#rpR5_FirstPresbyterianChurchKY {
+    top: 140px;
+    left: 77px;
+}
+
+#rpR6_FirstPresbyterianChurchKY {
+    top: 209px;
+    left: 77px;
+}
+
+#rpR7_FirstPresbyterianChurchKY {
+    top: 89px;
+    left: 214px;
+}
+
+#rpR8_FirstPresbyterianChurchKY {
+    top: 140px;
+    left: 214px;
+}
+
+#rpR9_FirstPresbyterianChurchKY {
+    top: 209px;
+    left: 214px;
+}
+
+/* ── Basilica of St. Francis Xavier Proto-Cathedral ── */
+#spS_BasilicaStFrancis {
+    top: 82px;
+    left: 96px;
+}
+
+#rpR1_BasilicaStFrancis {
+    top: 137px;
+    left: 96px;
+}
+
+#rpR2_BasilicaStFrancis {
+    top: 176px;
+    left: 96px;
+}
+
+#rpR3_BasilicaStFrancis {
+    top: 212px;
+    left: 96px;
+}
+
+#rpR4_BasilicaStFrancis {
+    top: 154px;
+    left: 37px;
+}
+
+#rpR5_BasilicaStFrancis {
+    top: 155px;
+    left: 155px;
+}
+
+#rpR6_BasilicaStFrancis {
+    top: 203px;
+    left: 37px;
+}
+
+#rpR7_BasilicaStFrancis {
+    top: 205px;
+    left: 155px;
+}
+
+#rpR8_BasilicaStFrancis {
+    top: 235px;
+    left: 96px;
+}
+
+/* ── Monastery Immaculate Conception ── */
+#spS_MonasteryImmaculateConception {
+    top: 161px;
+    left: 92px;
+}
+
+#rpR1_MonasteryImmaculateConception {
+    top: 211px;
+    left: 92px;
+}
+
+#rpR2_MonasteryImmaculateConception {
+    top: 248px;
+    left: 92px;
+}
+
+#rpR3_MonasteryImmaculateConception {
+    top: 282px;
+    left: 92px;
+}
+
+#rpR4_MonasteryImmaculateConception {
+    top: 317px;
+    left: 92px;
+}
+
+#rpR5_MonasteryImmaculateConception {
+    top: 211px;
+    left: 21px;
+}
+
+#rpR6_MonasteryImmaculateConception {
+    top: 211px;
+    left: 165px;
+}
+
+/* ── St. Augustine Catholic Church ── */
+#spS_StAugustineIsleta {
+    top: 25px;
+    left: 74px;
+}
+
+#rpR1_StAugustineIsleta {
+    top: 69px;
+    left: 74px;
+}
+
+#rpR2_StAugustineIsleta {
+    top: 119px;
+    left: 74px;
+}
+
+#rpR3_StAugustineIsleta {
+    top: 173px;
+    left: 74px;
+}
+
+#rpR4_StAugustineIsleta {
+    top: 223px;
+    left: 74px;
+}
+
+#rpR5_StAugustineIsleta {
+    top: 262px;
+    left: 74px;
+}
+
+/* ── Santuario de Nuestra Señora de Guadalupe ── */
+#spS_OurLadyOfGuadalupe {
+    top: 31px;
+    left: 125px;
+}
+
+#rpR1_OurLadyOfGuadalupe {
+    top: 68px;
+    left: 125px;
+}
+
+#rpR2_OurLadyOfGuadalupe {
+    top: 110px;
+    left: 125px;
+}
+
+#rpR3_OurLadyOfGuadalupe {
+    top: 158px;
+    left: 125px;
+}
+
+#rpR4_OurLadyOfGuadalupe {
+    top: 204px;
+    left: 125px;
+}
+
+#rpR5_OurLadyOfGuadalupe {
+    top: 68px;
+    left: 50px;
+}
+
+#rpR6_OurLadyOfGuadalupe {
+    top: 68px;
+    left: 194px;
+}

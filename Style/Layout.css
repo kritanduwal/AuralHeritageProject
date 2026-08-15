@@ -408,6 +408,16 @@ input, button, select, textarea {
     padding: 24px;
 }
 
+/* Cover photo heading the modal, shown whole rather than cropped.*/
+#church-info-cover {
+    max-width: 100%;
+    max-height: min(56vh, 504px);
+    width: auto;
+    height: auto;
+    margin: 0 auto 24px;
+    border-radius: 6px;
+}
+
 .church-info-history {
     margin-bottom: 24px;
 }
@@ -651,14 +661,14 @@ input, button, select, textarea {
 #FirstPresbyterianChurchKYui {
     width: 258px;
     height: 298px;
-    background-image: url("../Images/First Presbyterian Church, KY/First Presbyterian KY Diagram.png");
+    background-image: url("../Images/First Presbyterian Church, KY/First Presbyterian KY diagram.PNG");
     background-size: 258px 298px;
 }
 
 #CaneRidgeMeetingHouseui {
     width: 287px;
     height: 238px;
-    background-image: url("../Images/Cane Ridge Meeting House, KY/Cane Ridge Diagram.png");
+    background-image: url("../Images/Cane Ridge Meeting House, KY/Cane Ridge Diagram.PNG");
     background-size: 287px 238px;
 }
 
