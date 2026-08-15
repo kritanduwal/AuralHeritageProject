@@ -40,6 +40,38 @@ Either way, **Browse other files…** can play any WAV or MP3 from your own mach
 Deployment is Netlify, configured by `netlify.toml` to publish the repository root
 as-is with no build command.
 
+## Tests
+
+```bash
+npm test
+```
+
+127 tests, run by Node's built-in test runner. No dependencies and no browser: the
+application files are loaded into a `vm` context whose globals are test doubles for
+the DOM, Web Audio, pannellum, `fetch` and timers, so the real `compile()`,
+`buildConvolutionGraph()` and `switchRoom()` are exercised rather than copies of
+them.
+
+| File | Covers |
+| --- | --- |
+| `test/rooms.test.js` | The `ROOMS` table and its path builders |
+| `test/audio.test.js` | Mix law, graph wiring, IR caching, playback lifecycle, WAV encoding |
+| `test/app.test.js` | `compile()`, the stale-selection guard, viewer lifetime, error banner |
+| `test/settings.test.js` | Church switching and the source file picker |
+| `test/assets.test.js` | Every path in `ROOMS`, the markup and the CSS resolve to real files |
+| `test/helpers/harness.js` | The sandbox the other files use |
+
+Two things worth knowing about the suite:
+
+- **`assets.test.js` checks filename case explicitly.** It walks directory entries
+  rather than calling `existsSync`, because Windows and macOS resolve paths
+  case-insensitively — a panorama spelled `.JPG` when the file is `.jpg` passes
+  locally and 404s on Netlify. That class of bug is otherwise invisible until
+  deploy.
+- **The mix law is pinned to the published numbers.** The dB table in "Reverb
+  ratios" below is asserted against `dryGainFor()`, so the documentation cannot
+  drift away from the code without a test failing.
+
 > **Note:** file paths are case-sensitive once deployed but not on Windows. A
 > panorama referenced as `.JPG` when the file is really `.jpg` will work locally
 > and 404 in production, so match the case on disk exactly.
