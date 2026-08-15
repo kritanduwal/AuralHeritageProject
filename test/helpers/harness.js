@@ -78,6 +78,8 @@ function createApp(options = {}) {
                 },
             },
             appendChild(child) { (this.children ||= []).push(child); },
+            setAttribute(name, value) { this[name] = value; },
+            removeAttribute(name) { delete this[name]; },
         };
     };
     const el = (id) => {

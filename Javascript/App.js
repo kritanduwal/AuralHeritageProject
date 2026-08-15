@@ -287,6 +287,26 @@ function switchTab(tabId, btnEl) {
 }
 
 // ── Church Info Modal ─────────────────────────────────────────────────────
+
+/**
+ * Heads the modal with the church's cover photo, or leaves it out entirely.
+ *
+ */
+function setChurchInfoCover(data) {
+    const cover = document.getElementById('church-info-cover');
+    if (!cover) return;
+
+    if (!data.cover) {
+        cover.style.display = 'none';
+        cover.removeAttribute('src');
+        return;
+    }
+
+    cover.src = data.cover;
+    cover.alt = data.name;
+    cover.style.display = 'block';
+}
+
 function showChurchInfo() {
     const data = churchData[room];
     if (!data) return;
@@ -294,6 +314,8 @@ function showChurchInfo() {
     document.getElementById('church-info-name').textContent = data.name;
     document.getElementById('church-info-address').textContent = data.address;
     document.getElementById('church-info-date').textContent = 'Measured: ' + data.measured;
+
+    setChurchInfoCover(data);
 
     document.getElementById('church-info-history').innerHTML =
         data.history.map(p => `<p>${p}</p>`).join('');

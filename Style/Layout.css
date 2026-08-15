@@ -408,6 +408,16 @@ input, button, select, textarea {
     padding: 24px;
 }
 
+/* Cover photo heading the modal, shown whole rather than cropped.*/
+#church-info-cover {
+    max-width: 100%;
+    max-height: min(56vh, 504px);
+    width: auto;
+    height: auto;
+    margin: 0 auto 24px;
+    border-radius: 6px;
+}
+
 .church-info-history {
     margin-bottom: 24px;
 }

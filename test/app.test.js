@@ -340,6 +340,53 @@ test('showChurchInfo fills the modal from ChurchData', () => {
     assert.ok(app.el('church-info-modal').classList.contains('open'));
 });
 
+test('showChurchInfo heads the modal with the church’s cover photo', () => {
+    const app = createApp();
+    app.state.room = 'CaneRidgeMeetingHouse';
+    app.g.showChurchInfo();
+
+    const cover = app.el('church-info-cover');
+    assert.equal(cover.src, app.data.churchData.CaneRidgeMeetingHouse.cover);
+    assert.equal(cover.style.display, 'block');
+    assert.equal(cover.alt, 'Cane Ridge Meeting House', 'the photo should be described for screen readers');
+});
+
+test('a church with no cover photo opens straight onto its history', () => {
+    const app = createApp();
+    app.state.room = 'BridgeCommunityChurch';
+    app.g.showChurchInfo();
+
+    const cover = app.el('church-info-cover');
+    assert.equal(cover.style.display, 'none');
+    assert.ok(!cover.src, 'no request should be made for a cover that does not exist');
+});
+
+test('the cover does not linger when moving to a church that has none', () => {
+    const app = createApp();
+    app.state.room = 'StAugustineIsleta';
+    app.g.showChurchInfo();
+    assert.equal(app.el('church-info-cover').style.display, 'block');
+
+    app.state.room = 'BridgeCommunityChurch';
+    app.g.showChurchInfo();
+
+    const cover = app.el('church-info-cover');
+    assert.equal(cover.style.display, 'none', 'the previous church’s photo is still showing');
+    assert.ok(!cover.src, 'the previous church’s photo is still loaded');
+});
+
+test('each church gets its own cover, not the one before it', () => {
+    const app = createApp();
+    for (const key of Object.keys(app.data.ROOMS)) {
+        app.state.room = key;
+        app.g.showChurchInfo();
+        const expected = app.data.churchData[key].cover;
+        const cover = app.el('church-info-cover');
+        if (expected) assert.equal(cover.src, expected, `${key}: wrong cover`);
+        else assert.equal(cover.style.display, 'none', `${key}: should have no cover`);
+    }
+});
+
 test('showChurchInfo does nothing when no church is selected', () => {
     const app = createApp();
     app.g.showChurchInfo();

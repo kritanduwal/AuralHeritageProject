@@ -471,6 +471,11 @@
                 <button class="modal-close-btn" onclick="closeChurchInfo()">&#x2715;</button>
             </div>
             <div id="church-info-body">
+                <!-- Cover photo. Hidden for churches with none, and hidden again
+                     if the file cannot be retrieved. src is set on open so the
+                     photo is only downloaded for a church actually being read. -->
+                <img id="church-info-cover" alt="" decoding="async" style="display: none;"
+                     onerror="this.style.display='none'">
                 <div id="church-info-history" class="church-info-history"></div>
                 <div class="church-info-data">
                     <div class="church-info-table-section">

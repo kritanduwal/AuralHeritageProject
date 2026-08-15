@@ -77,6 +77,44 @@ test('every receiver has its panorama on disk, spelled with the right case', () 
     assert.deepEqual(missing, [], 'panoramas referenced by ROOMS but not present (check .jpg vs .JPG)');
 });
 
+test('every cover photo named in ChurchData exists, spelled with the right case', () => {
+    const missing = [];
+    for (const key of roomKeys) {
+        const cover = app.data.churchData[key].cover;
+        if (cover && !existsExactly(cover)) missing.push(`${key}: ${cover}`);
+    }
+    assert.deepEqual(missing, [], 'cover photos named but not present (check .jpg vs .jpeg)');
+});
+
+test('a cover photo on disk is not left unlisted', () => {
+    // A cover added to a church folder but never named in ChurchData would
+    // silently never appear, which is hard to notice from the page alone
+    const unlisted = [];
+    for (const key of roomKeys) {
+        if (app.data.churchData[key].cover) continue;
+        const dir = path.join(ROOT, ROOMS[key].panorama.dir);
+        const found = fs.readdirSync(dir).filter(f => /^Info cover\./i.test(f));
+        if (found.length) unlisted.push(`${key}: ${found.join(', ')}`);
+    }
+    assert.deepEqual(unlisted, [], 'cover photos present on disk but not listed in ChurchData');
+});
+
+test('the modal has somewhere to put a cover photo', () => {
+    assert.match(html, /id="church-info-cover"/, 'no cover element in the info modal');
+    assert.match(html, /id="church-info-cover"[^>]*onerror=/,
+        'the cover should hide itself if the file cannot be retrieved');
+});
+
+test('the cover photo is shown whole rather than cropped', () => {
+    const rule = read('Style/Layout.css').match(/#church-info-cover\s*\{([^}]*)\}/)[1];
+
+    assert.doesNotMatch(rule, /object-fit:\s*cover/, 'object-fit: cover crops the photo to fill its box');
+    assert.match(rule, /width:\s*auto/, 'the width must follow the photo, not the container');
+    assert.match(rule, /height:\s*auto/, 'the height must follow the aspect ratio so nothing is cut off');
+    assert.match(rule, /max-width:/, 'the photo must be capped to the width of the modal');
+    assert.match(rule, /max-height:/, 'a tall photo must not push the history out of view');
+});
+
 test('every church diagram referenced by CSS exists, spelled with the right case', () => {
     const missing = [];
     for (const m of layoutCss.matchAll(/url\("\.\.\/([^"]+)"\)/g)) {

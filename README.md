@@ -1,11 +1,11 @@
 # Aural Heritage Preservation of Historic American Churches
 
-An interactive auralization of twelve historic American churches. Visitors pick a
-church, stand at a measured listening position inside a 360° photo of it, and hear
+An interactive auralization of historic American churches. Users can pick a
+church, click on a measured listening position inside a 360° photo of it, and hear
 any audio file played as if it were sounding in that room.
 
 The acoustics are not simulated. Each room was measured on site, and the recordings
-of those measurements — impulse responses — are convolved with the source audio in
+of those measurements, i.e. impulse responses, are convolved with the source audio in
 the browser, so what you hear is the real reverberation of the real building.
 
 Supported by [The Creative Arts Collective for Christian Life and Faith](https://creativeartscollective.com/),
@@ -46,7 +46,7 @@ as-is with no build command.
 npm test
 ```
 
-127 tests, run by Node's built-in test runner. No dependencies and no browser: the
+Tests are run by Node's built-in test runner. No dependencies and no browser: the
 application files are loaded into a `vm` context whose globals are test doubles for
 the DOM, Web Audio, pannellum, `fetch` and timers, so the real `compile()`,
 `buildConvolutionGraph()` and `switchRoom()` are exercised rather than copies of
@@ -60,21 +60,6 @@ them.
 | `test/settings.test.js` | Church switching and the source file picker |
 | `test/assets.test.js` | Every path in `ROOMS`, the markup and the CSS resolve to real files |
 | `test/helpers/harness.js` | The sandbox the other files use |
-
-Two things worth knowing about the suite:
-
-- **`assets.test.js` checks filename case explicitly.** It walks directory entries
-  rather than calling `existsSync`, because Windows and macOS resolve paths
-  case-insensitively — a panorama spelled `.JPG` when the file is `.jpg` passes
-  locally and 404s on Netlify. That class of bug is otherwise invisible until
-  deploy.
-- **The mix law is pinned to the published numbers.** The dB table in "Reverb
-  ratios" below is asserted against `dryGainFor()`, so the documentation cannot
-  drift away from the code without a test failing.
-
-> **Note:** file paths are case-sensitive once deployed but not on Windows. A
-> panorama referenced as `.JPG` when the file is really `.jpg` will work locally
-> and 404 in production, so match the case on disk exactly.
 
 ---
 
@@ -188,10 +173,10 @@ the room). Both land on the same stereo output:
    source ──────┤                                          ┌───────▼───────┐
                 │                                          │    merger     │──► out
                 │   ┌─ convolver L ─── wetGainLeft ────────►  L         R  │
-                └───┤   (IR ch. 1)      (= mix)             └───────▲───────┘
+                └───┤   (IR ch. 1)      (= mix)             └───────▲──────┘
                 irTrim                                              │
                 (per-position)                                      │
-                    └─ splitter ─ convolver R ─── wetGainRight ──────┘
+                    └─ splitter ─ convolver R ─── wetGainRight ─────┘
                                    (IR ch. 2)      (= mix)
 ```
 
@@ -314,12 +299,31 @@ calibration constant and never changes while you listen.
 6. **`Style/ChurchButtons.css`** — position each marker on the diagram with `top`
    and `left`. `position: absolute` is already inherited from `Root.css`.
 7. **`Javascript/ChurchData.js`** — add the history, dimensions and receiver
-   distances for the Church Info modal.
+   distances for the Church Info modal, plus a `cover` photo (see below).
 
 No JavaScript logic changes: `switchRoom()`, `compile()` and the audio engine all
 derive their behaviour from the ids and the `ROOMS` entry.
 
 ---
+
+### Church Info cover photos
+
+The Church Info modal opens with a cover photo of the church, named by the
+`cover` field in `ChurchData.js`:
+
+```js
+CaneRidgeMeetingHouse: {
+    name: "Cane Ridge Meeting House",
+    cover: "Images/Cane Ridge Meeting House, KY/Info cover.jpeg",
+    …
+}
+```
+
+The field holds a full path rather than deriving one, because the photos differ
+in extension (`.jpg` and `.jpeg`) and paths are case-sensitive once deployed.
+The photo is shown whole, never cropped. `width` and `height` stay `auto` while
+`max-width` and `max-height` cap the size, so the browser scales each cover on
+its own proportions.
 
 ## Implementation notes
 
