@@ -232,7 +232,11 @@ async function compile() {
     const receiver = config && config.receivers[receiverId];
     if (!receiver) return;
 
-    setImpulseResponse(impulseResponseBase(config, receiverId), receiver.gainDb || 0);
+    setImpulseResponse(
+        impulseResponseBase(config, receiverId),
+        receiver.gainDb || 0,
+        receiverDistanceFeet(room, receiverId)
+    );
 
     const ticket = ++compileSequence;
     const available = await impulseResponseExists(currentIr.base);
@@ -369,9 +373,10 @@ document.addEventListener('fullscreenchange', () => {
 
 /**
  * Called from <body onload>. Loads the default source file and syncs the
- * reverberation controls to whatever value the slider starts on.
+ * playback controls to the state the audio engine starts in.
  */
 function initApp() {
     loadSource();
     setMix(document.getElementById('convmix').value);
+    updateBinauralButton();
 }

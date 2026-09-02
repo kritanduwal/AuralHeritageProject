@@ -54,11 +54,11 @@ them.
 
 | File | Covers |
 | --- | --- |
-| `test/rooms.test.js` | The `ROOMS` table and its path builders |
-| `test/audio.test.js` | Mix law, graph wiring, IR caching, playback lifecycle, WAV encoding |
+| `test/rooms.test.js` | The `ROOMS` table, its path builders, and the receiver distances |
+| `test/audio.test.js` | Mix law, graph wiring, binaural output stage, IR caching, playback lifecycle, WAV encoding |
 | `test/app.test.js` | `compile()`, the stale-selection guard, viewer lifetime, error banner |
 | `test/settings.test.js` | Church switching and the source file picker |
-| `test/assets.test.js` | Every path in `ROOMS`, the markup and the CSS resolve to real files |
+| `test/assets.test.js` | Every path in `ROOMS`, the markup and the CSS resolve to real files; the playback controls do not overlap |
 | `test/helpers/harness.js` | The sandbox the other files use |
 
 ---
@@ -112,9 +112,9 @@ has started. A slow response can never overwrite a later choice.
 | --- | --- |
 | `index.html` | Markup: controls, the three tabs, floorplan overlays, modals |
 | `Javascript/Rooms.js` | **Data.** Per-church IR/panorama paths, camera angles, gain trims |
-| `Javascript/ChurchData.js` | **Data.** History, dimensions and distances for the Church Info modal |
+| `Javascript/ChurchData.js` | **Data.** History, dimensions and distances for the Church Info modal, plus `receiverDistanceFeet()`, which the binaural render places its speakers by |
 | `Javascript/App.js` | Page state, panorama viewer, `compile()`, error banner, modals |
-| `Javascript/AudioEngine.js` | Web Audio graph, IR loading and caching, playback |
+| `Javascript/AudioEngine.js` | Web Audio graph, IR loading and caching, playback, binaural output stage |
 | `Javascript/SettingsMenu.js` | Church dropdown, source file picker |
 | `Style/Root.css` | Colour variables, marker button styles |
 | `Style/Layout.css` | Page layout, overlay sizes, diagram background images |
@@ -145,9 +145,18 @@ exist per position:
 | Kentucky, Indiana, New Mexico | 6 | Front L/R, 4-channel ambisonic centre |
 
 **The web app uses channels 1 and 2 only** — the front left/right pair — as the
-left and right ear of a stereo auralization. Channels 3–8 are archived for
-research use and are not loaded by the browser. The `-1` / `-2` suffix is appended
-by `AudioEngine.js`; `ROOMS` stores only the base path up to the trailing `-`.
+left and right ear of a stereo auralization, in both output stages. Channels 3–8
+are archived for research use and are not loaded by the browser. The `-1` / `-2`
+suffix is appended by `AudioEngine.js`; `ROOMS` stores only the base path up to
+the trailing `-`.
+
+Two things about the archived channels are worth recording, because they are not
+apparent from the file names and they are what rules out an ambisonic render
+(see [Binaural rendering](#binaural-rendering)): the 4-channel ambisonic block is
+the **raw A-format** output of the NT-SF1 rather than B-format, and **every file
+in the library is peak-normalized on its own**, so relationships between channels
+are gone. The stereo pair tolerates that because the two front omnis are near
+symmetric; a decode built from linear combinations of four capsules would not.
 
 Prefixes rarely match the folder name (`Cane Ridge Meeting House, KY` holds files
 named `Cane Ridge KY_…`), which is why `ir.dir` and `ir.prefix` are separate fields.
@@ -171,18 +180,21 @@ the room). Both land on the same stereo output:
                 ┌──────────── dryGain ─────────────────────────────┐
                 │            (taper)                               │
    source ──────┤                                          ┌───────▼───────┐
-                │                                          │    merger     │──► out
-                │   ┌─ convolver L ─── wetGainLeft ────────►  L         R  │
-                └───┤   (IR ch. 1)      (= mix)             └───────▲──────┘
+                │                                          │  output stage │──► out
+                │   ┌─ convolver L ─── wetGainLeft ────────►   L       R   │
+                └───┤   (IR ch. 1)      (= mix)             └───────▲───────┘
                 irTrim                                              │
                 (per-position)                                      │
                     └─ splitter ─ convolver R ─── wetGainRight ─────┘
                                    (IR ch. 2)      (= mix)
 ```
 
-`dryGain` feeds **both** output channels, so the unprocessed source stays centred
-while the reverb arrives in stereo — which is what creates the sense of a room
-around a source in front of you.
+`dryGain` feeds **both** sides, so the unprocessed source stays centred while the
+reverb arrives in stereo — which is what creates the sense of a room around a
+source in front of you.
+
+Those three signals are what the *output stage* renders, and there are two to
+choose from — see [Binaural rendering](#binaural-rendering).
 
 The `splitter` is a one-output `ChannelSplitter`, which keeps channel 0 only. A
 stereo source file is therefore convolved as mono, rather than folding both of its
@@ -280,6 +292,108 @@ The slider is a listener control and applies everywhere. The trim is a per-posit
 calibration constant and never changes while you listen.
 
 ---
+## Binaural rendering
+
+The headphone button beside play switches the **output stage**: what becomes of
+the dry and wet signals once the mix law has finished with them. Nothing upstream
+changes, so the two modes are the same auralization heard two ways.
+
+```
+   dryGain ──────► merger L + R ─┐
+   wetGainLeft ──► merger L      ├─► stereoOut ────┐
+   wetGainRight ─► merger R      ┘                 │
+                                                   ├──► output ──► destination
+   dryGain ──────► both speakers ┐                 │
+   wetGainLeft ──► speaker -30°  ├─► binauralOut ──┘
+   wetGainRight ─► speaker +30°  ┘
+```
+
+**Stereo** sends each side to its own headphone channel. Everything in the left
+signal reaches the left ear and none of it reaches the right, which no real room
+can do, so the image collapses to a line drawn between your ears.
+
+**Binaural** plays the same signals through two virtual loudspeakers at ±30°,
+each a `PannerNode` with `panningModel: 'HRTF'`. Every speaker reaches *both*
+ears with the delay, level difference and spectral shaping a head introduces —
+the cue stereo cannot supply, and what puts the church around you rather than
+inside your head. The dry signal is centred between the pair exactly as it is
+centred between the headphone channels.
+
+The listener is never reoriented; that is the "without head tracking" part, and
+it keeps the image steady however the panorama is dragged.
+
+Both stages are built on every play and one is faded to silence, because
+rebuilding would restart the source and lose its place in the loop. Toggling
+crossfades over 20 ms. The mode is engine state, so it survives the stop/start a
+receiver change performs.
+
+That 20 ms is a floor, not a taste: it cannot be zero, because a gain that steps
+in a single sample is a click, and it should not fall below the few milliseconds
+of convolution latency the HRTF panners add over the stereo stage, or the fade
+would duck both stages at once and punch a hole in the sound. The button's CSS
+`transition` is held to the same standard — the fill is the only report the
+toggle makes, so a slow colour settle is heard as a slow switch.
+
+The crossfade is anchored before it is drawn — `rampGain()` cancels the
+parameter's timeline and pins its current value at the current time before
+scheduling the ramp. `linearRampToValueAtTime()` on its own interpolates from
+the *previous automation event*, so the second toggle would draw its line from
+where the first one ended, however long ago that was. Scheduling it makes the
+gain jump nearly the whole way in one sample and then creep out the remainder,
+which is heard as a click on every toggle after the first. The mix slider is
+automated through the same helper for the same reason.
+
+### Level
+
+Every virtual speaker is heard by both ears where a headphone channel reaches
+only one, so the binaural stage comes back louder — most of all on the dry
+signal, which is identical in both speakers and so sums coherently.
+`BINAURAL_TRIM` takes a fixed amount back out. It is a listening control rather
+than a derived constant: adjust it until the toggle changes the rendering and not
+the loudness.
+
+### Where the speakers stand
+
+| Setting | Value |
+| --- | --- |
+| Azimuth | ±30°, the standard stereo listening triangle |
+| Elevation | 0°, ear height |
+| Distance | The measured receiver-to-source distance, 8.7–90.17 ft |
+| `rolloffFactor` | `0` |
+
+Distance comes from `receiverDistanceFeet()` in `ChurchData.js`, parsed from the
+same figures the Church Info modal shows, and `compile()` passes it to the engine
+with the impulse response. It deliberately does not attenuate: the impulse
+response already carries this position's direct-to-reverberant ratio and its
+[`gainDb` trim](#layer-2--per-position-gain-trims-gaindb) already corrects for
+distance, so a rolloff would charge for it a third time — and would pull the
+reverb down with the direct sound, which barely falls off with distance at all.
+Since a `PannerNode` picks its HRIR by angle alone, distance here is geometry
+only, kept truthful for whatever is built on it later.
+
+Use headphones. Over loudspeakers the effect is lost, because the room you are
+sitting in filters the sound a second time.
+
+### Why not an ambisonic decode
+
+Every receiver also carries a 4-channel ambisonic array, which would be the more
+direct route to binaural. Two properties of the published files rule it out:
+
+- **They are A-format, not B-format.** Every pair stays above 0.7 correlated
+  between 200 Hz and 1 kHz, and most above 0.6 even at 4–12 kHz, decorrelating
+  progressively as frequency rises — spaced capsules, not the near-orthogonal
+  `W/X/Y/Z` a decoder expects. The front L/R pair, analysed the same way as a
+  control, falls to ≈0 above 200 Hz as a decorrelated pair should.
+- **Each channel was peak-normalized on its own.** All 497 files in the library
+  peak at exactly 1.000000, each on a single sample. A→B conversion is a weighted
+  sum of the four capsules, so with the per-capsule gains gone the derived
+  `W/X/Y/Z` are wrong and the decoded directions are not the measured ones.
+
+A decode from these files would sound spatial while pointing sound in directions
+nobody recorded. Should un-normalized originals ever be recovered, an ambisonic
+stage could be added alongside these two rather than replacing them.
+
+---
 
 ## Adding a church
 
@@ -299,7 +413,10 @@ calibration constant and never changes while you listen.
 6. **`Style/ChurchButtons.css`** — position each marker on the diagram with `top`
    and `left`. `position: absolute` is already inherited from `Root.css`.
 7. **`Javascript/ChurchData.js`** — add the history, dimensions and receiver
-   distances for the Church Info modal, plus a `cover` photo (see below).
+   distances for the Church Info modal, plus a `cover` photo (see below). Spell
+   each receiver distance as `"<number> ft"`: the binaural render parses these
+   to place its virtual loudspeakers, and `rooms.test.js` fails on any that do
+   not parse rather than letting the position fall back to a default.
 
 No JavaScript logic changes: `switchRoom()`, `compile()` and the audio engine all
 derive their behaviour from the ids and the `ROOMS` entry.

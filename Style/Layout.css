@@ -199,6 +199,56 @@ input, button, select, textarea {
     background-color: var(--maincolor2);
 }
 
+/* ── Binaural Toggle ── */
+/* Sits immediately left of the play button and vertically centred against it:
+   the play button is 80px tall at bottom: 20px, so its centre is 60px up, and
+   this 56px button is centred on the same line at bottom: 32px. */
+#binaural {
+    position: fixed;
+    z-index: 4;
+    background-color: var(--belmont-blue);
+    color: var(--text-color-white);
+    font-size: 30px;
+    width: 56px;
+    height: 56px;
+    border: none;
+    outline: none;
+    border-radius: 50%;
+    box-shadow: var(--card-shadow);
+    bottom: 32px;
+    right: 116px;
+    pointer-events: auto;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Short on purpose. This fill is the only report the toggle makes, and the
+       audio switches in 20 ms; a quarter-second settle here read as the whole
+       switch being slow, because the eye was still watching the colour arrive
+       long after the ears were done. */
+    transition: background-color 0.08s ease;
+}
+
+/* Hover and engaged have to be different colours here. The glyph is the same
+   headset whichever mode you are in, so the fill is the only thing carrying the
+   state — and your pointer is still on the button at the moment you switch it
+   off. Sharing one green left a toggle that had just turned off looking like it
+   was still on until the pointer moved away. Hover lifts whichever state the
+   button is in rather than announcing a state of its own. */
+#binaural:hover {
+    background-color: var(--belmont-blue-hover);
+}
+
+#binaural.active {
+    background-color: var(--activecolor);
+}
+
+/* Beats both rules above it on specificity, so the engaged button keeps its
+   green while still answering the pointer */
+#binaural.active:hover {
+    background-color: var(--activecolor-hover);
+}
+
 .material-icons:hover {
     color: var(--maincolor) !important;
 }

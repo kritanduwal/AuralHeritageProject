@@ -2,6 +2,10 @@
  * Historical and acoustic reference data for each church, shown in the
  * Church Info modal. Keys match the room ids in Rooms.js.
  *
+ * The receiver distances are read by playback as well as by the modal:
+ * receiverDistanceFeet() at the foot of this file is what stands the binaural
+ * render's virtual loudspeakers where the real ones were.
+ *
  * Sourced from the project report; see README.md for the measurement setup.
  *
  * `cover` is the photo that heads the modal. It is spelled out in full rather
@@ -176,3 +180,20 @@ const churchData = {
         receivers: { "R1": "14.81 ft", "R2": "36.22 ft", "R3": "52.07 ft", "R4": "71.64 ft", "R5": "90.17 ft" }
     }
 };
+
+/**
+ * Measured distance from a receiver to the source loudspeakers, in feet, which
+ * is where the binaural render stands its virtual ones.
+ *
+ * Parsed back out of the strings the modal shows rather than duplicated as bare
+ * numbers, so the two cannot disagree. `rooms.test.js` fails on any that stop
+ * parsing, rather than letting a position fall back silently.
+ *
+ * @returns the distance in feet, or 0 if this receiver has none on record
+ */
+function receiverDistanceFeet(roomKey, receiverId) {
+    const data = churchData[roomKey];
+    const raw = data && data.receivers && data.receivers[receiverId];
+    const match = /^\s*([\d.]+)\s*ft\s*$/.exec(raw || "");
+    return match ? Number(match[1]) : 0;
+}

@@ -115,6 +115,87 @@ test('the cover photo is shown whole rather than cropped', () => {
     assert.match(rule, /max-height:/, 'a tall photo must not push the history out of view');
 });
 
+// ── the playback controls ─────────────────────────────────────────────────
+
+/** Pulls the px value of one property out of a CSS rule body */
+const px = (rule, prop) => Number(rule.match(new RegExp(prop + ':\\s*(-?[\\d.]+)px'))[1]);
+/** Body of the rule whose selector is exactly `selector`, at the start of a line */
+const ruleFor = (selector) =>
+    layoutCss.match(new RegExp('^' + selector + '\\s*\\{([^}]*)\\}', 'm'))[1];
+
+test('the binaural toggle is in the markup and wired to the engine', () => {
+    assert.match(html, /id="binaural"/, 'no binaural button in the view');
+    assert.match(html, /id="binaural"[^>]*onclick="toggleBinaural\(\)"/,
+        'the button must call the engine, not just sit there');
+    assert.match(html, /id="binaural"[^>]*aria-pressed=/,
+        'a toggle has to announce its state to assistive technology');
+});
+
+test('the binaural toggle sits beside the play button without overlapping it', () => {
+    // Both are position: fixed against the bottom-right corner, so a change to
+    // either one's size can silently stack them on top of each other.
+    const play = ruleFor('#play');
+    const binaural = ruleFor('#binaural');
+
+    const playInner = px(play, 'right');
+    const playOuter = playInner + px(play, 'width');
+    const binauralInner = px(binaural, 'right');
+
+    assert.ok(binauralInner >= playOuter,
+        `the buttons overlap: play reaches ${playOuter}px from the right, binaural starts at ${binauralInner}px`);
+    assert.ok(binauralInner - playOuter <= 32,
+        'the two controls should read as a pair, not as strays at opposite ends');
+});
+
+test('the two playback controls share a centre line', () => {
+    const centre = (rule) => px(rule, 'bottom') + px(rule, 'height') / 2;
+    assert.equal(centre(ruleFor('#binaural')), centre(ruleFor('#play')),
+        'the buttons are different sizes, so their bottom offsets have to differ to line up');
+});
+
+test('the engaged colour of a toggle does not double as the availability colour', () => {
+    // --maincolor2 turns crimson to report a missing recording. A mode toggle
+    // borrowing it would look like it was reporting a failure of its own.
+    const rule = ruleFor('#binaural\\.active');
+    assert.doesNotMatch(rule, /--maincolor2/);
+    assert.match(rule, /var\(--activecolor\)/);
+    assert.match(read('Style/Root.css'), /--activecolor:/, 'the variable has to be defined somewhere');
+});
+
+test('the toggle reports its new state as fast as the audio switches', () => {
+    // The fill is the only report this button makes, so a slow settle here is
+    // read as the whole switch being slow however fast the audio actually was.
+    const seconds = Number(ruleFor('#binaural').match(/transition:[^;]*?([\d.]+)s/)[1]);
+    assert.ok(seconds <= 0.1,
+        `the colour takes ${seconds}s to arrive, long after the 0.02s audio crossfade`);
+});
+
+test('hovering the toggle never looks like engaging it', () => {
+    // The headset glyph is the same in both modes, so colour is the only state
+    // there is — and the pointer is still on the button the instant it is
+    // switched off. A hover that painted it the engaged colour would report the
+    // mode it had just left.
+    const fill = (selector) => {
+        const match = ruleFor(selector).match(/background-color:\s*var\((--[\w-]+)\)/);
+        assert.ok(match, `${selector} must set a background colour`);
+        return match[1];
+    };
+
+    const resting = fill('#binaural');
+    const hover = fill('#binaural:hover');
+    const engaged = fill('#binaural\\.active');
+    const engagedHover = fill('#binaural\\.active:hover');
+
+    assert.notEqual(hover, engaged, 'hovering an off toggle must not paint it the engaged colour');
+    assert.notEqual(hover, resting, 'hover still has to answer the pointer');
+    assert.notEqual(engagedHover, hover, 'the two states must stay apart under the pointer too');
+
+    const root = read('Style/Root.css');
+    for (const name of [hover, engagedHover]) {
+        assert.match(root, new RegExp(name + ':'), `${name} has to be defined somewhere`);
+    }
+});
+
 test('every church diagram referenced by CSS exists, spelled with the right case', () => {
     const missing = [];
     for (const m of layoutCss.matchAll(/url\("\.\.\/([^"]+)"\)/g)) {

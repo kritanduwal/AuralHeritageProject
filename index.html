@@ -231,6 +231,12 @@
                     <span class="material-icons">info</span> Church Info
                 </button>
 
+                <!-- Binaural render toggle, beside the play button. Switches the
+                     output stage between the headphone channels and a pair of
+                     HRTF virtual loudspeakers; safe to press while playing. -->
+                <button id="binaural" class="material-icons" onclick="toggleBinaural()"
+                        aria-pressed="false" title="Binaural rendering: off">headset</button>
+
                 <button id="play" class="material-icons" onclick="playpause()">play_circle_filled</button>
             </div>
         </div>
@@ -421,6 +427,13 @@
                         playback. The button switches to a pause icon while audio is playing. Press it again to stop.
                     </li>
                     <li>
+                        <strong>Binaural Rendering</strong> - Press the headphone button to the left of play to switch between
+                        ordinary stereo and a binaural render made for headphones. Binaural plays the same auralization
+                        through a pair of virtual loudspeakers 30&deg; to either side of you, filtered the way your head and
+                        ears would filter real speakers there, so the church opens up around you instead of sitting inside
+                        your head. Safe to press while audio is playing.
+                    </li>
+                    <li>
                         <strong>Church Info</strong> - Once a church is selected, click the <em>Church Info</em> button in
                         the bottom-left of the view to read its full history, address, measurement date, room dimensions,
                         and receiver-to-speaker distances.
@@ -433,6 +446,7 @@
                 <ul>
                     <li>Try the "Sermon" source file with a large church and a wet mix to hear how speech carries in the space.</li>
                     <li>Switching receiver positions while audio is playing takes effect straight away, so you can step around a church and hear the room change from where you stand.</li>
+                    <li>Toggle binaural rendering mid-playback to hear what it does. Both modes carry the same auralization; only the way it reaches your ears changes. Use headphones — over speakers the effect is lost, because your own room filters the sound a second time.</li>
                     <li>The collection spans twelve churches across Tennessee, Kentucky, Indiana, and New Mexico. Play the same source file through several of them to hear how size, shape, and building materials shape the sound, from the intimate Cane Ridge Meeting House and its 27.59 ft ceiling to Monastery Immaculate Conception beneath an 87.61 ft dome.</li>
                 </ul>
             </div>

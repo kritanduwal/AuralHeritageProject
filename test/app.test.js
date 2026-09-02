@@ -28,6 +28,18 @@ test('compile defaults the trim to zero where a position has none', async () => 
     assert.equal(app.state.currentIr.gainDb, 0);
 });
 
+test('compile hands the engine the measured distance to the source', async () => {
+    // It places the binaural render's virtual loudspeakers, so a selection that
+    // forgot to pass it would stand every church's speakers in the same spot.
+    const app = select(createApp(), 'StAugustineIsleta', 'R5');
+    await app.g.compile();
+    assert.equal(app.state.currentIr.distanceFeet, 90.17);
+
+    const near = select(createApp(), 'CaneRidgeMeetingHouse', 'R1');
+    await near.g.compile();
+    assert.equal(near.state.currentIr.distanceFeet, 8.7);
+});
+
 test('compile shows the panorama for the selected position', async () => {
     const app = select(createApp(), 'BasilicaStFrancis', 'R3');
     await app.g.compile();

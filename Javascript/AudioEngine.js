@@ -5,6 +5,10 @@
  * one convolver per ear, using the impulse response pair recorded at the
  * selected receiver position. See "Reverb ratios" in README.md for the mix law.
  *
+ * The result leaves by one of two output stages: straight out to the headphone
+ * channels, or through a pair of HRTF virtual loudspeakers. See "Binaural
+ * rendering" in README.md.
+ *
  * @author Ben Jordan, Kritan Duwal
  */
 
@@ -21,19 +25,50 @@ let isPlaying = false;
 /**
  * The impulse response pair the next play will use. Set by compile() whenever
  * the room or receiver selection changes.
- *   base   – path prefix; "1.wav" and "2.wav" complete the left/right pair
- *   gainDb – level reduction for this position, in dB (0 = play as recorded)
+ *   base         – path prefix; "1.wav" and "2.wav" complete the left/right pair
+ *   gainDb       – level reduction for this position, in dB (0 = play as recorded)
+ *   distanceFeet – measured receiver-to-source distance, placing the binaural
+ *                  render's virtual loudspeakers (0 = none on record)
  */
-let currentIr = { base: "", gainDb: 0 };
+let currentIr = { base: "", gainDb: 0, distanceFeet: 0 };
 
-function setImpulseResponse(base, gainDb) {
-    currentIr = { base, gainDb };
+function setImpulseResponse(base, gainDb, distanceFeet = 0) {
+    currentIr = { base, gainDb, distanceFeet };
+}
+
+// ── Gain automation ───────────────────────────────────────────────────────
+
+/**
+ * Glides a gain to a new value, starting from where it actually is now.
+ *
+ * linearRampToValueAtTime() interpolates from the previous automation event,
+ * which is not the same thing as "from here". Called on its own, the second
+ * glide on a parameter draws its line from the end of the first one — however
+ * many seconds back that was — so the moment the event is scheduled the gain
+ * leaps almost the whole way in a single sample and then creeps out the
+ * remainder over the ramp. That step is a click, and it lands on every change
+ * after the first: exactly the ones an A/B makes.
+ *
+ * Clearing the timeline and pinning the current value at the current time
+ * gives the ramp a start point in the present, so the glide is the whole of
+ * the change rather than the tail of it.
+ */
+function rampGain(param, value, seconds) {
+    const now = ctx.currentTime;
+    const current = param.value;   // read before cancelling, which discards pending events
+
+    param.cancelScheduledValues(now);
+    param.setValueAtTime(current, now);
+    param.linearRampToValueAtTime(value, now + seconds);
 }
 
 // ── Wet / dry mix ─────────────────────────────────────────────────────────
 
 /** Wet/dry balance: 0 plays the bare source, 1 the full room. */
 let convolutionMix = 1.0;
+
+/** Seconds spent gliding to a new slider position */
+const MIX_GLIDE = 0.05;
 
 /**
  * Dry gain at a fully wet mix, i.e. the bottom of the dry taper (-9.1 dB)
@@ -67,23 +102,143 @@ function setConvolutionMix(mix) {
     convolutionMix = mix;
     if (!activeGraph) return;
 
-    const target = ctx.currentTime + 0.05;
-    activeGraph.dryGain.gain.linearRampToValueAtTime(dryGainFor(mix), target);
-    activeGraph.wetGainLeft.gain.linearRampToValueAtTime(mix, target);
-    activeGraph.wetGainRight.gain.linearRampToValueAtTime(mix, target);
+    rampGain(activeGraph.dryGain.gain, dryGainFor(mix), MIX_GLIDE);
+    rampGain(activeGraph.wetGainLeft.gain, mix, MIX_GLIDE);
+    rampGain(activeGraph.wetGainRight.gain, mix, MIX_GLIDE);
+}
+
+// ── Binaural rendering ────────────────────────────────────────────────────
+
+/** Half the angle between the virtual loudspeakers: a stereo listening triangle */
+const VIRTUAL_SPEAKER_AZIMUTH = 30;
+
+/** Where they stand when a receiver has no measured distance on record, in feet */
+const DEFAULT_SPEAKER_DISTANCE_FEET = 20;
+
+/**
+ * Output level of the binaural stage. Every virtual speaker is heard by both
+ * ears, where a headphone channel reaches only one, so the stage comes back
+ * louder than the stereo one. A listening control, not a derived constant:
+ * adjust until the toggle changes the rendering and not the loudness.
+ */
+const BINAURAL_TRIM = 0.75;
+
+/**
+ * Seconds spent crossfading between the two output stages.
+ *
+ * Squeezed between two limits rather than chosen for feel. It cannot go to
+ * zero: a gain that steps in a single sample is a click, which is what
+ * rampGain() exists to avoid. It also should not go below the delay the HRTF
+ * panners add — a few milliseconds of convolution latency the stereo stage does
+ * not pay — because a fade shorter than that offset would duck both stages at
+ * once and punch a hole in the sound.
+ *
+ * 20 ms clears both and is well under the ~50 ms where a switch stops reading
+ * as immediate.
+ */
+const BINAURAL_CROSSFADE = 0.02;
+
+const BINAURAL_TITLE_ON = "Binaural rendering: on (best with headphones)";
+const BINAURAL_TITLE_OFF = "Binaural rendering: off";
+
+/** Whether playback leaves through the binaural stage. Toggled by its button. */
+let binauralEnabled = false;
+
+/**
+ * One virtual loudspeaker, rendered to both ears through the browser's HRTFs.
+ *
+ * The listener is never reoriented; that is what makes this the untracked
+ * render, and it keeps the image steady however the panorama is dragged.
+ *
+ * @param azimuthDegrees Angle from straight ahead, positive to the right
+ * @param distanceFeet   Measured receiver-to-source distance for this position
+ */
+function createVirtualSpeaker(audioCtx, azimuthDegrees, distanceFeet) {
+    const panner = audioCtx.createPanner();
+    panner.panningModel = 'HRTF';
+
+    // Distance places the speaker but must not set its level: the impulse
+    // response carries this position's direct-to-reverberant ratio, and its
+    // gainDb trim already corrects for distance.
+    panner.distanceModel = 'inverse';
+    panner.refDistance = 1;
+    panner.rolloffFactor = 0;
+
+    // Web Audio puts the listener at the origin facing -Z, with +X to the right
+    const radians = azimuthDegrees * Math.PI / 180;
+    const x = Math.sin(radians) * distanceFeet;
+    const z = -Math.cos(radians) * distanceFeet;
+
+    // setPosition() is deprecated but is the only spelling older Safari has
+    if (panner.positionX) {
+        panner.positionX.value = x;
+        panner.positionY.value = 0;
+        panner.positionZ.value = z;
+    } else {
+        panner.setPosition(x, 0, z);
+    }
+
+    return panner;
+}
+
+/**
+ * Switches output stage, crossfading rather than rebuilding so the toggle can be
+ * pressed mid-playback without interrupting the loop.
+ */
+function setBinauralEnabled(enabled) {
+    binauralEnabled = enabled;
+    updateBinauralButton();
+
+    if (!activeGraph) return;
+
+    rampGain(activeGraph.stereoOut.gain, enabled ? 0 : 1, BINAURAL_CROSSFADE);
+    rampGain(activeGraph.binauralOut.gain, enabled ? BINAURAL_TRIM : 0, BINAURAL_CROSSFADE);
+}
+
+function toggleBinaural() {
+    setBinauralEnabled(!binauralEnabled);
+}
+
+/** Where to stand the speakers for the current selection, in feet */
+function speakerDistanceFeet() {
+    return currentIr.distanceFeet || DEFAULT_SPEAKER_DISTANCE_FEET;
+}
+
+/** Reflects the current mode on the toggle button */
+function updateBinauralButton() {
+    const btn = document.getElementById('binaural');
+    if (!btn) return;
+
+    btn.classList.toggle('active', binauralEnabled);
+    btn.setAttribute('aria-pressed', String(binauralEnabled));
+    btn.title = binauralEnabled ? BINAURAL_TITLE_ON : BINAURAL_TITLE_OFF;
 }
 
 /**
  * Wires a source node through the wet/dry convolution graph to the context's
  * destination.
  *
- *   source ─┬─ dryGain ───────────────────────────────► merger L+R
- *           └─ irTrim ─ splitter ─┬─ convL ─ wetL ────► merger L
- *                                 └─ convR ─ wetR ────► merger R
+ *   source ─┬─ dryGain
+ *           └─ irTrim ─ splitter ─┬─ convL ─ wetGainLeft
+ *                                 └─ convR ─ wetGainRight
  *
- * @returns the gain nodes the mix slider retunes, plus the merger to unhook on stop
+ * Those three feed both stages; whichever is faded up is the one heard:
+ *
+ *   dryGain ──────► merger L + R ─┐
+ *   wetGainLeft ──► merger L      ├─► stereoOut ────┐
+ *   wetGainRight ─► merger R      ┘                 │
+ *                                                   ├──► output ──► destination
+ *   dryGain ──────► both speakers ┐                 │
+ *   wetGainLeft ──► speaker -30°  ├─► binauralOut ──┘
+ *   wetGainRight ─► speaker +30°  ┘
+ *
+ * Both stages are built every time and one is silenced: tearing the graph down
+ * to change stage would restart the source and lose its place in the loop.
+ *
+ * @returns the gain nodes the mix slider and the binaural toggle retune, plus
+ *          the output node to unhook on stop
  */
-function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irGainDb }) {
+function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irGainDb, binaural, speakerDistance = DEFAULT_SPEAKER_DISTANCE_FEET }) {
     const convolverLeft = audioCtx.createConvolver();
     convolverLeft.buffer = irLeft;
     const convolverRight = audioCtx.createConvolver();
@@ -100,7 +255,6 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
     // A one-output splitter keeps channel 0 only, so a stereo source file is
     // convolved as mono rather than folded into both ears.
     const splitter = audioCtx.createChannelSplitter(1);
-    const merger = audioCtx.createChannelMerger(2);
 
     const dryGain = audioCtx.createGain();
     const wetGainLeft = audioCtx.createGain();
@@ -109,24 +263,47 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
     wetGainLeft.gain.value = mix;
     wetGainRight.gain.value = mix;
 
-    // Dry path: unconvolved source to both ears
     sourceNode.connect(dryGain);
-    dryGain.connect(merger, 0, 0);
-    dryGain.connect(merger, 0, 1);
 
-    // Wet path: one convolver per ear, both fed the same mono signal
+    // Wet path: one convolver per side, both fed the same mono signal
     sourceNode.connect(irTrim);
     irTrim.connect(splitter);
     splitter.connect(convolverLeft, 0);
     splitter.connect(convolverRight, 0);
     convolverLeft.connect(wetGainLeft);
     convolverRight.connect(wetGainRight);
+
+    const output = audioCtx.createGain();
+
+    // Stereo stage: dry to both channels so it stays centred, one convolver per ear
+    const merger = audioCtx.createChannelMerger(2);
+    const stereoOut = audioCtx.createGain();
+    dryGain.connect(merger, 0, 0);
+    dryGain.connect(merger, 0, 1);
     wetGainLeft.connect(merger, 0, 0);
     wetGainRight.connect(merger, 0, 1);
+    merger.connect(stereoOut);
+    stereoOut.connect(output);
 
-    merger.connect(audioCtx.destination);
+    // Binaural stage: the same signals through virtual loudspeakers, dry centred
+    // between the pair exactly as it is centred between the headphone channels
+    const speakerLeft = createVirtualSpeaker(audioCtx, -VIRTUAL_SPEAKER_AZIMUTH, speakerDistance);
+    const speakerRight = createVirtualSpeaker(audioCtx, VIRTUAL_SPEAKER_AZIMUTH, speakerDistance);
+    const binauralOut = audioCtx.createGain();
+    dryGain.connect(speakerLeft);
+    dryGain.connect(speakerRight);
+    wetGainLeft.connect(speakerLeft);
+    wetGainRight.connect(speakerRight);
+    speakerLeft.connect(binauralOut);
+    speakerRight.connect(binauralOut);
+    binauralOut.connect(output);
 
-    return { dryGain, wetGainLeft, wetGainRight, output: merger };
+    stereoOut.gain.value = binaural ? 0 : 1;
+    binauralOut.gain.value = binaural ? BINAURAL_TRIM : 0;
+
+    output.connect(audioCtx.destination);
+
+    return { dryGain, wetGainLeft, wetGainRight, stereoOut, binauralOut, output };
 }
 
 // ── File loading ──────────────────────────────────────────────────────────
@@ -263,7 +440,9 @@ async function startPlayback() {
         irLeft,
         irRight,
         mix: convolutionMix,
-        irGainDb: currentIr.gainDb
+        irGainDb: currentIr.gainDb,
+        binaural: binauralEnabled,
+        speakerDistance: speakerDistanceFeet()
     });
 
     source.start();
@@ -283,7 +462,7 @@ function stopPlayback() {
         source = null;
     }
 
-    // Unhooking the merger releases the whole graph for collection; leaving it
+    // Unhooking the output releases the whole graph for collection; leaving it
     // attached to the destination would pin every node of every past playback.
     if (activeGraph) {
         activeGraph.output.disconnect();
@@ -329,7 +508,9 @@ async function downloadConvolvedAudio() {
         irLeft,
         irRight,
         mix: convolutionMix,
-        irGainDb: currentIr.gainDb
+        irGainDb: currentIr.gainDb,
+        binaural: binauralEnabled,
+        speakerDistance: speakerDistanceFeet()
     });
 
     offlineSource.start();

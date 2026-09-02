@@ -9,20 +9,59 @@ const close = (actual, expected, tolerance = 1e-9, msg) =>
         msg || `expected ${actual} to be within ${tolerance} of ${expected}`);
 
 /** Builds a graph in a fresh app and returns the pieces tests reason about */
-function buildGraph(app, { mix = 1, irGainDb = 0 } = {}) {
+function buildGraph(app, { mix = 1, irGainDb = 0, binaural = false, speakerDistance } = {}) {
     const ctx = app.ctx;
     const src = ctx.createBufferSource();
     app.clearEdges();
     const graph = app.g.buildConvolutionGraph(ctx, src, {
         irLeft: app.fakeAudioBuffer(),
         irRight: app.fakeAudioBuffer(),
-        mix, irGainDb,
+        mix, irGainDb, binaural, speakerDistance,
     });
     const kinds = (k) => app.nodes.filter(n => n.kind === k);
     const splitter = kinds('splitter').at(-1);
     // The trim is whatever feeds the splitter
     const irTrim = app.edgesTo(splitter)[0]?.from ?? null;
-    return { ctx, src, graph, splitter, irTrim, merger: graph.output, convolvers: kinds('convolver').slice(-2) };
+    const merger = kinds('merger').at(-1);
+
+    // Panners are created left first, matching the -30/+30 order in the engine
+    const [speakerLeft, speakerRight] = kinds('panner').slice(-2);
+
+    return {
+        ctx, src, graph, splitter, irTrim, merger, speakerLeft, speakerRight,
+        convolvers: kinds('convolver').slice(-2),
+    };
+}
+
+/** Every distinct route from one node to another, as a count */
+function pathCount(app, from, to) {
+    if (from === to) return 1;
+    return app.edgesFrom(from).reduce((n, e) => n + pathCount(app, e.to, to), 0);
+}
+
+/** The three automation calls one glide should leave on a gain parameter */
+function glideOn(param) {
+    const [cancel, anchor, ramp] = param._events.slice(-3);
+    return { cancel, anchor, ramp };
+}
+
+/**
+ * Asserts a gain change is drawn from the present rather than from whatever
+ * event happens to be last on the timeline.
+ *
+ * A linear ramp interpolates from the previous event, so one left over from a
+ * change seconds ago puts almost the entire glide in the past: the parameter
+ * covers nearly all the distance in its first sample, which is heard as a
+ * click. Cancelling and pinning the current value gives it a start in the now.
+ */
+function assertAnchored(param, now, seconds, what) {
+    const { cancel, anchor, ramp } = glideOn(param);
+    assert.equal(cancel[0], 'cancel', `${what}: stale automation must be cleared first`);
+    assert.equal(cancel[1], now, `${what}: cleared from the present`);
+    assert.equal(anchor[0], 'set', `${what}: the ramp needs a start point to draw from`);
+    assert.equal(anchor[2], now, `${what}: that start point must be the present`);
+    assert.equal(ramp[0], 'ramp', `${what}: the change itself must glide`);
+    assert.equal(ramp[2], now + seconds, `${what}: and land one glide from now`);
 }
 
 // ── the mix law ───────────────────────────────────────────────────────────
@@ -87,7 +126,7 @@ test('reductionToGain converts a dB reduction to linear attenuation', () => {
 
 // ── graph wiring ──────────────────────────────────────────────────────────
 
-test('the dry path reaches both output channels', () => {
+test('the dry path reaches both output channels, so it stays centred', () => {
     const app = createApp();
     const { graph, src, merger } = buildGraph(app);
 
@@ -117,8 +156,14 @@ test('the splitter keeps a single channel so stereo sources convolve as mono', (
 
 test('the graph terminates at the context destination', () => {
     const app = createApp();
-    const { merger, ctx } = buildGraph(app);
-    assert.ok(app.edgesFrom(merger).some(e => e.to === ctx.destination));
+    const { graph, ctx } = buildGraph(app);
+    assert.ok(app.edgesFrom(graph.output).some(e => e.to === ctx.destination));
+});
+
+test('the stereo stage terminates at its own fader', () => {
+    const app = createApp();
+    const { graph, merger } = buildGraph(app);
+    assert.ok(app.edgesFrom(merger).some(e => e.to === graph.stereoOut));
 });
 
 test('wet gains follow the mix and dry gain follows the taper', () => {
@@ -198,6 +243,24 @@ test('setConvolutionMix glides rather than jumping', async () => {
     assert.ok(when - app.ctx.currentTime <= 0.1, 'the ramp should be short enough to feel immediate');
 });
 
+test('a later slider move glides from the present, not from the last one', async () => {
+    const app = createApp();
+    app.loadFakeSource();
+    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R1-', 0);
+    await app.g.startPlayback();
+    const graph = app.state.activeGraph;
+
+    app.g.setConvolutionMix(0.8);
+    app.ctx.currentTime = 12;      // the slider is left alone for a while
+    app.g.setConvolutionMix(0.2);
+
+    for (const [param, what] of [[graph.dryGain.gain, 'dry'],
+                                 [graph.wetGainLeft.gain, 'wet left'],
+                                 [graph.wetGainRight.gain, 'wet right']]) {
+        assertAnchored(param, 12, app.data.MIX_GLIDE, what);
+    }
+});
+
 test('setConvolutionMix is remembered while stopped and applied on the next play', async () => {
     const app = createApp();
     app.loadFakeSource();
@@ -208,6 +271,250 @@ test('setConvolutionMix is remembered while stopped and applied on the next play
 
     await app.g.startPlayback();
     assert.equal(app.state.activeGraph.wetGainLeft.gain.value, 0.3);
+});
+
+// ── binaural rendering ────────────────────────────────────────────────────
+
+test('both output stages are built, and exactly one of them is live', () => {
+    const app = createApp();
+    const { graph } = buildGraph(app, { binaural: false });
+
+    assert.equal(graph.stereoOut.gain.value, 1, 'the stereo stage should carry the signal by default');
+    assert.equal(graph.binauralOut.gain.value, 0, 'the binaural stage should be silent by default');
+});
+
+test('building for binaural swaps which stage carries the signal', () => {
+    const app = createApp();
+    const { graph } = buildGraph(app, { binaural: true });
+
+    assert.equal(graph.stereoOut.gain.value, 0);
+    assert.equal(graph.binauralOut.gain.value, app.data.BINAURAL_TRIM);
+});
+
+test('both stages render the same signals', () => {
+    // The toggle is an A/B of one auralization, so the speakers must be fed the
+    // very signals the headphone channels get.
+    const app = createApp();
+    const { graph, merger, speakerLeft, speakerRight } = buildGraph(app);
+
+    for (const [signal, speaker, what] of [
+        [graph.wetGainLeft, speakerLeft, 'wet left'],
+        [graph.wetGainRight, speakerRight, 'wet right'],
+    ]) {
+        assert.ok(app.edgesFrom(signal).some(e => e.to === merger), `${what} must reach the stereo stage`);
+        assert.ok(app.edgesFrom(signal).some(e => e.to === speaker), `${what} must reach its speaker`);
+    }
+
+    // Dry is centred in both stages: both channels, both speakers
+    assert.equal(pathCount(app, graph.dryGain, graph.stereoOut), 2);
+    assert.equal(pathCount(app, graph.dryGain, graph.binauralOut), 2);
+});
+
+test('the binaural stage is trimmed, because every speaker is heard by both ears', () => {
+    const app = createApp();
+    const { graph } = buildGraph(app, { binaural: true });
+
+    assert.equal(graph.binauralOut.gain.value, app.data.BINAURAL_TRIM);
+    assert.ok(app.data.BINAURAL_TRIM < 1, 'the trim must attenuate');
+});
+
+test('the virtual speakers are HRTF panned to a stereo listening triangle', () => {
+    const app = createApp();
+    const d = 42;
+    const { speakerLeft, speakerRight, graph } = buildGraph(app, { speakerDistance: d });
+    const half = app.data.VIRTUAL_SPEAKER_AZIMUTH;
+
+    for (const s of [speakerLeft, speakerRight]) {
+        assert.equal(s.panningModel, 'HRTF', 'plain equal-power panning would not externalize');
+        assert.equal(pathCount(app, s, graph.binauralOut), 1, 'each speaker reaches the stage once');
+        // Web Audio puts the listener at the origin facing -Z
+        assert.ok(s.positionZ.value < 0, 'the speakers must sit in front of the listener');
+        assert.equal(s.positionY.value, 0, 'the pair should be at ear height');
+        close(Math.hypot(s.positionX.value, s.positionZ.value), d, 1e-9);
+    }
+
+    close(speakerLeft.positionX.value, -d * Math.sin(half * Math.PI / 180), 1e-9);
+    close(speakerRight.positionX.value, d * Math.sin(half * Math.PI / 180), 1e-9);
+    assert.ok(speakerLeft.positionX.value < 0 && speakerRight.positionX.value > 0,
+        'left and right speakers must be on opposite sides');
+});
+
+test('the speakers stand at the measured receiver-to-source distance', () => {
+    const app = createApp();
+    const near = buildGraph(app, { speakerDistance: 12 }).speakerLeft;
+    const far = buildGraph(app, { speakerDistance: 90 }).speakerLeft;
+
+    close(Math.hypot(near.positionX.value, near.positionZ.value), 12, 1e-9);
+    close(Math.hypot(far.positionX.value, far.positionZ.value), 90, 1e-9);
+});
+
+test('a receiver with no distance on record still renders at a plausible scale', () => {
+    const app = createApp();
+    const { speakerLeft } = buildGraph(app);   // no speakerDistance supplied
+    close(Math.hypot(speakerLeft.positionX.value, speakerLeft.positionZ.value),
+        app.data.DEFAULT_SPEAKER_DISTANCE_FEET, 1e-9);
+});
+
+test('how far away a speaker stands does not change its level', () => {
+    // Distance is already paid for by the impulse response and by the gainDb
+    // trim derived from it. A rolloff here would charge for it a third time and
+    // would pull the reverb down with the direct sound.
+    const app = createApp();
+
+    for (const d of [8.7, 20, 90.17]) {
+        for (const s of [buildGraph(app, { speakerDistance: d }).speakerLeft,
+                         buildGraph(app, { speakerDistance: d }).speakerRight]) {
+            assert.equal(s.distanceModel, 'inverse');
+            assert.equal(s.rolloffFactor, 0, `distance ${d} ft must not attenuate`);
+            assert.equal(s.refDistance, 1,
+                'unity at any distance under either reading of the inverse law');
+        }
+    }
+});
+
+test('the measured distance reaches the graph through the current selection', async () => {
+    const app = createApp();
+    app.loadFakeSource();
+    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R1-', 0, 8.7);
+    await app.g.startPlayback();
+
+    const speaker = app.nodes.filter(n => n.kind === 'panner').at(-1);
+    close(Math.hypot(speaker.positionX.value, speaker.positionZ.value), 8.7, 1e-9);
+});
+
+test('toggleBinaural crossfades the live graph instead of rebuilding it', async () => {
+    const app = await readyToPlay(createApp());
+    await app.g.startPlayback();
+
+    const graph = app.state.activeGraph;
+    const source = app.state.source;
+    const nodesBefore = app.nodes.length;
+
+    app.g.toggleBinaural();
+
+    assert.equal(app.state.binauralEnabled, true);
+    assert.equal(graph.stereoOut.gain.value, 0);
+    assert.equal(graph.binauralOut.gain.value, app.data.BINAURAL_TRIM);
+    assert.equal(app.state.activeGraph, graph, 'the graph should be retuned, not replaced');
+    assert.equal(app.state.source, source, 'the source must keep its place in the loop');
+    assert.equal(app.nodes.length, nodesBefore, 'no new nodes should be created');
+    assert.equal(source.stopped, false, 'playback must not be interrupted');
+});
+
+test('toggleBinaural glides rather than jumping', async () => {
+    const app = await readyToPlay(createApp());
+    await app.g.startPlayback();
+
+    app.g.toggleBinaural();
+    const [, when] = app.state.activeGraph.binauralOut.gain._ramps.at(-1);
+    assert.ok(when > app.ctx.currentTime, 'the ramp should end in the future');
+    assert.ok(when - app.ctx.currentTime <= 0.1, 'the ramp should be short enough to feel immediate');
+});
+
+test('every crossfade is anchored in the present, so none of them can step', async () => {
+    // The A/B is the whole point of the toggle, so the change that matters is
+    // the second one and the fiftieth, not the first.
+    const app = await readyToPlay(createApp());
+    await app.g.startPlayback();
+    const graph = app.state.activeGraph;
+    const fade = app.data.BINAURAL_CROSSFADE;
+
+    app.g.toggleBinaural();
+    assertAnchored(graph.stereoOut.gain, 0, fade, 'stereo, first toggle');
+    assertAnchored(graph.binauralOut.gain, 0, fade, 'binaural, first toggle');
+
+    // Half a minute of listening, then back again. An unanchored ramp would
+    // interpolate from the first toggle's end and jump almost the whole way.
+    app.ctx.currentTime = 30;
+    app.g.toggleBinaural();
+    assertAnchored(graph.stereoOut.gain, 30, fade, 'stereo, second toggle');
+    assertAnchored(graph.binauralOut.gain, 30, fade, 'binaural, second toggle');
+});
+
+test('the crossfade reads as instant without clicking', () => {
+    // Bounded from both sides: a gain that steps in one sample clicks, and a
+    // fade shorter than the latency the HRTF panners add would duck both stages
+    // at once and leave a hole. Between those it should be as short as it can.
+    const fade = createApp().data.BINAURAL_CROSSFADE;
+    assert.ok(fade >= 0.01, `${fade}s is short enough to duck both stages at once`);
+    assert.ok(fade <= 0.05, `${fade}s is long enough to be heard as a transition`);
+});
+
+test('a crossfade starts from the level the stage was left at', async () => {
+    const app = await readyToPlay(createApp());
+    await app.g.startPlayback();
+    const graph = app.state.activeGraph;
+
+    app.g.toggleBinaural();          // stereo fades out
+    app.ctx.currentTime = 30;
+    app.g.toggleBinaural();          // and back in
+
+    const { anchor, ramp } = glideOn(graph.stereoOut.gain);
+    assert.equal(anchor[1], 0, 'the glide must pick up where the stage was left');
+    assert.equal(ramp[1], 1, 'and carry it to the level the mode calls for');
+});
+
+test('toggleBinaural switches back off again', async () => {
+    const app = await readyToPlay(createApp());
+    await app.g.startPlayback();
+
+    app.g.toggleBinaural();
+    app.g.toggleBinaural();
+
+    assert.equal(app.state.binauralEnabled, false);
+    assert.equal(app.state.activeGraph.stereoOut.gain.value, 1);
+    assert.equal(app.state.activeGraph.binauralOut.gain.value, 0);
+});
+
+test('the binaural mode is remembered while stopped and applied on the next play', async () => {
+    const app = await readyToPlay(createApp());
+
+    app.g.toggleBinaural();                          // nothing is playing yet
+    assert.equal(app.state.activeGraph, null);
+
+    await app.g.startPlayback();
+    assert.equal(app.state.activeGraph.binauralOut.gain.value, app.data.BINAURAL_TRIM);
+    assert.equal(app.state.activeGraph.stereoOut.gain.value, 0);
+});
+
+test('the binaural mode survives the restart a receiver change causes', async () => {
+    const app = await readyToPlay(createApp());
+    await app.g.startPlayback();
+    app.g.toggleBinaural();
+
+    // Switching receivers stops and restarts playback through the new IR
+    await app.g.playpause();
+    await app.g.playpause();
+
+    assert.equal(app.state.binauralEnabled, true);
+    assert.equal(app.state.activeGraph.binauralOut.gain.value, app.data.BINAURAL_TRIM,
+        'the rebuilt graph must come back in the mode the visitor chose');
+});
+
+test('the toggle button reports the mode it is in', () => {
+    const app = createApp();
+    const btn = app.el('binaural');
+
+    app.g.setBinauralEnabled(true);
+    assert.equal(btn.classList.contains('active'), true);
+    assert.equal(btn['aria-pressed'], 'true');
+    assert.equal(btn.title, app.data.BINAURAL_TITLE_ON);
+
+    app.g.setBinauralEnabled(false);
+    assert.equal(btn.classList.contains('active'), false);
+    assert.equal(btn['aria-pressed'], 'false');
+    assert.equal(btn.title, app.data.BINAURAL_TITLE_OFF);
+});
+
+test('the offline render honours the mode being listened to', async () => {
+    const app = await readyToPlay(createApp());
+    app.g.toggleBinaural();
+    await app.g.downloadConvolvedAudio();
+
+    const offline = app.contexts.find(c => c.label === 'offline');
+    const panners = app.nodes.filter(n => n.kind === 'panner' && n.ctxLabel === 'offline');
+    assert.ok(offline, 'no offline render happened');
+    assert.equal(panners.length, 2, 'the render must go through the same virtual speakers');
 });
 
 // ── loading and caching ───────────────────────────────────────────────────
@@ -319,7 +626,7 @@ test('pause stops the source and releases the graph', async () => {
     const app = await readyToPlay(createApp());
     await app.g.playpause();
     const source = app.state.source;
-    const merger = app.state.activeGraph.output;
+    const output = app.state.activeGraph.output;
 
     await app.g.playpause();
 
@@ -327,8 +634,8 @@ test('pause stops the source and releases the graph', async () => {
     assert.equal(app.state.source, null);
     assert.equal(app.state.activeGraph, null, 'the graph reference should be dropped');
     assert.equal(source.stopped, true);
-    assert.ok(app.edges.some(e => e.from === merger && e.disconnected),
-        'the merger must be unhooked or every past graph stays pinned to the destination');
+    assert.ok(app.edges.some(e => e.from === output && e.disconnected),
+        'the output must be unhooked or every past graph stays pinned to the destination');
     assert.equal(app.el('play').textContent, 'play_circle_filled');
 });
 

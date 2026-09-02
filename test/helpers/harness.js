@@ -32,11 +32,14 @@ const EPILOGUE = `
     get currentIr()       { return currentIr; },
     get convolutionMix()  { return convolutionMix; },
     get compileSequence() { return compileSequence; },
+    get binauralEnabled() { return binauralEnabled; }, set binauralEnabled(v) { binauralEnabled = v; },
 };
 ;globalThis.__consts = {
     ROOMS, churchData, MissingResourceError, BUNDLED_SOURCE_FILES,
     DEFAULT_PANORAMA, PANORAMA_HFOV, DEFAULT_SOURCE_FILE, DEFAULT_ERROR_MESSAGE,
-    DRY_GAIN_AT_FULL_WET, IR_CACHE_LIMIT, ctx,
+    DRY_GAIN_AT_FULL_WET, IR_CACHE_LIMIT, ctx, MIX_GLIDE,
+    VIRTUAL_SPEAKER_AZIMUTH, DEFAULT_SPEAKER_DISTANCE_FEET, BINAURAL_CROSSFADE,
+    BINAURAL_TITLE_ON, BINAURAL_TITLE_OFF, BINAURAL_TRIM,
 };
 `;
 
@@ -113,10 +116,26 @@ function createApp(options = {}) {
         const node = {
             kind, ctxLabel, nodeId: ++nodeSeq,
             buffer: null, loop: false, started: false, stopped: false,
+            // An AudioParam that records its automation. `value` jumps straight
+            // to the target rather than being interpolated — tests assert what
+            // was scheduled, not what a ramp would sound like halfway through.
             gain: {
                 value: 1,
                 _ramps: [],
-                linearRampToValueAtTime(v, t) { this.value = v; this._ramps.push([v, t]); },
+                /** Every automation call in order, as [method, ...args] */
+                _events: [],
+                setValueAtTime(v, t) {
+                    this.value = v;
+                    this._events.push(['set', v, t]);
+                },
+                cancelScheduledValues(t) {
+                    this._events.push(['cancel', t]);
+                },
+                linearRampToValueAtTime(v, t) {
+                    this.value = v;
+                    this._ramps.push([v, t]);
+                    this._events.push(['ramp', v, t]);
+                },
             },
             connect(dest, output = 0, input = 0) {
                 edges.push({ from: node, to: dest, output, input });
@@ -145,6 +164,12 @@ function createApp(options = {}) {
         createGain: () => makeNode('gain', label),
         createChannelSplitter: (n) => Object.assign(makeNode('splitter', label), { outputs: n }),
         createChannelMerger: (n) => Object.assign(makeNode('merger', label), { inputs: n }),
+        // Modern spelling only, so the AudioParam path the app prefers is the
+        // one under test rather than the deprecated setPosition() fallback
+        createPanner: () => Object.assign(makeNode('panner', label), {
+            panningModel: '', distanceModel: '', refDistance: null, rolloffFactor: null,
+            positionX: { value: 0 }, positionY: { value: 0 }, positionZ: { value: 0 },
+        }),
         decodeAudioData: async () => fakeAudioBuffer(),
         async resume() { this.resumeCalls++; this.state = 'running'; },
         startRendering: async () => fakeAudioBuffer(9600, 2),
