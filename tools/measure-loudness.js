@@ -46,10 +46,6 @@ const {
     readWav, resample, db, fft, findPositions, ambisonicBlock,
 } = require('./aformat-to-bformat.js');
 
-const {
-    toCartesian, angleBetween, loadHrirSet, DEFAULT_PATTERN,
-} = require('./bformat-to-brir.js');
-
 /** ROOMS, read the way the harness does: the file declares a bare const */
 function loadRooms() {
     const source = fs.readFileSync(path.join(__dirname, '..', 'Javascript', 'Rooms.js'), 'utf8');
@@ -81,8 +77,12 @@ const DRY_GAIN_AT_FULL_WET = 0.35;
 /** Omnitone's own FOA decode filters, extracted from the library it ships */
 const OMNITONE_HRIR = ['HRIR/omnitone-foa-1.wav', 'HRIR/omnitone-foa-2.wav'];
 
-/** Default SADIE directory, matching the one bformat-to-brir.js documents */
-const DEFAULT_SADIE = 'HRIR/D1/D1_HRIR_WAV/48K_24bit';
+/**
+ * The two responses the binaural stage convolves against, as the app loads
+ * them. Reading these rather than picking a nearest match out of the full SADIE
+ * set is what makes this measurement exact: it is the same two files.
+ */
+const VIRTUAL_SPEAKER_HRIR = ['HRIR/virtual-speaker-left.wav', 'HRIR/virtual-speaker-right.wav'];
 
 // ── BS.1770 loudness ──────────────────────────────────────────────────────
 
@@ -368,19 +368,6 @@ function hrirPair(file) {
     return { left: wav.data[0], right: wav.data[1] };
 }
 
-/** The two SADIE measurements nearest the virtual loudspeaker angles */
-function speakerHrirs(set) {
-    return [-VIRTUAL_SPEAKER_AZIMUTH, VIRTUAL_SPEAKER_AZIMUTH].map(azimuth => {
-        const wanted = toCartesian(azimuth, 0);
-        let best = null, bestAngle = Infinity;
-        for (const entry of set.entries) {
-            const angle = angleBetween(entry.direction, wanted);
-            if (angle < bestAngle) { bestAngle = angle; best = entry; }
-        }
-        return Object.assign(hrirPair(best.file), { errorDeg: bestAngle });
-    });
-}
-
 /** What a position can offer, skipping whatever it does not have */
 function loadPosition(base) {
     const ir = { left: monoOf(base + '1.wav').data, right: monoOf(base + '2.wav').data };
@@ -418,39 +405,8 @@ function gainDbFor(rooms, dir, stem) {
     return 0;
 }
 
-/**
- * The offset between this measurement's modelled-binaural figure and the truth.
- *
- * That stage is rendered here with SADIE, and the app renders it with whatever
- * HRIRs Chrome carries. Two HRIR databases differ by a fixed gain, so the error
- * is one constant for the whole library rather than something that varies by
- * room — which the measurement itself bears out: the binaural column moves less
- * than a decibel across all twelve churches, because both it and stereo run the
- * same normalized convolvers and differ only in the output stage.
- *
- * So one church calibrated by ear pins it for the rest. This reads that anchor
- * out of ROOMS: any church already carrying a non-zero binaural trim is taken
- * as ground truth, and the difference is applied to every measured estimate.
- * With no such church, the estimates are left alone and reported as raw.
- *
- * @returns dB to add to every binaural estimate, and the church it came from
- */
-function binauralAnchor(rooms, suggested) {
-    for (const [key, config] of Object.entries(rooms)) {
-        const known = config.trim && config.trim.binaural;
-        if (typeof known !== 'number' || known === 0) continue;
-
-        const folder = path.basename(config.ir.dir);
-        const measured = suggested[folder] && suggested[folder].binaural;
-        if (measured === null || measured === undefined) continue;
-
-        return { offset: known - measured, from: folder, known, measured };
-    }
-    return null;
-}
-
 /** Rewrites each church's trim line in Rooms.js with the measured levels */
-function writeTrims(rooms, suggested, anchor) {
+function writeTrims(rooms, suggested) {
     const file = path.join(__dirname, '..', 'Javascript', 'Rooms.js');
     const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
     const written = [];
@@ -475,7 +431,7 @@ function writeTrims(rooms, suggested, anchor) {
         if (trimLine < 0 || (nextChurch >= 0 && trimLine > nextChurch)) continue;
 
         const binaural = trims.binaural === null || trims.binaural === undefined
-            ? 0 : round(trims.binaural + (anchor ? anchor.offset : 0));
+            ? 0 : round(trims.binaural);
 
         lines[trimLine] = `        trim:     { binaural: ${binaural}, ` +
             `brir: ${round(trims.brir)}, ambisonic: ${round(trims.ambisonic)} },`;
@@ -491,13 +447,12 @@ function writeTrims(rooms, suggested, anchor) {
 function parseArgs(argv) {
     const options = {
         dirs: [], source: DEFAULT_SOURCE, seconds: DEFAULT_SECONDS,
-        sadie: DEFAULT_SADIE, write: false, positions: 0,
+        write: false, positions: 0,
     };
     for (let i = 0; i < argv.length; i++) {
         const arg = argv[i];
         if (arg === '--source') options.source = argv[++i];
         else if (arg === '--seconds') options.seconds = Number(argv[++i]);
-        else if (arg === '--hrir') options.sadie = argv[++i];
         else if (arg === '--positions') options.positions = Number(argv[++i]);
         else if (arg === '--write') options.write = true;
         else if (arg === '--dry-run') options.write = false;
@@ -515,7 +470,6 @@ Measure each render mode's loudness and derive the trim that matches it to stere
 
   --source <file>    what to measure through (default ${DEFAULT_SOURCE})
   --seconds <n>      excerpt length (default ${DEFAULT_SECONDS})
-  --hrir <dir>       SADIE set, for the modelled render's estimate
   --positions <n>    measure only the first n positions per church (0 = all)
   --write            update the trim values in Rooms.js
   --dry-run          report only (default)
@@ -544,12 +498,12 @@ function main() {
         console.warn('warning: Omnitone HRIRs not found, skipping the ambisonic mode');
     }
 
+    // The very files the app convolves against, so nothing is approximated
     let speakers = null;
-    try {
-        const set = loadHrirSet(options.sadie, { pattern: DEFAULT_PATTERN, azimuthSign: 1 });
-        speakers = speakerHrirs(set);
-    } catch (err) {
-        console.warn(`warning: no SADIE set at ${options.sadie}, skipping the modelled render`);
+    if (VIRTUAL_SPEAKER_HRIR.every(f => fs.existsSync(f))) {
+        speakers = VIRTUAL_SPEAKER_HRIR.map(hrirPair);
+    } else {
+        console.warn('warning: speaker HRIRs not found, skipping the binaural mode');
     }
 
     console.log('Loudness match against stereo (ITU-R BS.1770 integrated LUFS)');
@@ -557,7 +511,7 @@ function main() {
     console.log(`  mix        100% (dry at ${dryGainFor(MIX).toFixed(3)}), stage gains at unity`);
     console.log(`  ambisonic  ${omnitone ? "Omnitone's own decode — exact" : 'skipped'}`);
     console.log(`  binaural   ${speakers
-        ? `SADIE +-${VIRTUAL_SPEAKER_AZIMUTH} deg — ESTIMATE, not the browser's HRTFs`
+        ? `the app's own SADIE ears at +-${VIRTUAL_SPEAKER_AZIMUTH} deg — exact`
         : 'skipped'}`);
 
     const root = path.join(__dirname, '..', 'IR');
@@ -595,18 +549,8 @@ function main() {
     }
 
     const suggested = summarize(perChurch, options);
-
-    const anchor = binauralAnchor(rooms, suggested);
-    if (anchor) {
-        console.log(`\nBinaural anchored on ${anchor.from}, trimmed by ear to ${anchor.known} dB.`);
-        console.log(`  Measured there as ${anchor.measured.toFixed(1)} dB, so every estimate ` +
-            `shifts by ${anchor.offset.toFixed(1)} dB.`);
-    } else {
-        console.log('\nNo church is trimmed by ear yet, so the binaural estimates are raw.');
-    }
-
     if (options.write) {
-        const written = writeTrims(rooms, suggested, anchor);
+        const written = writeTrims(rooms, suggested);
         console.log(`\nWrote ${written.length} trim row(s) into Rooms.js:`);
         for (const row of written) console.log('  ' + row);
     }
@@ -661,11 +605,9 @@ function summarize(perChurch, options) {
     }
 
     console.log(`
-The binaural column is an estimate: it was rendered with SADIE at +-30 degrees
-because the browser's own HRTF database cannot be read from here. The geometry
-is right and the head is not, so treat it as a starting point and confirm the
-value by ear. The other two columns are exact — they run the same filters the
-app runs.`);
+Every column runs the filters the app runs: the same SADIE ears across all three
+renders, and Omnitone's own decode for the ambisonic one. No part of this is an
+estimate any more.`);
 
     if (!options.write) {
         console.log('\nNothing written. Pass --write to put these into Rooms.js.');

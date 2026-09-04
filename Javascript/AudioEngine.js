@@ -133,8 +133,25 @@ function setConvolutionMix(mix) {
 /** Half the angle between the virtual loudspeakers: a stereo listening triangle */
 const VIRTUAL_SPEAKER_AZIMUTH = 30;
 
-/** Where they stand when a receiver has no measured distance on record, in feet */
-const DEFAULT_SPEAKER_DISTANCE_FEET = 20;
+/**
+ * The measured ears this render puts its virtual loudspeakers on.
+ *
+ * One stereo file per speaker: channel 0 is the left ear, channel 1 the right,
+ * so convolving a speaker's mono feed against it produces that speaker as both
+ * ears hear it. Cut from the SADIE II set at +-30 degrees and 0 elevation, the
+ * same subject the BRIR and ambisonic stages decode against, which is what
+ * makes the three modes comparable: they now differ in how the room reaches the
+ * ears, not in whose ears they are.
+ *
+ * Named for where the speaker stands rather than for the angle in the file:
+ * SADIE counts azimuth counterclockwise, so its 30 degrees is the left speaker
+ * and its 330 the right. Changing VIRTUAL_SPEAKER_AZIMUTH means cutting new
+ * files; these two are fixed at the angle above.
+ */
+const VIRTUAL_SPEAKER_HRIR = {
+    left: 'HRIR/virtual-speaker-left.wav',
+    right: 'HRIR/virtual-speaker-right.wav',
+};
 
 /**
  * Output level of the binaural stage, in dB, for an uncalibrated church.
@@ -146,9 +163,7 @@ const DEFAULT_SPEAKER_DISTANCE_FEET = 20;
  * because the ear has nothing to push away from and every value sounds nearly
  * as plausible as the last.
  *
- * Expect to land near -2.5 dB. Every virtual speaker is heard by both ears,
- * where a headphone channel reaches only one, so the stage comes back louder
- * than the stereo one. Set trim.binaural per church in ROOMS.
+ * Set trim.binaural per church in ROOMS; tools/measure-loudness.js derives it.
  */
 const BINAURAL_TRIM_DB = 0;
 
@@ -157,10 +172,10 @@ const BINAURAL_TRIM_DB = 0;
  *
  * Squeezed between two limits rather than chosen for feel. It cannot go to
  * zero: a gain that steps in a single sample is a click, which is what
- * rampGain() exists to avoid. It also should not go below the delay the HRTF
- * panners add — a few milliseconds of convolution latency the stereo stage does
- * not pay — because a fade shorter than that offset would duck both stages at
- * once and punch a hole in the sound.
+ * rampGain() exists to avoid. It also should not go below the delay the HRIR
+ * convolvers add — a few milliseconds the stereo stage does not pay — because a
+ * fade shorter than that offset would duck both stages at once and punch a hole
+ * in the sound.
  *
  * 20 ms clears both and is well under the ~50 ms where a switch stops reading
  * as immediate.
@@ -173,41 +188,57 @@ const BINAURAL_TITLE_OFF = "Binaural rendering: off";
 /** Whether playback leaves through the binaural stage. Toggled by its button. */
 let binauralEnabled = false;
 
+/** The speaker HRIRs, once fetched; they are the same for every position */
+let virtualSpeakerHrir = null;
+let virtualSpeakerPending = null;
+
 /**
- * One virtual loudspeaker, rendered to both ears through the browser's HRTFs.
+ * Loads the pair of speaker HRIRs, once for the life of the page.
+ *
+ * They do not vary by church the way the impulse responses do — the speakers
+ * stand at the same two angles everywhere — so this is fetched once and shared,
+ * and a failure costs the mode rather than the playback.
+ */
+async function ensureVirtualSpeakerHrir() {
+    if (virtualSpeakerHrir) return virtualSpeakerHrir;
+    if (virtualSpeakerPending) return virtualSpeakerPending;
+
+    virtualSpeakerPending = (async () => {
+        try {
+            const [left, right] = await Promise.all([
+                loadImpulseResponse(VIRTUAL_SPEAKER_HRIR.left),
+                loadImpulseResponse(VIRTUAL_SPEAKER_HRIR.right),
+            ]);
+            virtualSpeakerHrir = { left, right };
+            return virtualSpeakerHrir;
+        } catch (err) {
+            console.error(err);
+            virtualSpeakerPending = null;   // let a later play try again
+            return null;
+        }
+    })();
+
+    return virtualSpeakerPending;
+}
+
+/**
+ * One virtual loudspeaker, rendered to both ears through a measured HRIR.
+ *
+ * A convolver with a mono input and a two-channel response outputs both ears,
+ * so one node is the whole speaker. Normalization is off for the same reason it
+ * is off on the other measured stages: the HRIR arrives at the level it was
+ * measured at, and the difference between the two ears is the direction.
  *
  * The listener is never reoriented; that is what makes this the untracked
  * render, and it keeps the image steady however the panorama is dragged.
  *
- * @param azimuthDegrees Angle from straight ahead, positive to the right
- * @param distanceFeet   Measured receiver-to-source distance for this position
+ * @param hrir Two-channel response for the angle this speaker stands at
  */
-function createVirtualSpeaker(audioCtx, azimuthDegrees, distanceFeet) {
-    const panner = audioCtx.createPanner();
-    panner.panningModel = 'HRTF';
-
-    // Distance places the speaker but must not set its level: the impulse
-    // response carries this position's direct-to-reverberant ratio, and its
-    // gainDb trim already corrects for distance.
-    panner.distanceModel = 'inverse';
-    panner.refDistance = 1;
-    panner.rolloffFactor = 0;
-
-    // Web Audio puts the listener at the origin facing -Z, with +X to the right
-    const radians = azimuthDegrees * Math.PI / 180;
-    const x = Math.sin(radians) * distanceFeet;
-    const z = -Math.cos(radians) * distanceFeet;
-
-    // setPosition() is deprecated but is the only spelling older Safari has
-    if (panner.positionX) {
-        panner.positionX.value = x;
-        panner.positionY.value = 0;
-        panner.positionZ.value = z;
-    } else {
-        panner.setPosition(x, 0, z);
-    }
-
-    return panner;
+function createVirtualSpeaker(audioCtx, hrir) {
+    const speaker = audioCtx.createConvolver();
+    speaker.normalize = false;
+    speaker.buffer = hrir;
+    return speaker;
 }
 
 /**
@@ -697,11 +728,17 @@ function setStageTrims(trims) {
 /**
  * A stage's level in dB: this church's calibration, or the shared default.
  *
- * Refuses anything above 0 dB along with the non-numbers. These replace the
- * fallback rather than adjusting it, so a positive value would push the stage
- * past the level its own processing produced — into clipping, and for no reason
- * these trims exist to serve. ROOMS is hand-edited; a dropped minus sign should
- * not be the loudest thing in the app.
+ * Bounded rather than one-sided. Most of these take level off — the BRIR and
+ * ambisonic stages carry the whole gain of the offline decode and land fifteen
+ * to twenty dB hot — but the virtual-loudspeaker render comes back a decibel or
+ * so *under* stereo, because its HRIRs are convolved at the level they were
+ * measured at and two speakers only partly make that up. So a small boost is a
+ * real answer, not a dropped minus sign.
+ *
+ * The range is wide enough for every measured value and narrow enough that a
+ * typo cannot be catastrophic: past +12 dB a stage is heading for clipping, and
+ * below -40 dB it is inaudible, which is a misplaced decimal point rather than
+ * a calibration.
  *
  * Type is checked before value, or null would coerce to 0 and read as a
  * deliberate "no change" from a church that has none.
@@ -709,9 +746,13 @@ function setStageTrims(trims) {
  * @param stage      'binaural', 'brir' or 'ambisonic'
  * @param fallbackDb That stage's constant, used until the church is calibrated
  */
+const STAGE_TRIM_MAX_DB = 12;
+const STAGE_TRIM_MIN_DB = -40;
+
 function stageTrimDb(stage, fallbackDb) {
     const db = stageTrims[stage];
-    const usable = typeof db === 'number' && Number.isFinite(db) && db <= 0;
+    const usable = typeof db === 'number' && Number.isFinite(db)
+        && db >= STAGE_TRIM_MIN_DB && db <= STAGE_TRIM_MAX_DB;
     return usable ? db : fallbackDb;
 }
 
@@ -768,6 +809,7 @@ function stageGainsFor(stage) {
  */
 function builtStage(graph) {
     const stage = outputStage();
+    if (stage === 'binaural' && !graph.binauralOut) return 'stereo';
     if (stage === 'brir' && !graph.brirOut) return 'stereo';
     if (stage === 'ambisonic' && !graph.ambisonicOut) return 'stereo';
     return stage;
@@ -780,18 +822,15 @@ function applyOutputStage() {
     const gains = stageGainsFor(builtStage(activeGraph));
 
     rampGain(activeGraph.stereoOut.gain, gains.stereo, BINAURAL_CROSSFADE);
-    rampGain(activeGraph.binauralOut.gain, gains.binaural, BINAURAL_CROSSFADE);
+    if (activeGraph.binauralOut) {
+        rampGain(activeGraph.binauralOut.gain, gains.binaural, BINAURAL_CROSSFADE);
+    }
     if (activeGraph.brirOut) {
         rampGain(activeGraph.brirOut.gain, gains.brir, BINAURAL_CROSSFADE);
     }
     if (activeGraph.ambisonicOut) {
         rampGain(activeGraph.ambisonicOut.gain, gains.ambisonic, BINAURAL_CROSSFADE);
     }
-}
-
-/** Where to stand the speakers for the current selection, in feet */
-function speakerDistanceFeet() {
-    return currentIr.distanceFeet || DEFAULT_SPEAKER_DISTANCE_FEET;
 }
 
 /** Reflects the current mode on the toggle button */
@@ -840,7 +879,7 @@ function updateBinauralButton() {
  * @returns the gain nodes the mix slider and the mode toggles retune, plus the
  *          output node to unhook on stop
  */
-function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irGainDb, binaural, brir, brirLeft, brirRight, ambisonic, bformatChannels, ambisonicRenderer, speakerDistance = DEFAULT_SPEAKER_DISTANCE_FEET }) {
+function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irGainDb, binaural, brir, brirLeft, brirRight, ambisonic, bformatChannels, ambisonicRenderer, speakerHrir }) {
     const convolverLeft = audioCtx.createConvolver();
     convolverLeft.buffer = irLeft;
     const convolverRight = audioCtx.createConvolver();
@@ -888,17 +927,25 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
     stereoOut.connect(output);
 
     // Binaural stage: the same signals through virtual loudspeakers, dry centred
-    // between the pair exactly as it is centred between the headphone channels
-    const speakerLeft = createVirtualSpeaker(audioCtx, -VIRTUAL_SPEAKER_AZIMUTH, speakerDistance);
-    const speakerRight = createVirtualSpeaker(audioCtx, VIRTUAL_SPEAKER_AZIMUTH, speakerDistance);
-    const binauralOut = audioCtx.createGain();
-    dryGain.connect(speakerLeft);
-    dryGain.connect(speakerRight);
-    wetGainLeft.connect(speakerLeft);
-    wetGainRight.connect(speakerRight);
-    speakerLeft.connect(binauralOut);
-    speakerRight.connect(binauralOut);
-    binauralOut.connect(output);
+    // between the pair exactly as it is centred between the headphone channels.
+    // Built only where the speaker HRIRs loaded; they ship with the app, so this
+    // is a network failure rather than a property of the position.
+    let binauralOut = null;
+    let speakerLeft = null;
+    let speakerRight = null;
+
+    if (speakerHrir) {
+        speakerLeft = createVirtualSpeaker(audioCtx, speakerHrir.left);
+        speakerRight = createVirtualSpeaker(audioCtx, speakerHrir.right);
+        binauralOut = audioCtx.createGain();
+        dryGain.connect(speakerLeft);
+        dryGain.connect(speakerRight);
+        wetGainLeft.connect(speakerLeft);
+        wetGainRight.connect(speakerRight);
+        speakerLeft.connect(binauralOut);
+        speakerRight.connect(binauralOut);
+        binauralOut.connect(output);
+    }
 
     // BRIR stage: the same mono signal off the same splitter, convolved against
     // the measured binaural response instead of the raw IR pair. Built only
@@ -990,7 +1037,7 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
             : binaural ? 'binaural' : 'stereo';
     const gains = stageGainsFor(stage);
     stereoOut.gain.value = gains.stereo;
-    binauralOut.gain.value = gains.binaural;
+    if (binauralOut) binauralOut.gain.value = gains.binaural;
     if (brirOut) brirOut.gain.value = gains.brir;
     if (ambisonicOut) ambisonicOut.gain.value = gains.ambisonic;
 
@@ -1126,10 +1173,11 @@ async function startPlayback() {
     // Optional, and absent for most of the library. Loaded before the graph is
     // built rather than on demand so the modes can be toggled mid-playback like
     // the other two, without a rebuild that would restart the loop.
-    const [brirPair, bformatChannels, ambisonicRenderer] = await Promise.all([
+    const [brirPair, bformatChannels, ambisonicRenderer, speakerHrir] = await Promise.all([
         loadBrirPair(currentIr.base),
         loadBformatChannels(ctx, currentIr.base),
         ensureAmbisonicRenderer(),
+        ensureVirtualSpeakerHrir(),
     ]);
 
     // A context constructed before any user gesture starts out suspended
@@ -1155,7 +1203,7 @@ async function startPlayback() {
         ambisonic: ambisonicEnabled,
         bformatChannels,
         ambisonicRenderer,
-        speakerDistance: speakerDistanceFeet()
+        speakerHrir
     });
 
     source.start();
@@ -1232,7 +1280,10 @@ async function downloadConvolvedAudio() {
         loadImpulseResponse(currentIr.base + "2.wav")
     ]);
 
-    const brirPair = await loadBrirPair(currentIr.base);
+    const [brirPair, speakerHrir] = await Promise.all([
+        loadBrirPair(currentIr.base),
+        ensureVirtualSpeakerHrir(),
+    ]);
 
     // Room for the source plus the longest tail any built stage leaves behind.
     // A BRIR carries the room and the head together and outruns the raw IR.
@@ -1257,7 +1308,7 @@ async function downloadConvolvedAudio() {
         ambisonic: false,
         bformatChannels: null,
         ambisonicRenderer: null,
-        speakerDistance: speakerDistanceFeet()
+        speakerHrir
     });
 
     offlineSource.start();

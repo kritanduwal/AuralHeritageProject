@@ -384,29 +384,38 @@ test('no application source references a file that no longer exists', () => {
     assert.deepEqual(missing, []);
 });
 test('no church trim is left at a level the engine would refuse', () => {
-    // These are dB: zero leaves the stage alone and negative takes level off,
-    // which is the whole working range. A positive value is a dropped minus
-    // sign, and the engine ignores it — silently, so it has to be caught here.
+    // The engine ignores a value outside its bounds and falls back silently, so
+    // a church left there would play unmatched with nothing to show for it.
+    // Read the bounds off the engine rather than restating them, or the two can
+    // drift apart and this stops guarding anything.
+    const { STAGE_TRIM_MIN_DB, STAGE_TRIM_MAX_DB } = app.data;
+
     const bad = [];
     for (const key of roomKeys) {
         for (const [stage, db] of Object.entries(ROOMS[key].trim)) {
-            if (typeof db !== 'number' || !Number.isFinite(db) || db > 0) {
+            if (typeof db !== 'number' || !Number.isFinite(db) ||
+                db < STAGE_TRIM_MIN_DB || db > STAGE_TRIM_MAX_DB) {
                 bad.push(`${key}.${stage} = ${JSON.stringify(db)}`);
             }
         }
     }
-    assert.deepEqual(bad, [], 'trims must be finite numbers at or below 0 dB');
+    assert.deepEqual(bad, [],
+        `trims must be finite numbers between ${STAGE_TRIM_MIN_DB} and ${STAGE_TRIM_MAX_DB} dB`);
 });
 
-test('a calibrated trim stays within a level anyone would actually set', () => {
-    // Not a hard limit, a tripwire. The stages settle somewhere between a
-    // couple of dB and the high teens; something far past that is a typo — a
-    // misplaced decimal point, or dB confused with a linear gain.
-    const outliers = [];
+test('each stage lands where the way it is built says it should', () => {
+    // The impulse-response convolvers normalize and the HRIR ones do not, so
+    // the two decoded stages carry the whole gain of the offline render while
+    // the virtual-loudspeaker one sits within a decibel or two of stereo. If
+    // that ordering ever inverts, a stage has stopped doing what it was built
+    // to do and the numbers are measuring something else.
     for (const key of roomKeys) {
-        for (const [stage, db] of Object.entries(ROOMS[key].trim)) {
-            if (db < -40) outliers.push(`${key}.${stage} = ${db} dB`);
-        }
+        const { binaural, brir, ambisonic } = ROOMS[key].trim;
+        assert.ok(Math.abs(binaural) < 6,
+            `${key}: binaural at ${binaural} dB is too far from stereo to be that stage`);
+        assert.ok(brir < -10 && ambisonic < -10,
+            `${key}: the decoded stages should need heavy attenuation`);
+        assert.ok(ambisonic < brir,
+            `${key}: the ambisonic decode carries Omnitone's gain on top of the BRIR's`);
     }
-    assert.deepEqual(outliers, [], 'a trim below -40 dB is almost certainly a mistake');
 });

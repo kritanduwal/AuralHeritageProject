@@ -5,3 +5,7 @@ node_modules/
 # to carry: the tools take a path to it rather than expecting it in the tree.
 HRIR/**
 !HRIR/README.md
+# The two HRIRs the virtual-loudspeaker render convolves against are small and
+# the app fetches them at runtime, so unlike the rest of the set they ship.
+!HRIR/virtual-speaker-left.wav
+!HRIR/virtual-speaker-right.wav

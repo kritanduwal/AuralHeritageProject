@@ -46,7 +46,7 @@ const EPILOGUE = `
     ROOMS, churchData, MissingResourceError, BUNDLED_SOURCE_FILES,
     DEFAULT_PANORAMA, PANORAMA_HFOV, DEFAULT_SOURCE_FILE, DEFAULT_ERROR_MESSAGE,
     DRY_GAIN_AT_FULL_WET, IR_CACHE_LIMIT, ctx, MIX_GLIDE,
-    VIRTUAL_SPEAKER_AZIMUTH, DEFAULT_SPEAKER_DISTANCE_FEET, BINAURAL_CROSSFADE,
+    VIRTUAL_SPEAKER_AZIMUTH, VIRTUAL_SPEAKER_HRIR, BINAURAL_CROSSFADE,
     BINAURAL_TITLE_ON, BINAURAL_TITLE_OFF, BINAURAL_TRIM_DB,
     BRIR_TRIM_DB, BRIR_LEFT_SUFFIX, BRIR_RIGHT_SUFFIX,
     BRIR_TITLE_ON, BRIR_TITLE_OFF, BRIR_TITLE_UNAVAILABLE,
@@ -55,6 +55,7 @@ const EPILOGUE = `
     SOUNDFIELD_ROTATION_SIGN, rotationMatrix4,
     TRACKING_TITLE_ON, TRACKING_TITLE_OFF, TRACKING_TITLE_UNAVAILABLE,
     readFeatures, featureEnabled, stageTrimDb, gainFromDb,
+    STAGE_TRIM_MAX_DB, STAGE_TRIM_MIN_DB,
     FEATURE_NAMES, FEATURE_IMPLIES, FEATURE_CONTROLS,
     TOGGLE_ROW_START_PX, TOGGLE_ROW_STEP_PX,
 };
@@ -259,6 +260,10 @@ function createApp(options = {}) {
          */
         respond(url, opts) {
             if (url === '/api/source-files') return { ok: false, status: 404 };
+            // The speaker responses are stereo: one channel per ear
+            if (/virtual-speaker-(left|right).wav$/.test(url)) {
+                return { ok: true, status: 200, channels: 2 };
+            }
             const rel = decodeURIComponent(String(url).replace(/^\//, ''));
             const exists = fs.existsSync(path.join(ROOT, rel));
             return { ok: exists, status: exists ? 200 : 404 };

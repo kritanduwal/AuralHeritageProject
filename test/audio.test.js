@@ -16,7 +16,7 @@ const close = (actual, expected, tolerance = 1e-9, msg) =>
  */
 function buildGraph(app, { mix = 1, irGainDb = 0, binaural = false, brir = false,
                            withBrirPair = brir, ambisonic = false,
-                           withBformat = ambisonic, speakerDistance } = {}) {
+                           withBformat = ambisonic, withSpeakers = true } = {}) {
     const ctx = app.ctx;
     const src = ctx.createBufferSource();
 
@@ -40,7 +40,12 @@ function buildGraph(app, { mix = 1, irGainDb = 0, binaural = false, brir = false
             ? Array.from({ length: app.data.AMBISONIC_CHANNELS }, () => app.fakeAudioBuffer())
             : null,
         ambisonicRenderer: renderer,
-        mix, irGainDb, binaural, brir, ambisonic, speakerDistance,
+        // Two channels apiece: convolving a speaker's mono feed against its
+        // response is what turns it into a pair of ears
+        speakerHrir: withSpeakers
+            ? { left: app.fakeAudioBuffer(256, 2), right: app.fakeAudioBuffer(256, 2) }
+            : null,
+        mix, irGainDb, binaural, brir, ambisonic,
     });
 
     const made = app.nodes.slice(first);
@@ -49,21 +54,25 @@ function buildGraph(app, { mix = 1, irGainDb = 0, binaural = false, brir = false
     // The trim is whatever feeds the splitter
     const irTrim = app.edgesTo(splitter)[0]?.from ?? null;
 
-    // Stages build in order: stereo, then BRIR, then ambisonic
+    // Stages build in order: stereo, binaural, BRIR, ambisonic — and every one
+    // of them is a convolver now, so they are counted off rather than filtered.
     const mergers = kinds('merger');
     const convolvers = kinds('convolver');
-
-    // Panners are created left first, matching the -30/+30 order in the engine
-    const [speakerLeft, speakerRight] = kinds('panner');
+    let next = 2;                                  // the IR pair comes first
+    const speakers = withSpeakers ? convolvers.slice(next, next += 2) : [];
+    const brirConvolvers = withBrirPair ? convolvers.slice(next, next += 2) : [];
+    const ambiConvolvers = withBformat ? convolvers.slice(next, next += 4) : [];
 
     return {
-        ctx, src, graph, splitter, irTrim, speakerLeft, speakerRight, renderer,
+        ctx, src, graph, splitter, irTrim, renderer,
+        speakerLeft: speakers[0] ?? null,
+        speakerRight: speakers[1] ?? null,
         merger: mergers[0],
         brirMerger: withBrirPair ? mergers[1] : null,
         ambiMerger: graph.ambiMerger,
         convolvers: convolvers.slice(0, 2),
-        brirConvolvers: withBrirPair ? convolvers.slice(2, 4) : [],
-        ambiConvolvers: withBformat ? convolvers.slice(withBrirPair ? 4 : 2) : [],
+        brirConvolvers,
+        ambiConvolvers,
     };
 }
 
@@ -359,68 +368,81 @@ test('the binaural stage takes its level from the church, not the fallback', () 
     assert.equal(buildGraph(app, { binaural: true }).graph.binauralOut.gain.value, 1);
 });
 
-test('the virtual speakers are HRTF panned to a stereo listening triangle', () => {
+test('each virtual speaker is one convolver carrying both ears', () => {
+    // A convolver with a mono input and a two-channel response outputs the pair
+    // directly, so one node is the whole loudspeaker.
     const app = createApp();
-    const d = 42;
-    const { speakerLeft, speakerRight, graph } = buildGraph(app, { speakerDistance: d });
-    const half = app.data.VIRTUAL_SPEAKER_AZIMUTH;
+    const { speakerLeft, speakerRight, graph } = buildGraph(app);
 
-    for (const s of [speakerLeft, speakerRight]) {
-        assert.equal(s.panningModel, 'HRTF', 'plain equal-power panning would not externalize');
-        assert.equal(pathCount(app, s, graph.binauralOut), 1, 'each speaker reaches the stage once');
-        // Web Audio puts the listener at the origin facing -Z
-        assert.ok(s.positionZ.value < 0, 'the speakers must sit in front of the listener');
-        assert.equal(s.positionY.value, 0, 'the pair should be at ear height');
-        close(Math.hypot(s.positionX.value, s.positionZ.value), d, 1e-9);
-    }
-
-    close(speakerLeft.positionX.value, -d * Math.sin(half * Math.PI / 180), 1e-9);
-    close(speakerRight.positionX.value, d * Math.sin(half * Math.PI / 180), 1e-9);
-    assert.ok(speakerLeft.positionX.value < 0 && speakerRight.positionX.value > 0,
-        'left and right speakers must be on opposite sides');
-});
-
-test('the speakers stand at the measured receiver-to-source distance', () => {
-    const app = createApp();
-    const near = buildGraph(app, { speakerDistance: 12 }).speakerLeft;
-    const far = buildGraph(app, { speakerDistance: 90 }).speakerLeft;
-
-    close(Math.hypot(near.positionX.value, near.positionZ.value), 12, 1e-9);
-    close(Math.hypot(far.positionX.value, far.positionZ.value), 90, 1e-9);
-});
-
-test('a receiver with no distance on record still renders at a plausible scale', () => {
-    const app = createApp();
-    const { speakerLeft } = buildGraph(app);   // no speakerDistance supplied
-    close(Math.hypot(speakerLeft.positionX.value, speakerLeft.positionZ.value),
-        app.data.DEFAULT_SPEAKER_DISTANCE_FEET, 1e-9);
-});
-
-test('how far away a speaker stands does not change its level', () => {
-    // Distance is already paid for by the impulse response and by the gainDb
-    // trim derived from it. A rolloff here would charge for it a third time and
-    // would pull the reverb down with the direct sound.
-    const app = createApp();
-
-    for (const d of [8.7, 20, 90.17]) {
-        for (const s of [buildGraph(app, { speakerDistance: d }).speakerLeft,
-                         buildGraph(app, { speakerDistance: d }).speakerRight]) {
-            assert.equal(s.distanceModel, 'inverse');
-            assert.equal(s.rolloffFactor, 0, `distance ${d} ft must not attenuate`);
-            assert.equal(s.refDistance, 1,
-                'unity at any distance under either reading of the inverse law');
-        }
+    for (const speaker of [speakerLeft, speakerRight]) {
+        assert.equal(speaker.kind, 'convolver');
+        assert.equal(speaker.buffer.numberOfChannels, 2, 'one channel per ear');
+        assert.equal(pathCount(app, speaker, graph.binauralOut), 1,
+            'each speaker reaches the stage once');
     }
 });
 
-test('the measured distance reaches the graph through the current selection', async () => {
+test('the speakers do not normalize, so the measured ears keep their level', () => {
+    // The same reason the other measured stages set it: an HRIR arrives at the
+    // level it was measured at, and the difference between the two ears is the
+    // direction. Equal-power normalization would flatten both.
     const app = createApp();
-    app.loadFakeSource();
-    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R1-', 0, 8.7);
+    const { speakerLeft, speakerRight } = buildGraph(app);
+
+    assert.equal(speakerLeft.normalize, false);
+    assert.equal(speakerRight.normalize, false);
+});
+
+test('each speaker is fed its own side, with dry centred between them', () => {
+    const app = createApp();
+    const { speakerLeft, speakerRight, graph } = buildGraph(app);
+
+    assert.ok(app.edgesTo(speakerLeft).some(e => e.from === graph.wetGainLeft));
+    assert.ok(app.edgesTo(speakerRight).some(e => e.from === graph.wetGainRight));
+    assert.ok(!app.edgesTo(speakerLeft).some(e => e.from === graph.wetGainRight),
+        'a speaker must carry one side only, or the pair collapses to mono');
+
+    assert.equal(pathCount(app, graph.dryGain, graph.binauralOut), 2,
+        'dry reaches both speakers, exactly as it reaches both headphone channels');
+});
+
+test('the speakers stand at the angles the HRIRs were cut for', () => {
+    // Nothing in the graph carries the angle any more — it is baked into the
+    // two files — so this pins the pairing that decides which way round the
+    // render comes out.
+    const app = createApp();
+    const { VIRTUAL_SPEAKER_HRIR, VIRTUAL_SPEAKER_AZIMUTH } = app.data;
+
+    assert.equal(VIRTUAL_SPEAKER_AZIMUTH, 30, 'a stereo listening triangle');
+    assert.match(VIRTUAL_SPEAKER_HRIR.left, /virtual-speaker-left\.wav$/);
+    assert.match(VIRTUAL_SPEAKER_HRIR.right, /virtual-speaker-right\.wav$/);
+});
+
+test('the speaker responses are fetched once and shared by every position', async () => {
+    // They do not vary by church the way the impulse responses do, so refetching
+    // them per play would be a download for nothing.
+    const app = await readyToPlay(createApp());
+    await app.g.startPlayback();
     await app.g.startPlayback();
 
-    const speaker = app.nodes.filter(n => n.kind === 'panner').at(-1);
-    close(Math.hypot(speaker.positionX.value, speaker.positionZ.value), 8.7, 1e-9);
+    const fetched = app.net.log.filter(r => /virtual-speaker-/.test(r.url)).length;
+    assert.equal(fetched, 2, 'one request per ear angle, for the life of the page');
+});
+
+test('a speaker response that will not load costs the mode, not the playback', async () => {
+    const app = await readyToPlay(createApp());
+    const server = app.net.respond.bind(app.net);
+    app.net.respond = (url, opts) =>
+        (/virtual-speaker-/.test(url) ? { ok: false, status: 404 } : server(url, opts));
+
+    await app.g.startPlayback();
+
+    assert.equal(app.state.isPlaying, true, 'the room still plays');
+    assert.equal(app.state.activeGraph.binauralOut, null, 'the stage was not built');
+
+    app.g.setBinauralEnabled(true);
+    assert.equal(app.state.activeGraph.stereoOut.gain.value, 1,
+        'and the mode falls back to stereo rather than to silence');
 });
 
 test('toggleBinaural crossfades the live graph instead of rebuilding it', async () => {
@@ -553,9 +575,14 @@ test('the offline render honours the mode being listened to', async () => {
     await app.g.downloadConvolvedAudio();
 
     const offline = app.contexts.find(c => c.label === 'offline');
-    const panners = app.nodes.filter(n => n.kind === 'panner' && n.ctxLabel === 'offline');
     assert.ok(offline, 'no offline render happened');
-    assert.equal(panners.length, 2, 'the render must go through the same virtual speakers');
+
+    // Two for the IR pair and two more for the speakers: the render has to go
+    // through the same virtual loudspeakers the mode is listened through.
+    const convolvers = app.nodes.filter(n => n.kind === 'convolver' && n.ctxLabel === 'offline');
+    assert.ok(convolvers.length >= 4, `only ${convolvers.length} convolvers offline`);
+    assert.ok(convolvers.slice(2, 4).every(c => c.normalize === false),
+        'the speaker responses must not be normalized here either');
 });
 
 // ── measured binaural rendering (BRIR) ────────────────────────────────────
@@ -1239,25 +1266,32 @@ test('stereo carries no trim, being the reference the rest are matched to', () =
 });
 
 test('a trim that is not a usable level falls back to the constant', () => {
-    // ROOMS is hand-edited. A typo must not silence a mode, and a dropped minus
-    // sign must not make an already-hot stage the loudest thing in the app.
+    // ROOMS is hand-edited. A typo must not silence a mode, and a misplaced
+    // decimal point must not make an already-hot stage the loudest thing here.
     const app = createApp();
-    for (const bad of ['loud', null, undefined, NaN, Infinity, -Infinity, 3]) {
+    const { STAGE_TRIM_MAX_DB, STAGE_TRIM_MIN_DB } = app.data;
+
+    for (const bad of ['loud', null, undefined, NaN, Infinity, -Infinity,
+                       STAGE_TRIM_MAX_DB + 1, STAGE_TRIM_MIN_DB - 1]) {
         app.g.setStageTrims({ binaural: bad });
         assert.equal(buildGraph(app, { binaural: true }).graph.binauralOut.gain.value, 1,
             `a trim of ${String(bad)} should be ignored`);
     }
 });
 
-test('a positive trim is refused, because these only take level off', () => {
+test('a modest boost is a real answer, not a dropped minus sign', () => {
+    // The virtual-loudspeaker render lands about a decibel under stereo: its
+    // HRIRs convolve at the level they were measured at, and two speakers only
+    // partly make that up. A one-sided guard would have refused the true value.
     const app = createApp();
-    assert.equal(app.g.stageTrimDb('binaural', 0), 0, 'nothing set yet');
 
-    app.g.setStageTrims({ binaural: 6 });
-    assert.equal(app.g.stageTrimDb('binaural', 0), 0, 'a boost must not reach the graph');
+    app.g.setStageTrims({ binaural: 1 });
+    close(buildGraph(app, { binaural: true }).graph.binauralOut.gain.value,
+        app.data.gainFromDb(1), 1e-12);
 
-    app.g.setStageTrims({ binaural: -6 });
-    assert.equal(app.g.stageTrimDb('binaural', 0), -6, 'attenuation is what they are for');
+    app.g.setStageTrims({ binaural: app.data.STAGE_TRIM_MAX_DB });
+    assert.equal(app.g.stageTrimDb('binaural', 0), app.data.STAGE_TRIM_MAX_DB,
+        'the top of the range is still usable');
 });
 
 test('a church trim reaches a live crossfade, not just a fresh graph', async () => {
