@@ -383,3 +383,30 @@ test('no application source references a file that no longer exists', () => {
     }
     assert.deepEqual(missing, []);
 });
+test('no church trim is left at a level the engine would refuse', () => {
+    // These are dB: zero leaves the stage alone and negative takes level off,
+    // which is the whole working range. A positive value is a dropped minus
+    // sign, and the engine ignores it — silently, so it has to be caught here.
+    const bad = [];
+    for (const key of roomKeys) {
+        for (const [stage, db] of Object.entries(ROOMS[key].trim)) {
+            if (typeof db !== 'number' || !Number.isFinite(db) || db > 0) {
+                bad.push(`${key}.${stage} = ${JSON.stringify(db)}`);
+            }
+        }
+    }
+    assert.deepEqual(bad, [], 'trims must be finite numbers at or below 0 dB');
+});
+
+test('a calibrated trim stays within a level anyone would actually set', () => {
+    // Not a hard limit, a tripwire. The stages settle somewhere between a
+    // couple of dB and the high teens; something far past that is a typo — a
+    // misplaced decimal point, or dB confused with a linear gain.
+    const outliers = [];
+    for (const key of roomKeys) {
+        for (const [stage, db] of Object.entries(ROOMS[key].trim)) {
+            if (db < -40) outliers.push(`${key}.${stage} = ${db} dB`);
+        }
+    }
+    assert.deepEqual(outliers, [], 'a trim below -40 dB is almost certainly a mistake');
+});

@@ -429,3 +429,52 @@ test('the info modal follows the page into and out of fullscreen', () => {
     assert.ok(app.el('body').children.includes(modal));
     assert.equal(app.el('fullscreen-btn').classList.contains('pnlm-fullscreen-toggle-button-active'), false);
 });
+
+test('compile points the engine at the selected church’s calibration', () => {
+    // The levels live in ROOMS beside the paths, so they arrive with the room
+    const app = createApp();
+    app.data.ROOMS.CaneRidgeMeetingHouse.trim = { binaural: 0.6, ambisonic: 0.12 };
+
+    app.state.room = 'CaneRidgeMeetingHouse';
+    app.state.rcvpos = 'rpR1_CaneRidgeMeetingHouse';
+    app.g.compile();
+
+    assert.deepEqual(JSON.parse(JSON.stringify(app.state.stageTrims)),
+        { binaural: 0.6, ambisonic: 0.12 });
+    delete app.data.ROOMS.CaneRidgeMeetingHouse.trim;
+});
+
+test('an uncalibrated church does not inherit the last one', () => {
+    // Every church is measured now, so the fallback has to be provoked rather
+    // than found in the data: a church added later arrives with no trim, and
+    // must land on the defaults instead of carrying its predecessor's levels.
+    const app = createApp();
+    const config = app.data.ROOMS.CaneRidgeMeetingHouse;
+    const measured = config.trim;
+    delete config.trim;
+
+    try {
+        app.g.setStageTrims({ binaural: -9 });
+
+        app.state.room = 'CaneRidgeMeetingHouse';
+        app.state.rcvpos = 'rpR1_CaneRidgeMeetingHouse';
+        app.g.compile();
+
+        assert.equal(app.g.stageTrimDb('binaural', app.data.BINAURAL_TRIM_DB),
+            app.data.BINAURAL_TRIM_DB, 'a church with no trim must fall back, not keep -9');
+    } finally {
+        config.trim = measured;
+    }
+});
+
+test('every church has been measured, so none falls back in practice', () => {
+    // The fallback exists for a church added between calibration passes. If one
+    // is sitting at 0 dB, it is playing its raw level rather than a matched one.
+    const app = createApp();
+    const uncalibrated = Object.entries(app.data.ROOMS)
+        .filter(([, config]) => !config.trim ||
+            ['binaural', 'brir', 'ambisonic'].every(s => config.trim[s] === 0))
+        .map(([key]) => key);
+
+    assert.deepEqual(uncalibrated, [], 'these churches still need a loudness pass');
+});

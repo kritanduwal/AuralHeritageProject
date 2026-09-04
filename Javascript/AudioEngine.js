@@ -89,6 +89,15 @@ function dryGainFor(mix) {
     return Math.min(1.0, Math.pow(DRY_GAIN_AT_FULL_WET, (10 * mix - 1) / 9));
 }
 
+/**
+ * Converts a signed level in dB to a linear gain: 0 is unity, negative is
+ * quieter. The counterpart of reductionToGain(), which takes the same number
+ * with the opposite sign because a reduction is stated as a positive amount.
+ */
+function gainFromDb(db) {
+    return Math.pow(10, db / 20);
+}
+
 /** Converts a positive dB reduction to the linear gain that applies it */
 function reductionToGain(reductionDb) {
     return Math.pow(10, -reductionDb / 20);
@@ -128,9 +137,9 @@ const VIRTUAL_SPEAKER_AZIMUTH = 30;
 const DEFAULT_SPEAKER_DISTANCE_FEET = 20;
 
 /**
- * Output level of the binaural stage — this mode's calibration point.
+ * Output level of the binaural stage, in dB, for an uncalibrated church.
  *
- * A listening control: the stage plays at whatever level its own processing
+ * Zero, so an uncalibrated stage plays at whatever level its own processing
  * produces with nothing taken off. That is deliberately not a good listening
  * level: it is a starting point with an unambiguous direction to move in. A
  * fallback already close to right is the harder thing to calibrate against,
@@ -141,7 +150,7 @@ const DEFAULT_SPEAKER_DISTANCE_FEET = 20;
  * where a headphone channel reaches only one, so the stage comes back louder
  * than the stereo one. Set trim.binaural per church in ROOMS.
  */
-const BINAURAL_TRIM = 0.75;
+const BINAURAL_TRIM_DB = 0;
 
 /**
  * Seconds spent crossfading between the two output stages.
@@ -240,9 +249,9 @@ const BRIR_LEFT_SUFFIX = "BRIR-L.wav";
 const BRIR_RIGHT_SUFFIX = "BRIR-R.wav";
 
 /**
- * Output level of the BRIR stage — this mode's calibration point.
+ * Output level of the BRIR stage, in dB, for an uncalibrated church.
  *
- * A listening control, like BINAURAL_TRIM: calibration wants a starting
+ * Zero, for the reason given on BINAURAL_TRIM_DB: calibration wants a starting
  * point that is plainly wrong in a known direction.
  *
  * MIND THE VOLUME. Zero here is roughly 14 dB above where this will settle,
@@ -251,7 +260,7 @@ const BRIR_RIGHT_SUFFIX = "BRIR-R.wav";
  * equal-power normalization and lose it. Expect to end near -14 dB. Turn the
  * headphones down before switching an uncalibrated church into this mode.
  */
-const BRIR_TRIM = 1;
+const BRIR_TRIM_DB = 0;
 
 const BRIR_TITLE_ON = "Measured binaural (BRIR): on (best with headphones)";
 const BRIR_TITLE_OFF = "Measured binaural (BRIR): off";
@@ -372,14 +381,14 @@ const AMBIX_CHANNEL_MAP = [0, 1, 2, 3];
 const AMBISONIC_CHANNELS = 4;
 
 /**
- * Output level of the live ambisonic stage — this mode's calibration point.
+ * Output level of the live ambisonic stage, in dB, for an uncalibrated church.
  *
- * A listening control, and the loudest of the three to start from: the same
+ * Zero, as above, and the loudest of the three to start from: the same
  * unnormalized decode as the BRIR stage with Omnitone's own gain through the
  * renderer on top. Roughly 16 dB above where it will settle, so mind the
  * volume here too. Expect to end near -16.5 dB.
  */
-const AMBISONIC_TRIM = 1;
+const AMBISONIC_TRIM_DB = 0;
 
 const AMBISONIC_TITLE_ON = "Live ambisonic decode: on (best with headphones)";
 const AMBISONIC_TITLE_OFF = "Live ambisonic decode: off";
@@ -659,6 +668,54 @@ function rotationMatrix4(yawDegrees, pitchDegrees) {
     ];
 }
 
+// ── Per-church stage calibration ──────────────────────────────────────────
+
+/**
+ * Output levels for the render stages of the church being listened to, in dB,
+ * keyed by stage name. Set by compile() from that church's `trim` in ROOMS.
+ *
+ * Decibels rather than linear gain because these are found by ear, and the ear
+ * hears ratios: a step of 3 dB is the same size wherever it is taken, while a
+ * step of 0.05 in linear gain is enormous near silence and inaudible near
+ * unity. It also makes zero mean exactly what it looks like — no change — so a
+ * church waiting to be listened to reads as calibrated to nothing rather than
+ * needing a sentinel value.
+ *
+ * Each entry replaces that stage's constant outright rather than nudging it, so
+ * a church's trim is the level its stage runs at and can be read against any
+ * other church's directly.
+ *
+ * Stereo has no entry because it is the reference the others are matched to.
+ */
+let stageTrims = {};
+
+/** Points the calibration at a church. Anything missing falls back. */
+function setStageTrims(trims) {
+    stageTrims = trims || {};
+}
+
+/**
+ * A stage's level in dB: this church's calibration, or the shared default.
+ *
+ * Refuses anything above 0 dB along with the non-numbers. These replace the
+ * fallback rather than adjusting it, so a positive value would push the stage
+ * past the level its own processing produced — into clipping, and for no reason
+ * these trims exist to serve. ROOMS is hand-edited; a dropped minus sign should
+ * not be the loudest thing in the app.
+ *
+ * Type is checked before value, or null would coerce to 0 and read as a
+ * deliberate "no change" from a church that has none.
+ *
+ * @param stage      'binaural', 'brir' or 'ambisonic'
+ * @param fallbackDb That stage's constant, used until the church is calibrated
+ */
+function stageTrimDb(stage, fallbackDb) {
+    const db = stageTrims[stage];
+    const usable = typeof db === 'number' && Number.isFinite(db) && db <= 0;
+    return usable ? db : fallbackDb;
+}
+
+
 // ── Output stage selection ────────────────────────────────────────────────
 
 /**
@@ -694,9 +751,12 @@ function refreshModeButtons() {
 function stageGainsFor(stage) {
     return {
         stereo: stage === 'stereo' ? 1 : 0,
-        binaural: stage === 'binaural' ? BINAURAL_TRIM : 0,
-        brir: stage === 'brir' ? BRIR_TRIM : 0,
-        ambisonic: stage === 'ambisonic' ? AMBISONIC_TRIM : 0,
+        binaural: stage === 'binaural'
+            ? gainFromDb(stageTrimDb('binaural', BINAURAL_TRIM_DB)) : 0,
+        brir: stage === 'brir'
+            ? gainFromDb(stageTrimDb('brir', BRIR_TRIM_DB)) : 0,
+        ambisonic: stage === 'ambisonic'
+            ? gainFromDb(stageTrimDb('ambisonic', AMBISONIC_TRIM_DB)) : 0,
     };
 }
 
@@ -851,7 +911,7 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
         const brirConvolverLeft = audioCtx.createConvolver();
         // The BRIR carries the absolute level the offline decode arrived at, and
         // normalization would scale it back out the way it would an IR trim.
-        // BRIR_TRIM is where this stage's level is set instead.
+        // BRIR_TRIM_DB is where this stage's level is set instead.
         brirConvolverLeft.normalize = false;
         brirConvolverLeft.buffer = brirLeft;
 

@@ -322,7 +322,7 @@ test('building for binaural swaps which stage carries the signal', () => {
     const { graph } = buildGraph(app, { binaural: true });
 
     assert.equal(graph.stereoOut.gain.value, 0);
-    assert.equal(graph.binauralOut.gain.value, app.data.BINAURAL_TRIM);
+    assert.equal(graph.binauralOut.gain.value, app.data.gainFromDb(app.data.BINAURAL_TRIM_DB));
 });
 
 test('both stages render the same signals', () => {
@@ -342,6 +342,21 @@ test('both stages render the same signals', () => {
     // Dry is centred in both stages: both channels, both speakers
     assert.equal(pathCount(app, graph.dryGain, graph.stereoOut), 2);
     assert.equal(pathCount(app, graph.dryGain, graph.binauralOut), 2);
+});
+
+test('the binaural stage takes its level from the church, not the fallback', () => {
+    // The fallback is 0 dB: an uncalibrated stage plays raw, which is the wrong
+    // level on purpose. The attenuation every speaker being heard by both ears
+    // calls for is per church now, because how far off it lands depends on the
+    // room.
+    const app = createApp();
+    app.g.setStageTrims({ binaural: -2.5 });
+
+    close(buildGraph(app, { binaural: true }).graph.binauralOut.gain.value,
+        app.data.gainFromDb(-2.5), 1e-12);
+
+    app.g.setStageTrims({});
+    assert.equal(buildGraph(app, { binaural: true }).graph.binauralOut.gain.value, 1);
 });
 
 test('the virtual speakers are HRTF panned to a stereo listening triangle', () => {
@@ -420,7 +435,7 @@ test('toggleBinaural crossfades the live graph instead of rebuilding it', async 
 
     assert.equal(app.state.binauralEnabled, true);
     assert.equal(graph.stereoOut.gain.value, 0);
-    assert.equal(graph.binauralOut.gain.value, app.data.BINAURAL_TRIM);
+    assert.equal(graph.binauralOut.gain.value, app.data.gainFromDb(app.data.BINAURAL_TRIM_DB));
     assert.equal(app.state.activeGraph, graph, 'the graph should be retuned, not replaced');
     assert.equal(app.state.source, source, 'the source must keep its place in the loop');
     assert.equal(app.nodes.length, nodesBefore, 'no new nodes should be created');
@@ -499,7 +514,7 @@ test('the binaural mode is remembered while stopped and applied on the next play
     assert.equal(app.state.activeGraph, null);
 
     await app.g.startPlayback();
-    assert.equal(app.state.activeGraph.binauralOut.gain.value, app.data.BINAURAL_TRIM);
+    assert.equal(app.state.activeGraph.binauralOut.gain.value, app.data.gainFromDb(app.data.BINAURAL_TRIM_DB));
     assert.equal(app.state.activeGraph.stereoOut.gain.value, 0);
 });
 
@@ -513,7 +528,7 @@ test('the binaural mode survives the restart a receiver change causes', async ()
     await app.g.playpause();
 
     assert.equal(app.state.binauralEnabled, true);
-    assert.equal(app.state.activeGraph.binauralOut.gain.value, app.data.BINAURAL_TRIM,
+    assert.equal(app.state.activeGraph.binauralOut.gain.value, app.data.gainFromDb(app.data.BINAURAL_TRIM_DB),
         'the rebuilt graph must come back in the mode the visitor chose');
 });
 
@@ -596,7 +611,7 @@ test('the BRIR stage ends in its own output gain', () => {
     const { graph } = buildGraph(app, { brir: true });
 
     assert.ok(graph.brirOut, 'the mode needs a dedicated node to calibrate on');
-    assert.equal(graph.brirOut.gain.value, app.data.BRIR_TRIM);
+    assert.equal(graph.brirOut.gain.value, app.data.gainFromDb(app.data.BRIR_TRIM_DB));
     assert.ok(app.edgesFrom(graph.brirOut).some(e => e.to === graph.output));
 });
 
@@ -663,7 +678,7 @@ test('the two binaural modes are alternatives, not layers', async () => {
     const graph = app.state.activeGraph;
     assert.equal(graph.stereoOut.gain.value, 0);
     assert.equal(graph.binauralOut.gain.value, 0);
-    assert.equal(graph.brirOut.gain.value, app.data.BRIR_TRIM);
+    assert.equal(graph.brirOut.gain.value, app.data.gainFromDb(app.data.BRIR_TRIM_DB));
 });
 
 test('toggleBrir crossfades the live graph instead of rebuilding it', async () => {
@@ -802,7 +817,7 @@ test('the chain runs merger → renderer → its own output gain → destination
         'the 4-channel stream must reach the decoder');
     assert.ok(app.edgesFrom(renderer.output).some(e => e.to === graph.ambisonicOut),
         'the decoded pair must land on this mode’s own output gain');
-    assert.equal(graph.ambisonicOut.gain.value, app.data.AMBISONIC_TRIM);
+    assert.equal(graph.ambisonicOut.gain.value, app.data.gainFromDb(app.data.AMBISONIC_TRIM_DB));
     assert.ok(app.edgesFrom(graph.ambisonicOut).some(e => e.to === graph.output));
     assert.ok(app.edgesFrom(graph.output).some(e => e.to === app.ctx.destination));
 });
@@ -858,7 +873,7 @@ test('all four modes are alternatives, not layers', async () => {
     assert.equal(graph.stereoOut.gain.value, 0);
     assert.equal(graph.binauralOut.gain.value, 0);
     assert.equal(graph.brirOut.gain.value, 0);
-    assert.equal(graph.ambisonicOut.gain.value, app.data.AMBISONIC_TRIM);
+    assert.equal(graph.ambisonicOut.gain.value, app.data.gainFromDb(app.data.AMBISONIC_TRIM_DB));
 
     app.g.setBinauralEnabled(true);
     assert.equal(app.state.ambisonicEnabled, false, 'engaging another must release this one');
@@ -1073,7 +1088,7 @@ test('a file-backed mode can be armed before playback has started', async () => 
 
     app.g.setAmbisonicEnabled(true);
     await app.g.startPlayback();
-    assert.equal(app.state.activeGraph.ambisonicOut.gain.value, app.data.AMBISONIC_TRIM,
+    assert.equal(app.state.activeGraph.ambisonicOut.gain.value, app.data.gainFromDb(app.data.AMBISONIC_TRIM_DB),
         'the mode chosen while stopped should be the one that comes up');
 });
 
@@ -1158,6 +1173,126 @@ test('every mode toggle reports its own state, and only one is ever engaged', as
         assert.equal(app.el(id)['aria-pressed'], 'true');
     }
 });
+
+// ── per-church stage levels ───────────────────────────────────────────────
+
+/** What a stage's output gain should be for a given trim, in dB */
+const gainAt = (app, db) => app.data.gainFromDb(db);
+
+test('an uncalibrated church leaves every stage at its own level', () => {
+    const app = createApp();
+    app.g.setStageTrims(undefined);
+
+    assert.equal(buildGraph(app, { binaural: true }).graph.binauralOut.gain.value, 1);
+    assert.equal(buildGraph(app, { brir: true }).graph.brirOut.gain.value, 1);
+    assert.equal(buildGraph(app, { ambisonic: true }).graph.ambisonicOut.gain.value, 1);
+});
+
+test('zero dB is no change, which is what an uncalibrated church means', () => {
+    // The placeholder rows every church ships read as 0 dB. In decibels that is
+    // literally "leave it alone" rather than a sentinel standing in for one.
+    const app = createApp();
+    app.g.setStageTrims({ binaural: 0, brir: 0, ambisonic: 0 });
+
+    assert.equal(buildGraph(app, { binaural: true }).graph.binauralOut.gain.value, 1);
+    assert.equal(buildGraph(app, { brir: true }).graph.brirOut.gain.value, 1);
+    assert.equal(buildGraph(app, { ambisonic: true }).graph.ambisonicOut.gain.value, 1);
+});
+
+test('a church trim sets the stage level in dB', () => {
+    const app = createApp();
+    app.g.setStageTrims({ binaural: -6 });
+
+    close(buildGraph(app, { binaural: true }).graph.binauralOut.gain.value,
+        Math.pow(10, -6 / 20), 1e-12);
+    close(gainAt(app, -6), 0.5011872336, 1e-9, '-6 dB is about half the amplitude');
+});
+
+test('equal dB steps are equal ratios wherever they are taken', () => {
+    // The reason these are in dB at all: a step means the same thing near
+    // silence as near unity, which is what makes them findable by ear.
+    const { gainFromDb } = createApp().data;
+    close(gainFromDb(-6) / gainFromDb(-3), gainFromDb(-16) / gainFromDb(-13), 1e-12);
+    close(gainFromDb(0), 1, 1e-12);
+});
+
+test('a trim moves only the stage it names', () => {
+    // Three stages calibrated separately, because what each one misses by is a
+    // property of that rendering and not of the room alone.
+    const app = createApp();
+    app.g.setStageTrims({ brir: -12 });
+
+    const built = { withBrirPair: true, withBformat: true };
+    close(buildGraph(app, { brir: true, ...built }).graph.brirOut.gain.value,
+        gainAt(app, -12), 1e-12);
+    assert.equal(buildGraph(app, { binaural: true, ...built }).graph.binauralOut.gain.value, 1,
+        'a BRIR level must not move the modelled render');
+    assert.equal(buildGraph(app, { ambisonic: true, ...built }).graph.ambisonicOut.gain.value, 1);
+});
+
+test('stereo carries no trim, being the reference the rest are matched to', () => {
+    const app = createApp();
+    app.g.setStageTrims({ binaural: -6, brir: -6, ambisonic: -6, stereo: -6 });
+
+    assert.equal(buildGraph(app).graph.stereoOut.gain.value, 1,
+        'the reference cannot itself be trimmed');
+});
+
+test('a trim that is not a usable level falls back to the constant', () => {
+    // ROOMS is hand-edited. A typo must not silence a mode, and a dropped minus
+    // sign must not make an already-hot stage the loudest thing in the app.
+    const app = createApp();
+    for (const bad of ['loud', null, undefined, NaN, Infinity, -Infinity, 3]) {
+        app.g.setStageTrims({ binaural: bad });
+        assert.equal(buildGraph(app, { binaural: true }).graph.binauralOut.gain.value, 1,
+            `a trim of ${String(bad)} should be ignored`);
+    }
+});
+
+test('a positive trim is refused, because these only take level off', () => {
+    const app = createApp();
+    assert.equal(app.g.stageTrimDb('binaural', 0), 0, 'nothing set yet');
+
+    app.g.setStageTrims({ binaural: 6 });
+    assert.equal(app.g.stageTrimDb('binaural', 0), 0, 'a boost must not reach the graph');
+
+    app.g.setStageTrims({ binaural: -6 });
+    assert.equal(app.g.stageTrimDb('binaural', 0), -6, 'attenuation is what they are for');
+});
+
+test('a church trim reaches a live crossfade, not just a fresh graph', async () => {
+    const app = await readyToPlay(withAmbisonic(withBrir(createApp())));
+    await app.g.startPlayback();
+    app.g.setStageTrims({ ambisonic: -16.5 });
+
+    app.g.setAmbisonicEnabled(true);
+    close(app.state.activeGraph.ambisonicOut.gain.value, gainAt(app, -16.5), 1e-12);
+});
+
+test('switching churches switches levels', () => {
+    const app = createApp();
+
+    app.g.setStageTrims({ binaural: -1 });
+    close(buildGraph(app, { binaural: true }).graph.binauralOut.gain.value, gainAt(app, -1), 1e-12);
+
+    app.g.setStageTrims({ binaural: -9 });
+    close(buildGraph(app, { binaural: true }).graph.binauralOut.gain.value, gainAt(app, -9), 1e-12);
+});
+
+test('the fallbacks are 0 dB, so calibration starts from raw', () => {
+    // Calibrating against a fallback that is already close to right is the hard
+    // case: every value sounds nearly as plausible as the last, because the ear
+    // has nothing to push away from. Untouched is plainly wrong in a known
+    // direction, which is what makes the search converge.
+    const { BINAURAL_TRIM_DB, BRIR_TRIM_DB, AMBISONIC_TRIM_DB } = createApp().data;
+
+    for (const [name, db] of [['BINAURAL_TRIM_DB', BINAURAL_TRIM_DB],
+                              ['BRIR_TRIM_DB', BRIR_TRIM_DB],
+                              ['AMBISONIC_TRIM_DB', AMBISONIC_TRIM_DB]]) {
+        assert.equal(db, 0, `${name} should leave an uncalibrated stage untouched`);
+    }
+});
+
 
 // ── loading and caching ───────────────────────────────────────────────────
 

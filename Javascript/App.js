@@ -232,6 +232,9 @@ async function compile() {
     const receiver = config && config.receivers[receiverId];
     if (!receiver) return;
 
+    // Output levels for this church's render stages; absent until calibrated
+    setStageTrims(config.trim);
+
     setImpulseResponse(
         impulseResponseBase(config, receiverId),
         receiver.gainDb || 0,
