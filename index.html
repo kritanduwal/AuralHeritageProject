@@ -231,11 +231,17 @@
                     <span class="material-icons">info</span> Church Info
                 </button>
 
-                <!-- Binaural render toggle, beside the play button. Switches the
-                     output stage between the headphone channels and a pair of
-                     HRTF virtual loudspeakers; safe to press while playing. -->
-                <button id="binaural" class="material-icons" onclick="toggleBinaural()"
+                <!-- The three render modes, left of the play button. Each replaces
+                     plain stereo as the output stage; they are alternatives, so
+                     engaging one releases the others. All safe to press while
+                     playing. The two that need offline-built files are disabled
+                     where the position does not have them. -->
+                <button id="binaural" class="mode-toggle material-icons" onclick="toggleBinaural()"
                         aria-pressed="false" title="Binaural rendering: off">headset</button>
+
+                <button id="brir" class="mode-toggle material-icons" onclick="toggleBrir()"
+                        aria-pressed="false" disabled
+                        title="Measured binaural (BRIR): not recorded for this position">hearing</button>
 
                 <button id="play" class="material-icons" onclick="playpause()">play_circle_filled</button>
             </div>

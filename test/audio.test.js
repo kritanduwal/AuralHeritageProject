@@ -8,28 +8,62 @@ const close = (actual, expected, tolerance = 1e-9, msg) =>
     assert.ok(Math.abs(actual - expected) <= tolerance,
         msg || `expected ${actual} to be within ${tolerance} of ${expected}`);
 
-/** Builds a graph in a fresh app and returns the pieces tests reason about */
-function buildGraph(app, { mix = 1, irGainDb = 0, binaural = false, speakerDistance } = {}) {
+/**
+ * Builds a graph in a fresh app and returns the pieces tests reason about.
+ *
+ * `withBrirPair` decides whether the position has a measured BRIR, which is
+ * what makes the third output stage exist at all.
+ */
+function buildGraph(app, { mix = 1, irGainDb = 0, binaural = false, brir = false,
+                           withBrirPair = brir, ambisonic = false,
+                           withBformat = ambisonic, speakerDistance } = {}) {
     const ctx = app.ctx;
     const src = ctx.createBufferSource();
+
+    // Built before the snapshot below so its own nodes are not counted as the
+    // graph's; the renderer belongs to the context, not to any one graph.
+    const renderer = withBformat
+        ? app.g.Omnitone.createFOARenderer(ctx, { channelMap: app.data.AMBIX_CHANNEL_MAP })
+        : null;
+
     app.clearEdges();
+    // Nodes accumulate across builds in one app, so identify this build's own by
+    // where the list stood before it. Counting back from the end instead would
+    // shift every time a stage was added.
+    const first = app.nodes.length;
     const graph = app.g.buildConvolutionGraph(ctx, src, {
         irLeft: app.fakeAudioBuffer(),
         irRight: app.fakeAudioBuffer(),
-        mix, irGainDb, binaural, speakerDistance,
+        brirLeft: withBrirPair ? app.fakeAudioBuffer() : null,
+        brirRight: withBrirPair ? app.fakeAudioBuffer() : null,
+        bformatChannels: withBformat
+            ? Array.from({ length: app.data.AMBISONIC_CHANNELS }, () => app.fakeAudioBuffer())
+            : null,
+        ambisonicRenderer: renderer,
+        mix, irGainDb, binaural, brir, ambisonic, speakerDistance,
     });
-    const kinds = (k) => app.nodes.filter(n => n.kind === k);
-    const splitter = kinds('splitter').at(-1);
+
+    const made = app.nodes.slice(first);
+    const kinds = (k) => made.filter(n => n.kind === k);
+    const splitter = kinds('splitter')[0];
     // The trim is whatever feeds the splitter
     const irTrim = app.edgesTo(splitter)[0]?.from ?? null;
-    const merger = kinds('merger').at(-1);
+
+    // Stages build in order: stereo, then BRIR, then ambisonic
+    const mergers = kinds('merger');
+    const convolvers = kinds('convolver');
 
     // Panners are created left first, matching the -30/+30 order in the engine
-    const [speakerLeft, speakerRight] = kinds('panner').slice(-2);
+    const [speakerLeft, speakerRight] = kinds('panner');
 
     return {
-        ctx, src, graph, splitter, irTrim, merger, speakerLeft, speakerRight,
-        convolvers: kinds('convolver').slice(-2),
+        ctx, src, graph, splitter, irTrim, speakerLeft, speakerRight, renderer,
+        merger: mergers[0],
+        brirMerger: withBrirPair ? mergers[1] : null,
+        ambiMerger: graph.ambiMerger,
+        convolvers: convolvers.slice(0, 2),
+        brirConvolvers: withBrirPair ? convolvers.slice(2, 4) : [],
+        ambiConvolvers: withBformat ? convolvers.slice(withBrirPair ? 4 : 2) : [],
     };
 }
 
@@ -310,14 +344,6 @@ test('both stages render the same signals', () => {
     assert.equal(pathCount(app, graph.dryGain, graph.binauralOut), 2);
 });
 
-test('the binaural stage is trimmed, because every speaker is heard by both ears', () => {
-    const app = createApp();
-    const { graph } = buildGraph(app, { binaural: true });
-
-    assert.equal(graph.binauralOut.gain.value, app.data.BINAURAL_TRIM);
-    assert.ok(app.data.BINAURAL_TRIM < 1, 'the trim must attenuate');
-});
-
 test('the virtual speakers are HRTF panned to a stereo listening triangle', () => {
     const app = createApp();
     const d = 42;
@@ -515,6 +541,194 @@ test('the offline render honours the mode being listened to', async () => {
     const panners = app.nodes.filter(n => n.kind === 'panner' && n.ctxLabel === 'offline');
     assert.ok(offline, 'no offline render happened');
     assert.equal(panners.length, 2, 'the render must go through the same virtual speakers');
+});
+
+// ── measured binaural rendering (BRIR) ────────────────────────────────────
+
+/** Makes the BRIR pair resolve on the server */
+function withBrir(app) {
+    const server = app.net.respond.bind(app.net);
+    app.net.respond = (url, opts) =>
+        (/-BRIR-[LR]\.wav$/.test(url) ? { ok: true, status: 200 } : server(url, opts));
+    return app;
+}
+
+/**
+ * Makes the derived files 404, whatever is on disk.
+ *
+ * The default responder answers from the real repository, which is right for
+ * the recordings but wrong for anything the offline tools produce: those appear
+ * the moment someone runs a script, and a test that assumed their absence would
+ * start failing on a machine where the pipeline had been run. Absence has to be
+ * asked for as explicitly as presence.
+ */
+function withoutDerived(app) {
+    const server = app.net.respond.bind(app.net);
+    app.net.respond = (url, opts) =>
+        (/-(BRIR-[LR]|Bformat)\.wav$/.test(url) ? { ok: false, status: 404 } : server(url, opts));
+    return app;
+}
+
+test('the BRIR stage reuses the wet path with the measured pair in it', () => {
+    const app = createApp();
+    const { graph, splitter, brirConvolvers } = buildGraph(app, { withBrirPair: true });
+
+    assert.equal(brirConvolvers.length, 2, 'the stage needs its own convolver pair');
+    for (const c of brirConvolvers) {
+        assert.ok(app.edgesTo(c).some(e => e.from === splitter),
+            'a BRIR convolver must tap the same mono signal the IR pair does');
+    }
+    assert.ok(app.edgesFrom(brirConvolvers[0]).some(e => e.to === graph.brirWetLeft));
+    assert.ok(app.edgesFrom(brirConvolvers[1]).some(e => e.to === graph.brirWetRight));
+});
+
+test('the BRIR convolvers do not normalize, so the decode keeps its level', () => {
+    // The offline decode set this file's absolute level — the ambisonic
+    // normalization, the speaker count and the HRTF set's own gain all land in
+    // it. Equal-power normalization would scale every bit of that back out.
+    const app = createApp();
+    const { brirConvolvers } = buildGraph(app, { withBrirPair: true });
+    for (const c of brirConvolvers) assert.equal(c.normalize, false);
+});
+
+test('the BRIR stage ends in its own output gain', () => {
+    const app = createApp();
+    const { graph } = buildGraph(app, { brir: true });
+
+    assert.ok(graph.brirOut, 'the mode needs a dedicated node to calibrate on');
+    assert.equal(graph.brirOut.gain.value, app.data.BRIR_TRIM);
+    assert.ok(app.edgesFrom(graph.brirOut).some(e => e.to === graph.output));
+});
+
+test('a BRIR render goes straight out, never through the virtual speakers', () => {
+    // It has already been through a head. The HRTF panners would put it through
+    // a second one, which is the one mistake this mode exists to avoid.
+    const app = createApp();
+    const { graph, speakerLeft, speakerRight } = buildGraph(app, { withBrirPair: true });
+
+    for (const speaker of [speakerLeft, speakerRight]) {
+        const feeds = app.edgesTo(speaker).map(e => e.from);
+        assert.ok(!feeds.includes(graph.brirWetLeft), 'BRIR left reached a virtual speaker');
+        assert.ok(!feeds.includes(graph.brirWetRight), 'BRIR right reached a virtual speaker');
+    }
+});
+
+test('each BRIR channel lands on its own ear, with dry centred between them', () => {
+    const app = createApp();
+    const { graph, brirMerger } = buildGraph(app, { withBrirPair: true });
+
+    const left = app.edgesFrom(graph.brirWetLeft).find(e => e.to === brirMerger);
+    const right = app.edgesFrom(graph.brirWetRight).find(e => e.to === brirMerger);
+    assert.equal(left.input, 0, 'BRIR left must land on output channel 0');
+    assert.equal(right.input, 1, 'BRIR right must land on output channel 1');
+
+    assert.equal(pathCount(app, graph.dryGain, graph.brirOut), 2,
+        'dry stays centred here exactly as it does in the other two stages');
+});
+
+test('the upstream trim and taper are untouched by the BRIR stage', () => {
+    const app = createApp();
+    const plain = buildGraph(app, { mix: 0.4, irGainDb: 6 });
+    const withStage = buildGraph(app, { mix: 0.4, irGainDb: 6, withBrirPair: true });
+
+    assert.equal(withStage.irTrim.gain.value, plain.irTrim.gain.value,
+        'the per-position trim belongs upstream and must not move');
+    assert.equal(withStage.graph.dryGain.gain.value, plain.graph.dryGain.gain.value,
+        'the dry taper belongs upstream and must not move');
+});
+
+test('the mix slider retunes the BRIR stage along with the rest', async () => {
+    const app = await readyToPlay(withBrir(createApp()));
+    await app.g.startPlayback();
+    const graph = app.state.activeGraph;
+
+    app.g.setConvolutionMix(0.3);
+
+    assert.equal(graph.brirWetLeft.gain.value, 0.3);
+    assert.equal(graph.brirWetRight.gain.value, 0.3);
+    assert.equal(app.state.activeGraph, graph, 'the graph should be retuned, not replaced');
+});
+
+test('the two binaural modes are alternatives, not layers', async () => {
+    const app = await readyToPlay(withBrir(createApp()));
+    await app.g.startPlayback();
+
+    app.g.setBinauralEnabled(true);
+    assert.equal(app.state.brirEnabled, false);
+
+    app.g.setBrirEnabled(true);
+    assert.equal(app.state.brirEnabled, true);
+    assert.equal(app.state.binauralEnabled, false, 'engaging one must release the other');
+
+    const graph = app.state.activeGraph;
+    assert.equal(graph.stereoOut.gain.value, 0);
+    assert.equal(graph.binauralOut.gain.value, 0);
+    assert.equal(graph.brirOut.gain.value, app.data.BRIR_TRIM);
+});
+
+test('toggleBrir crossfades the live graph instead of rebuilding it', async () => {
+    const app = await readyToPlay(withBrir(createApp()));
+    await app.g.startPlayback();
+
+    const graph = app.state.activeGraph;
+    const source = app.state.source;
+    const nodesBefore = app.nodes.length;
+
+    app.g.toggleBrir();
+
+    assert.equal(app.state.activeGraph, graph, 'the graph should be retuned, not replaced');
+    assert.equal(app.state.source, source, 'the source must keep its place in the loop');
+    assert.equal(app.nodes.length, nodesBefore, 'no new nodes should be created');
+    assert.equal(source.stopped, false, 'playback must not be interrupted');
+});
+
+test('a position with no BRIR falls back to stereo rather than to silence', async () => {
+    // Most of the library has none: they exist only where the offline tools ran.
+    const app = await readyToPlay(withoutDerived(createApp()));
+    await app.g.startPlayback();
+
+    app.g.setBrirEnabled(true);
+    const graph = app.state.activeGraph;
+
+    assert.equal(graph.brirOut, null, 'the stage should not have been built');
+    assert.equal(graph.stereoOut.gain.value, 1, 'something must still carry the signal');
+});
+
+test('a position with no BRIR is looked for once, not on every play', async () => {
+    const app = await readyToPlay(withoutDerived(createApp()));
+    const brirRequests = () => app.net.log.filter(r => /-BRIR-/.test(r.url)).length;
+
+    await app.g.startPlayback();
+    const first = brirRequests();
+    assert.ok(first > 0, 'it should have looked at least once');
+
+    await app.g.startPlayback();
+    assert.equal(brirRequests(), first,
+        'a position already known to have none should not be re-requested');
+});
+
+test('the BRIR button reports availability, not just the mode', async () => {
+    const app = await readyToPlay(withoutDerived(createApp()));
+    const btn = app.el('brir');
+
+    await app.g.startPlayback();          // no BRIR pair on this position
+    assert.equal(btn.disabled, true);
+    assert.equal(btn.title, app.data.BRIR_TITLE_UNAVAILABLE);
+
+    const ready = await readyToPlay(withBrir(createApp()));
+    await ready.g.startPlayback();
+    ready.g.setBrirEnabled(true);
+    assert.equal(ready.el('brir').disabled, false);
+    assert.equal(ready.el('brir').title, app.data.BRIR_TITLE_ON);
+    assert.equal(ready.el('brir')['aria-pressed'], 'true');
+});
+
+test('the BRIR pair is named as the offline tools write it', () => {
+    const app = createApp();
+    // currentIr.base ends at the trailing "-", so the suffixes complete
+    // <prefix>_R<n>-BRIR-L.wav — what tools/bformat-to-brir.js produces.
+    assert.equal(app.data.BRIR_LEFT_SUFFIX, 'BRIR-L.wav');
+    assert.equal(app.data.BRIR_RIGHT_SUFFIX, 'BRIR-R.wav');
 });
 
 // ── loading and caching ───────────────────────────────────────────────────

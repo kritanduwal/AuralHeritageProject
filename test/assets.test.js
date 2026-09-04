@@ -123,68 +123,101 @@ const px = (rule, prop) => Number(rule.match(new RegExp(prop + ':\\s*(-?[\\d.]+)
 const ruleFor = (selector) =>
     layoutCss.match(new RegExp('^' + selector + '\\s*\\{([^}]*)\\}', 'm'))[1];
 
-test('the binaural toggle is in the markup and wired to the engine', () => {
-    assert.match(html, /id="binaural"/, 'no binaural button in the view');
-    assert.match(html, /id="binaural"[^>]*onclick="toggleBinaural\(\)"/,
-        'the button must call the engine, not just sit there');
-    assert.match(html, /id="binaural"[^>]*aria-pressed=/,
-        'a toggle has to announce its state to assistive technology');
+/** The playback controls, in the order they sit leftward from the corner */
+const CONTROL_ROW = ['#play', '#binaural', '#brir'];
+
+/** The three render modes and the engine call each one makes */
+const MODE_TOGGLES = [
+    ['binaural', 'toggleBinaural'],
+    ['brir', 'toggleBrir'],
+];
+
+test('every render mode has a button wired to the engine', () => {
+    for (const [id, handler] of MODE_TOGGLES) {
+        assert.match(html, new RegExp(`id="${id}"`), `no ${id} button in the view`);
+        assert.match(html, new RegExp(`id="${id}"[^>]*onclick="${handler}\\(\\)"`),
+            `the ${id} button must call the engine, not just sit there`);
+        assert.match(html, new RegExp(`id="${id}"[^>]*aria-pressed=`),
+            `${id} has to announce its state to assistive technology`);
+        assert.match(html, new RegExp(`id="${id}"[^>]*class="[^"]*mode-toggle`),
+            `${id} must carry the shared toggle styling`);
+    }
 });
 
-test('the binaural toggle sits beside the play button without overlapping it', () => {
-    // Both are position: fixed against the bottom-right corner, so a change to
-    // either one's size can silently stack them on top of each other.
-    const play = ruleFor('#play');
-    const binaural = ruleFor('#binaural');
-
-    const playInner = px(play, 'right');
-    const playOuter = playInner + px(play, 'width');
-    const binauralInner = px(binaural, 'right');
-
-    assert.ok(binauralInner >= playOuter,
-        `the buttons overlap: play reaches ${playOuter}px from the right, binaural starts at ${binauralInner}px`);
-    assert.ok(binauralInner - playOuter <= 32,
-        'the two controls should read as a pair, not as strays at opposite ends');
+test('the modes needing offline-built files start disabled', () => {
+    // Most positions have neither a BRIR nor a B-format IR. A button that looks
+    // live until it is pressed is worse than one that says so up front.
+    for (const id of ['brir']) {
+        assert.match(html, new RegExp(`id="${id}"[^>]*\\sdisabled`),
+            `${id} should start disabled; the engine enables it once the files are found`);
+    }
+    assert.doesNotMatch(html, /id="binaural"[^>]*\sdisabled/,
+        'the modelled binaural render needs no extra files and is always available');
 });
 
-test('the two playback controls share a centre line', () => {
-    const centre = (rule) => px(rule, 'bottom') + px(rule, 'height') / 2;
-    assert.equal(centre(ruleFor('#binaural')), centre(ruleFor('#play')),
-        'the buttons are different sizes, so their bottom offsets have to differ to line up');
+test('the playback controls sit in a row without overlapping', () => {
+    // All are position: fixed against the bottom-right corner, so a change to
+    // any one's size silently stacks it on top of its neighbour.
+    const spans = CONTROL_ROW.map(selector => {
+        const rule = ruleFor(selector);
+        const inner = px(rule, 'right');
+        return { selector, inner, outer: inner + px(rule, 'width') };
+    });
+
+    for (let i = 1; i < spans.length; i++) {
+        const left = spans[i], right = spans[i - 1];
+        assert.ok(left.inner >= right.outer,
+            `${left.selector} overlaps ${right.selector}: ${right.selector} reaches ` +
+            `${right.outer}px from the right, ${left.selector} starts at ${left.inner}px`);
+        assert.ok(left.inner - right.outer <= 32,
+            `${left.selector} strays from ${right.selector}; the row should read as one group`);
+    }
 });
+
+test('the playback controls share a centre line', () => {
+    const centre = (selector) => {
+        const rule = ruleFor(selector);
+        return px(rule, 'bottom') + px(rule, 'height') / 2;
+    };
+    const line = centre('#play');
+    for (const selector of CONTROL_ROW) {
+        assert.equal(centre(selector), line,
+            `${selector} is a different size, so its bottom offset has to differ to line up`);
+    }
+});
+
 
 test('the engaged colour of a toggle does not double as the availability colour', () => {
     // --maincolor2 turns crimson to report a missing recording. A mode toggle
     // borrowing it would look like it was reporting a failure of its own.
-    const rule = ruleFor('#binaural\\.active');
+    const rule = ruleFor('\\.mode-toggle\\.active');
     assert.doesNotMatch(rule, /--maincolor2/);
     assert.match(rule, /var\(--activecolor\)/);
     assert.match(read('Style/Root.css'), /--activecolor:/, 'the variable has to be defined somewhere');
 });
 
-test('the toggle reports its new state as fast as the audio switches', () => {
-    // The fill is the only report this button makes, so a slow settle here is
+test('a toggle reports its new state as fast as the audio switches', () => {
+    // The fill is the only report these buttons make, so a slow settle here is
     // read as the whole switch being slow however fast the audio actually was.
-    const seconds = Number(ruleFor('#binaural').match(/transition:[^;]*?([\d.]+)s/)[1]);
+    const seconds = Number(ruleFor('\\.mode-toggle').match(/transition:[^;]*?([\d.]+)s/)[1]);
     assert.ok(seconds <= 0.1,
         `the colour takes ${seconds}s to arrive, long after the 0.02s audio crossfade`);
 });
 
-test('hovering the toggle never looks like engaging it', () => {
-    // The headset glyph is the same in both modes, so colour is the only state
-    // there is — and the pointer is still on the button the instant it is
-    // switched off. A hover that painted it the engaged colour would report the
-    // mode it had just left.
+test('hovering a toggle never looks like engaging it', () => {
+    // No glyph changes with its mode, so colour is the only state there is —
+    // and the pointer is still on the button the instant it is switched off. A
+    // hover that painted it the engaged colour would report the mode just left.
     const fill = (selector) => {
         const match = ruleFor(selector).match(/background-color:\s*var\((--[\w-]+)\)/);
         assert.ok(match, `${selector} must set a background colour`);
         return match[1];
     };
 
-    const resting = fill('#binaural');
-    const hover = fill('#binaural:hover');
-    const engaged = fill('#binaural\\.active');
-    const engagedHover = fill('#binaural\\.active:hover');
+    const resting = fill('\\.mode-toggle');
+    const hover = fill('\\.mode-toggle:hover');
+    const engaged = fill('\\.mode-toggle\\.active');
+    const engagedHover = fill('\\.mode-toggle\\.active:hover');
 
     assert.notEqual(hover, engaged, 'hovering an off toggle must not paint it the engaged colour');
     assert.notEqual(hover, resting, 'hover still has to answer the pointer');
@@ -194,6 +227,16 @@ test('hovering the toggle never looks like engaging it', () => {
     for (const name of [hover, engagedHover]) {
         assert.match(root, new RegExp(name + ':'), `${name} has to be defined somewhere`);
     }
+});
+
+test('an unavailable mode does not answer the pointer as though it were live', () => {
+    // Two of the three modes are disabled on most positions. A greyed button
+    // that still lit up on hover would look pressable.
+    const disabled = ruleFor('\\.mode-toggle:disabled');
+    assert.match(disabled, /cursor:\s*not-allowed/);
+    assert.match(disabled, /opacity:/, 'a disabled mode has to look different from an off one');
+    assert.match(ruleFor('\\.mode-toggle:disabled:hover'), /background-color:\s*var\(--belmont-blue\)/,
+        'hovering a mode that does not exist here must not tint it');
 });
 
 test('every church diagram referenced by CSS exists, spelled with the right case', () => {

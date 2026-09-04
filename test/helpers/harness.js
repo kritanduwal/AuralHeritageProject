@@ -33,6 +33,8 @@ const EPILOGUE = `
     get convolutionMix()  { return convolutionMix; },
     get compileSequence() { return compileSequence; },
     get binauralEnabled() { return binauralEnabled; }, set binauralEnabled(v) { binauralEnabled = v; },
+    get brirEnabled()     { return brirEnabled; },     set brirEnabled(v)     { brirEnabled = v; },
+    get brirMissing()     { return brirMissing; },
 };
 ;globalThis.__consts = {
     ROOMS, churchData, MissingResourceError, BUNDLED_SOURCE_FILES,
@@ -40,6 +42,8 @@ const EPILOGUE = `
     DRY_GAIN_AT_FULL_WET, IR_CACHE_LIMIT, ctx, MIX_GLIDE,
     VIRTUAL_SPEAKER_AZIMUTH, DEFAULT_SPEAKER_DISTANCE_FEET, BINAURAL_CROSSFADE,
     BINAURAL_TITLE_ON, BINAURAL_TITLE_OFF, BINAURAL_TRIM,
+    BRIR_TRIM, BRIR_LEFT_SUFFIX, BRIR_RIGHT_SUFFIX,
+    BRIR_TITLE_ON, BRIR_TITLE_OFF, BRIR_TITLE_UNAVAILABLE,
 };
 `;
 
@@ -170,7 +174,14 @@ function createApp(options = {}) {
             panningModel: '', distanceModel: '', refDistance: null, rolloffFactor: null,
             positionX: { value: 0 }, positionY: { value: 0 }, positionZ: { value: 0 },
         }),
-        decodeAudioData: async () => fakeAudioBuffer(),
+        // Honours the channel count the responder asked for, so a test can serve
+        // a 4-channel B-format file where everything else is mono
+        decodeAudioData: async (buf) => fakeAudioBuffer(4800, (buf && buf.channels) || 1, 48000),
+        createBuffer: (channels, length, sampleRate) => {
+            const buffer = fakeAudioBuffer(length, channels, sampleRate);
+            buffer.copyToChannel = (source, ch) => buffer.getChannelData(ch).set(source);
+            return buffer;
+        },
         async resume() { this.resumeCalls++; this.state = 'running'; },
         startRendering: async () => fakeAudioBuffer(9600, 2),
     });
@@ -187,6 +198,43 @@ function createApp(options = {}) {
         contexts.push(c);
         return c;
     }
+
+    // ── Omnitone (the live ambisonic decoder) ─────────────────────────────
+    // Present unless a test asks for it to be missing, so the engine's
+    // "library did not load" path can be exercised too.
+    const foaRenderers = [];
+    const omnitone = {
+        createFOARenderer(context, config) {
+            const renderer = {
+                context, config,
+                input: makeNode('foa-in', context.label),
+                output: makeNode('foa-out', context.label),
+                initialized: false,
+                /** Every matrix handed to setRotationMatrix4, in order */
+                rotations: [],
+                async initialize() {
+                    if (options.omnitoneFails) throw new Error('HRIR fetch failed');
+                    this.initialized = true;
+                },
+                setRotationMatrix4(matrix) { this.rotations.push(Array.from(matrix)); },
+                setRenderingMode(mode) { this.mode = mode; },
+            };
+            foaRenderers.push(renderer);
+            return renderer;
+        },
+    };
+
+    // ── animation frames (queued, never automatic) ────────────────────────
+    const frameQueue = [];
+    const frames = {
+        queue: frameQueue,
+        get pending() { return frameQueue.length; },
+        /** Runs one frame's worth of callbacks, as the browser would */
+        tick() {
+            const due = frameQueue.splice(0, frameQueue.length);
+            for (const cb of due) cb.fn();
+        },
+    };
 
     // ── network ───────────────────────────────────────────────────────────
     const net = {
@@ -210,7 +258,9 @@ function createApp(options = {}) {
         return {
             ok: res.ok,
             status: res.status,
-            arrayBuffer: async () => res.body || new ArrayBuffer(64),
+            // Carries the responder's channel count through to decodeAudioData,
+            // which is the only place the shape of a file is decided
+            arrayBuffer: async () => res.body || { byteLength: 64, channels: res.channels || 1 },
             json: async () => res.json ?? [],
         };
     };
@@ -225,6 +275,11 @@ function createApp(options = {}) {
                 handlers: {},
                 destroyed: false,
                 aimed: null,
+                // Where the camera is pointing; the soundfield rotation reads these
+                yaw: 0,
+                pitch: 0,
+                getYaw() { return this.yaw; },
+                getPitch() { return this.pitch; },
                 on(event, fn) { (this.handlers[event] ||= []).push(fn); },
                 emit(event, ...args) { (this.handlers[event] || []).forEach(fn => fn(...args)); },
                 destroy() { this.destroyed = true; },
@@ -267,9 +322,31 @@ function createApp(options = {}) {
         fetch: fetchStub,
         setTimeout: (fn, ms) => { timerQueue.push({ fn, ms }); return timerQueue.length; },
         clearTimeout: () => { },
-        location: { origin: 'http://localhost:8000' },
+        requestAnimationFrame: (fn) => { frameQueue.push({ fn }); return frameQueue.length; },
+        cancelAnimationFrame: (id) => { frameQueue.length = 0; },
+        location: {
+            origin: 'http://localhost:8000',
+            pathname: options.path ?? '/',
+            search: options.query ?? '',
+        },
+        // Backs the per-church trim. Throwing is a real browser behaviour here
+        // (blocked site data), so a test can ask for it with storageFails.
+        localStorage: {
+            // The caller's object, not a copy: a test that reopens the page with
+            // the same store is checking that writes actually landed in it.
+            _data: options.storage || {},
+            getItem(k) {
+                if (options.storageFails) throw new Error('storage blocked');
+                return k in this._data ? this._data[k] : null;
+            },
+            setItem(k, v) {
+                if (options.storageFails) throw new Error('storage blocked');
+                this._data[k] = String(v);
+            },
+        },
         getComputedStyle: () => ({ backgroundImage: options.backgroundImage ?? 'none' }),
         pannellum,
+        ...(options.noOmnitone ? {} : { Omnitone: omnitone }),
         document: {
             documentElement: el(':root'),
             body: el('body'),
@@ -313,6 +390,9 @@ function createApp(options = {}) {
         nodes: allNodes,
         net,
         timers,
+        frames,
+        foaRenderers,
+        get foa() { return foaRenderers[foaRenderers.length - 1]; },
         probes,
         blobs,
         objectUrls,

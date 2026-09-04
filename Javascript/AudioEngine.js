@@ -105,6 +105,13 @@ function setConvolutionMix(mix) {
     rampGain(activeGraph.dryGain.gain, dryGainFor(mix), MIX_GLIDE);
     rampGain(activeGraph.wetGainLeft.gain, mix, MIX_GLIDE);
     rampGain(activeGraph.wetGainRight.gain, mix, MIX_GLIDE);
+
+    // The BRIR stage runs its own convolver pair off the same mono signal, so
+    // it needs the same wet amount applied to its own side of the split.
+    if (activeGraph.brirWetLeft) {
+        rampGain(activeGraph.brirWetLeft.gain, mix, MIX_GLIDE);
+        rampGain(activeGraph.brirWetRight.gain, mix, MIX_GLIDE);
+    }
 }
 
 // ── Binaural rendering ────────────────────────────────────────────────────
@@ -116,10 +123,18 @@ const VIRTUAL_SPEAKER_AZIMUTH = 30;
 const DEFAULT_SPEAKER_DISTANCE_FEET = 20;
 
 /**
- * Output level of the binaural stage. Every virtual speaker is heard by both
- * ears, where a headphone channel reaches only one, so the stage comes back
- * louder than the stereo one. A listening control, not a derived constant:
- * adjust until the toggle changes the rendering and not the loudness.
+ * Output level of the binaural stage — this mode's calibration point.
+ *
+ * A listening control: the stage plays at whatever level its own processing
+ * produces with nothing taken off. That is deliberately not a good listening
+ * level: it is a starting point with an unambiguous direction to move in. A
+ * fallback already close to right is the harder thing to calibrate against,
+ * because the ear has nothing to push away from and every value sounds nearly
+ * as plausible as the last.
+ *
+ * Expect to land near -2.5 dB. Every virtual speaker is heard by both ears,
+ * where a headphone channel reaches only one, so the stage comes back louder
+ * than the stereo one. Set trim.binaural per church in ROOMS.
  */
 const BINAURAL_TRIM = 0.75;
 
@@ -186,17 +201,190 @@ function createVirtualSpeaker(audioCtx, azimuthDegrees, distanceFeet) {
  * pressed mid-playback without interrupting the loop.
  */
 function setBinauralEnabled(enabled) {
-    binauralEnabled = enabled;
-    updateBinauralButton();
+    if (enabled) engageMode('binaural');
+    else if (binauralEnabled) engageMode('stereo');
 
-    if (!activeGraph) return;
-
-    rampGain(activeGraph.stereoOut.gain, enabled ? 0 : 1, BINAURAL_CROSSFADE);
-    rampGain(activeGraph.binauralOut.gain, enabled ? BINAURAL_TRIM : 0, BINAURAL_CROSSFADE);
+    refreshModeButtons();
+    applyOutputStage();
 }
 
 function toggleBinaural() {
     setBinauralEnabled(!binauralEnabled);
+}
+
+// ── Measured binaural rendering (BRIR) ────────────────────────────────────
+
+/**
+ * The third output stage, and the only one that is measured rather than
+ * modelled.
+ *
+ * The other two render the front L/R pair: stereo sends it to the headphone
+ * channels, binaural stands it on virtual loudspeakers filtered by the
+ * browser's generic HRTFs. This one convolves the mono source against a
+ * binaural room impulse response instead — the room and the head arriving
+ * together in one filter, already carrying this position's early reflections
+ * from the directions they actually came from.
+ *
+ * The BRIR pair is produced offline by tools/aformat-to-bformat.js and
+ * tools/bformat-to-brir.js, which decode the ambisonic capsules against a
+ * SADIE II HRTF set. Neither is run by the app; this only loads the result.
+ */
+
+/** Completes currentIr.base for the pair, as "1.wav"/"2.wav" do for the IR */
+const BRIR_LEFT_SUFFIX = "BRIR-L.wav";
+const BRIR_RIGHT_SUFFIX = "BRIR-R.wav";
+
+/**
+ * Output level of the BRIR stage — this mode's calibration point.
+ *
+ * A listening control, like BINAURAL_TRIM: calibration wants a starting
+ * point that is plainly wrong in a known direction.
+ *
+ * MIND THE VOLUME. Zero here is roughly 14 dB above where this will settle,
+ * because the convolver does not normalize — a BRIR carries the absolute level
+ * the offline decode arrived at, where the IR convolvers hand theirs to
+ * equal-power normalization and lose it. Expect to end near -14 dB. Turn the
+ * headphones down before switching an uncalibrated church into this mode.
+ */
+const BRIR_TRIM = 1;
+
+const BRIR_TITLE_ON = "Measured binaural (BRIR): on (best with headphones)";
+const BRIR_TITLE_OFF = "Measured binaural (BRIR): off";
+const BRIR_TITLE_UNAVAILABLE = "Measured binaural (BRIR): not recorded for this position";
+
+/** Whether playback leaves through the measured binaural stage */
+let brirEnabled = false;
+
+/**
+ * Receiver positions whose BRIR pair could not be fetched.
+ *
+ * Most of the library has no BRIRs — they exist only where the offline tools
+ * have been run — and every play would otherwise re-request a pair that is not
+ * there. Keyed by currentIr.base, so a position is probed at most once.
+ */
+const brirMissing = new Set();
+
+/**
+ * Whether this mode can be engaged.
+ *
+ * A running graph is authoritative: the stage was either built or it was not.
+ * Stopped, the most that can be said is that nothing has ruled this position out
+ * yet — which is enough to let the mode be armed before playback starts, the way
+ * the modelled render can be. Disabling everything until the first play made
+ * both of these look permanently broken on a freshly loaded page.
+ */
+function brirAvailable() {
+    if (activeGraph) return Boolean(activeGraph.brirOut);
+    return !brirMissing.has(currentIr.base);
+}
+
+/**
+ * Loads the BRIR pair for the current selection, or null where there is none.
+ *
+ * Failure is not an error here: the mode is an extra that most positions do not
+ * carry, so a missing pair silences the stage rather than the playback.
+ */
+async function loadBrirPair(base) {
+    if (brirMissing.has(base)) return null;
+
+    try {
+        const [left, right] = await Promise.all([
+            loadImpulseResponse(base + BRIR_LEFT_SUFFIX),
+            loadImpulseResponse(base + BRIR_RIGHT_SUFFIX),
+        ]);
+        return { left, right };
+    } catch (err) {
+        brirMissing.add(base);
+        // Deliberately not reportResourceFailure(): a position without a BRIR is
+        // the normal case, not a broken one, and the banner is for broken.
+        return null;
+    }
+}
+
+function setBrirEnabled(enabled) {
+    if (enabled) engageMode('brir');
+    else if (brirEnabled) engageMode('stereo');
+
+    refreshModeButtons();
+    applyOutputStage();
+}
+
+function toggleBrir() {
+    setBrirEnabled(!brirEnabled);
+}
+
+/** Reflects the current mode on the BRIR button, if the view has one */
+function updateBrirButton() {
+    const btn = document.getElementById('brir');
+    if (!btn) return;
+
+    const available = brirAvailable();
+    btn.classList.toggle('active', brirEnabled && available);
+    btn.disabled = !available;
+    btn.setAttribute('aria-pressed', String(brirEnabled && available));
+    btn.title = !available ? BRIR_TITLE_UNAVAILABLE
+        : brirEnabled ? BRIR_TITLE_ON : BRIR_TITLE_OFF;
+}
+
+// ── Output stage selection ────────────────────────────────────────────────
+
+/**
+ * Which stage carries the signal. Four modes, three flags: engageMode() keeps
+ * them mutually exclusive, and this is the single place that resolves them.
+ */
+function outputStage() {
+    if (brirEnabled) return 'brir';
+    if (binauralEnabled) return 'binaural';
+    return 'stereo';
+}
+
+/**
+ * Makes one mode the live one. The modes are alternatives, not layers: leaving
+ * two engaged would silently pick one and make the other button a lie.
+ */
+function engageMode(mode) {
+    binauralEnabled = mode === 'binaural';
+    brirEnabled = mode === 'brir';
+}
+
+/** Reflects whichever mode is live on every control the view has */
+function refreshModeButtons() {
+    updateBinauralButton();
+    updateBrirButton();
+}
+
+/** The gain each stage's output should rest at for a given mode */
+function stageGainsFor(stage) {
+    return {
+        stereo: stage === 'stereo' ? 1 : 0,
+        binaural: stage === 'binaural' ? BINAURAL_TRIM : 0,
+        brir: stage === 'brir' ? BRIR_TRIM : 0,
+    };
+}
+
+/**
+ * The stage that will actually be heard: the selected one, or stereo where the
+ * selection was never built. Falling back matters because two of the four modes
+ * depend on files most positions do not carry, and fading to a stage that is not
+ * there would fade to silence.
+ */
+function builtStage(graph) {
+    const stage = outputStage();
+    if (stage === 'brir' && !graph.brirOut) return 'stereo';
+    return stage;
+}
+
+/** Crossfades the live graph to whichever stage the current mode selects */
+function applyOutputStage() {
+    if (!activeGraph) return;
+
+    const gains = stageGainsFor(builtStage(activeGraph));
+
+    rampGain(activeGraph.stereoOut.gain, gains.stereo, BINAURAL_CROSSFADE);
+    rampGain(activeGraph.binauralOut.gain, gains.binaural, BINAURAL_CROSSFADE);
+    if (activeGraph.brirOut) {
+        rampGain(activeGraph.brirOut.gain, gains.brir, BINAURAL_CROSSFADE);
+    }
 }
 
 /** Where to stand the speakers for the current selection, in feet */
@@ -229,16 +417,28 @@ function updateBinauralButton() {
  *   wetGainRight ─► merger R      ┘                 │
  *                                                   ├──► output ──► destination
  *   dryGain ──────► both speakers ┐                 │
- *   wetGainLeft ──► speaker -30°  ├─► binauralOut ──┘
- *   wetGainRight ─► speaker +30°  ┘
+ *   wetGainLeft ──► speaker -30°  ├─► binauralOut ──┤
+ *   wetGainRight ─► speaker +30°  ┘                 │
+ *                                                   │
+ *   dryGain ──────► merger L + R ─┐                 │
+ *   brirWetLeft ──► merger L      ├─► brirOut ──────┘
+ *   brirWetRight ─► merger R      ┘
  *
- * Both stages are built every time and one is silenced: tearing the graph down
- * to change stage would restart the source and lose its place in the loop.
+ * The third stage is only built where the position has a BRIR pair, and it taps
+ * the same splitter rather than the same convolvers: it is the same wet path
+ * with a different pair of impulse responses in it, so its convolvers hold the
+ * measured binaural room response instead of IR channels 1 and 2. Its output
+ * goes straight to the headphone channels, because a BRIR has already been
+ * through a head and must not be sent through another one.
  *
- * @returns the gain nodes the mix slider and the binaural toggle retune, plus
- *          the output node to unhook on stop
+ * All available stages are built every time and the unused ones silenced:
+ * tearing the graph down to change stage would restart the source and lose its
+ * place in the loop.
+ *
+ * @returns the gain nodes the mix slider and the mode toggles retune, plus the
+ *          output node to unhook on stop
  */
-function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irGainDb, binaural, speakerDistance = DEFAULT_SPEAKER_DISTANCE_FEET }) {
+function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irGainDb, binaural, brir, brirLeft, brirRight, speakerDistance = DEFAULT_SPEAKER_DISTANCE_FEET }) {
     const convolverLeft = audioCtx.createConvolver();
     convolverLeft.buffer = irLeft;
     const convolverRight = audioCtx.createConvolver();
@@ -298,12 +498,59 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
     speakerRight.connect(binauralOut);
     binauralOut.connect(output);
 
-    stereoOut.gain.value = binaural ? 0 : 1;
-    binauralOut.gain.value = binaural ? BINAURAL_TRIM : 0;
+    // BRIR stage: the same mono signal off the same splitter, convolved against
+    // the measured binaural response instead of the raw IR pair. Built only
+    // where the position has one.
+    let brirOut = null;
+    let brirWetLeft = null;
+    let brirWetRight = null;
+
+    if (brirLeft && brirRight) {
+        const brirConvolverLeft = audioCtx.createConvolver();
+        // The BRIR carries the absolute level the offline decode arrived at, and
+        // normalization would scale it back out the way it would an IR trim.
+        // BRIR_TRIM is where this stage's level is set instead.
+        brirConvolverLeft.normalize = false;
+        brirConvolverLeft.buffer = brirLeft;
+
+        const brirConvolverRight = audioCtx.createConvolver();
+        brirConvolverRight.normalize = false;
+        brirConvolverRight.buffer = brirRight;
+
+        brirWetLeft = audioCtx.createGain();
+        brirWetRight = audioCtx.createGain();
+        brirWetLeft.gain.value = mix;
+        brirWetRight.gain.value = mix;
+
+        const brirMerger = audioCtx.createChannelMerger(2);
+        brirOut = audioCtx.createGain();
+
+        splitter.connect(brirConvolverLeft, 0);
+        splitter.connect(brirConvolverRight, 0);
+        brirConvolverLeft.connect(brirWetLeft);
+        brirConvolverRight.connect(brirWetRight);
+
+        // Dry stays centred here exactly as it is in the other two stages
+        dryGain.connect(brirMerger, 0, 0);
+        dryGain.connect(brirMerger, 0, 1);
+        brirWetLeft.connect(brirMerger, 0, 0);
+        brirWetRight.connect(brirMerger, 0, 1);
+        brirMerger.connect(brirOut);
+        brirOut.connect(output);
+    }
+    const stage = brir && brirOut ? 'brir' : binaural ? 'binaural' : 'stereo';
+    const gains = stageGainsFor(stage);
+    stereoOut.gain.value = gains.stereo;
+    binauralOut.gain.value = gains.binaural;
+    if (brirOut) brirOut.gain.value = gains.brir;
 
     output.connect(audioCtx.destination);
 
-    return { dryGain, wetGainLeft, wetGainRight, stereoOut, binauralOut, output };
+    return {
+        dryGain, wetGainLeft, wetGainRight, irTrim,
+        stereoOut, binauralOut, brirOut, brirWetLeft, brirWetRight,
+        output,
+    };
 }
 
 // ── File loading ──────────────────────────────────────────────────────────
@@ -425,6 +672,11 @@ async function startPlayback() {
         return;
     }
 
+    // Optional, and absent for most of the library. Loaded before the graph is
+    // built rather than on demand so the modes can be toggled mid-playback like
+    // the other two, without a rebuild that would restart the loop.
+    const brirPair = await loadBrirPair(currentIr.base);
+
     // A context constructed before any user gesture starts out suspended
     await ctx.resume();
 
@@ -442,11 +694,18 @@ async function startPlayback() {
         mix: convolutionMix,
         irGainDb: currentIr.gainDb,
         binaural: binauralEnabled,
+        brir: brirEnabled,
+        brirLeft: brirPair && brirPair.left,
+        brirRight: brirPair && brirPair.right,
         speakerDistance: speakerDistanceFeet()
     });
 
     source.start();
     setPlaying(true);
+
+    // This button can only say whether their mode exists once the files have
+    // been looked for, which is here rather than at selection time
+    updateBrirButton();
 
     //downloadConvolvedAudio(); // Uncomment to download the convolved output for testing
 }
@@ -466,10 +725,16 @@ function stopPlayback() {
     // attached to the destination would pin every node of every past playback.
     if (activeGraph) {
         activeGraph.output.disconnect();
+
         activeGraph = null;
     }
 
     setPlaying(false);
+
+    // Availability is read off the graph while one is running, so the controls
+    // have to be asked again once it is gone or they keep reporting the last
+    // position's answer.
+    refreshModeButtons();
 }
 
 async function playpause() {
@@ -498,8 +763,12 @@ async function downloadConvolvedAudio() {
         loadImpulseResponse(currentIr.base + "2.wav")
     ]);
 
-    // Room for the source plus the reverb tail it leaves behind
-    const frames = sourceBuffer.length + irLeft.length;
+    const brirPair = await loadBrirPair(currentIr.base);
+
+    // Room for the source plus the longest tail any built stage leaves behind.
+    // A BRIR carries the room and the head together and outruns the raw IR.
+    const tail = Math.max(irLeft.length, brirPair ? brirPair.left.length : 0);
+    const frames = sourceBuffer.length + tail;
     const offlineCtx = new OfflineAudioContext(2, frames, ctx.sampleRate);
 
     const offlineSource = offlineCtx.createBufferSource();
@@ -510,6 +779,9 @@ async function downloadConvolvedAudio() {
         mix: convolutionMix,
         irGainDb: currentIr.gainDb,
         binaural: binauralEnabled,
+        brir: brirEnabled,
+        brirLeft: brirPair && brirPair.left,
+        brirRight: brirPair && brirPair.right,
         speakerDistance: speakerDistanceFeet()
     });
 

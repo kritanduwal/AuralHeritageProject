@@ -378,5 +378,5 @@ document.addEventListener('fullscreenchange', () => {
 function initApp() {
     loadSource();
     setMix(document.getElementById('convmix').value);
-    updateBinauralButton();
+    refreshModeButtons();
 }

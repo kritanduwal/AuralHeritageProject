@@ -1,1 +1,7 @@
 node_modules/
+
+# Third-party HRTF data, fetched by hand — see HRIR/README.md.
+# Apache 2.0 and freely redistributable, but ~110 MB per subject and not ours
+# to carry: the tools take a path to it rather than expecting it in the tree.
+HRIR/**
+!HRIR/README.md
