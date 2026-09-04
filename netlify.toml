@@ -1,3 +1,19 @@
 [build]
   publish = "."
   command = ""
+
+# Feature-gated entry points. Each serves the same page without changing the
+# address, so Features.js can read the path and decide which optional renders
+# are reachable. status = 200 rewrites rather than redirects, which is what
+# keeps the URL — and therefore the flag — intact.
+[[redirects]]
+  from = "/binaural"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/ambisonic"
+  to = "/index.html"
+  status = 200
+
+

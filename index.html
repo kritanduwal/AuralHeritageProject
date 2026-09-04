@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <base href="/">
     <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="author" content="Kritan Duwal">
@@ -446,7 +447,7 @@
                         <strong>Play / Pause</strong> - Press the circular button in the bottom-right corner to start
                         playback. The button switches to a pause icon while audio is playing. Press it again to stop.
                     </li>
-                    <li>
+                    <li data-feature="binaural">
                         <strong>Binaural Rendering</strong> - Press the headphone button to the left of play to switch between
                         ordinary stereo and a binaural render made for headphones. Binaural plays the same auralization
                         through a pair of virtual loudspeakers 30&deg; to either side of you, filtered the way your head and
@@ -466,7 +467,7 @@
                 <ul>
                     <li>Try the "Sermon" source file with a large church and a wet mix to hear how speech carries in the space.</li>
                     <li>Switching receiver positions while audio is playing takes effect straight away, so you can step around a church and hear the room change from where you stand.</li>
-                    <li>Toggle binaural rendering mid-playback to hear what it does. Both modes carry the same auralization; only the way it reaches your ears changes. Use headphones — over speakers the effect is lost, because your own room filters the sound a second time.</li>
+                    <li data-feature="binaural">Toggle binaural rendering mid-playback to hear what it does. Both modes carry the same auralization; only the way it reaches your ears changes. Use headphones — over speakers the effect is lost, because your own room filters the sound a second time.</li>
                     <li>The collection spans twelve churches across Tennessee, Kentucky, Indiana, and New Mexico. Play the same source file through several of them to hear how size, shape, and building materials shape the sound, from the intimate Cane Ridge Meeting House and its 27.59 ft ceiling to Monastery Immaculate Conception beneath an 87.61 ft dome.</li>
                 </ul>
             </div>
@@ -527,6 +528,7 @@
 
     <!-- Loaded last so App.js can build the panorama viewer as soon as it runs.
          Data first, then the view and audio layers that read it. -->
+    <script src="Javascript/Features.js"></script>
     <script src="Javascript/ChurchData.js"></script>
     <script src="Javascript/Rooms.js"></script>
     <script src="Javascript/App.js"></script>

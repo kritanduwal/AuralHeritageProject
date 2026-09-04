@@ -263,6 +263,8 @@ test('every local file referenced by index.html exists', () => {
     const missing = [];
     for (const m of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
         if (/^(https?:|#|mailto:|data:)/.test(m[1])) continue;
+        // <base href="/"> names the document's root, not a file to load
+        if (m[1] === '/') continue;
         if (!existsExactly(m[1])) missing.push(m[1]);
     }
     assert.deepEqual(missing, []);

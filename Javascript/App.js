@@ -341,6 +341,63 @@ function closeChurchInfo() {
     document.getElementById('church-info-modal').classList.remove('open');
 }
 
+// ── Feature gating ────────────────────────────────────────────────────────
+
+/**
+ * Which controls each URL feature reveals. See Features.js for the flags.
+ *
+ * The BRIR and live-ambisonic renders share one flag because they share one
+ * provenance — both are decoded from the ambisonic capsules — so a visit that
+ * can reach one should be able to compare it against the other.
+ */
+const FEATURE_CONTROLS = {
+    binaural: ['binaural'],
+    ambisonic: ['brir', 'ambisonic', 'tracking-control'],
+};
+
+/**
+ * Left edge of the first render toggle and the step between them, in px from
+ * the right edge. Mirrors the geometry in Layout.css, which assets.test.js
+ * checks: the play button ends 104px in, and each 56px toggle sits 12px clear
+ * of the last.
+ */
+const TOGGLE_ROW_START_PX = 116;
+const TOGGLE_ROW_STEP_PX = 68;
+
+/**
+ * Hides the controls this visit has not been given, and closes the gaps.
+ *
+ * The toggles are positioned individually against the corner, so hiding one
+ * would otherwise leave a hole in the row. Re-seating the survivors keeps every
+ * combination of flags looking deliberate rather than broken.
+ */
+function applyFeatureGating() {
+    for (const [feature, ids] of Object.entries(FEATURE_CONTROLS)) {
+        const on = featureEnabled(feature);
+        for (const id of ids) {
+            const element = document.getElementById(id);
+            if (element) element.style.display = on ? '' : 'none';
+        }
+    }
+
+    for (const help of document.querySelectorAll('[data-feature]')) {
+        if (!featureEnabled(help.getAttribute('data-feature'))) help.style.display = 'none';
+    }
+
+    layoutModeToggles();
+}
+
+/** Seats the visible render toggles in a row, left of the play button */
+function layoutModeToggles() {
+    let slot = 0;
+    for (const id of ['binaural', 'brir', 'ambisonic']) {
+        const button = document.getElementById(id);
+        if (!button || button.style.display === 'none') continue;
+        button.style.right = (TOGGLE_ROW_START_PX + slot * TOGGLE_ROW_STEP_PX) + 'px';
+        slot++;
+    }
+}
+
 // ── Fullscreen ────────────────────────────────────────────────────────────
 
 /**
@@ -376,6 +433,7 @@ document.addEventListener('fullscreenchange', () => {
  * playback controls to the state the audio engine starts in.
  */
 function initApp() {
+    applyFeatureGating();
     loadSource();
     setMix(document.getElementById('convmix').value);
     refreshModeButtons();

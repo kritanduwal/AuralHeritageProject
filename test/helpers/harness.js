@@ -17,7 +17,7 @@ const vm = require('vm');
 const ROOT = path.join(__dirname, '..', '..');
 
 /** In the order index.html loads them */
-const APP_FILES = ['ChurchData.js', 'Rooms.js', 'App.js', 'AudioEngine.js', 'SettingsMenu.js'];
+const APP_FILES = ['Features.js', 'ChurchData.js', 'Rooms.js', 'App.js', 'AudioEngine.js', 'SettingsMenu.js'];
 
 const EPILOGUE = `
 ;globalThis.__state = {
@@ -39,6 +39,7 @@ const EPILOGUE = `
     get soundfieldTracking() { return soundfieldTracking; },
     get foaRenderer()     { return foaRenderer; },
     get bformatMissing()  { return bformatMissing; },
+    get FEATURES()        { return FEATURES; },
 };
 ;globalThis.__consts = {
     ROOMS, churchData, MissingResourceError, BUNDLED_SOURCE_FILES,
@@ -52,6 +53,9 @@ const EPILOGUE = `
     AMBISONIC_TITLE_ON, AMBISONIC_TITLE_OFF, AMBISONIC_TITLE_UNAVAILABLE,
     SOUNDFIELD_ROTATION_SIGN, rotationMatrix4,
     TRACKING_TITLE_ON, TRACKING_TITLE_OFF, TRACKING_TITLE_UNAVAILABLE,
+    readFeatures, featureEnabled,
+    FEATURE_NAMES, FEATURE_IMPLIES, FEATURE_CONTROLS,
+    TOGGLE_ROW_START_PX, TOGGLE_ROW_STEP_PX,
 };
 `;
 
