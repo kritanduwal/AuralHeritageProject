@@ -18,23 +18,24 @@
  * That rather than peak or plain RMS because it is the measure that tracks what
  * a listener calls "as loud as", which is what the trims are for.
  *
- * ── WHAT IS EXACT AND WHAT IS NOT ────────────────────────────────────────────
+ * ── ALL FOUR CHAINS ARE REPRODUCED EXACTLY ───────────────────────────────────
  *
- * Three of the four chains are reproduced here exactly as AudioEngine.js builds
- * them, down to the dry taper and the per-position gainDb:
+ * Every mode is rebuilt here as AudioEngine.js builds it, down to the dry taper,
+ * the per-position gainDb, and which convolvers normalize and which do not:
  *
  *   stereo     IR channels 1 and 2, straight to the two ears
+ *   binaural   those two on virtual loudspeakers, convolved against the very
+ *              HRIR files the app fetches
  *   brir       the measured binaural pair, one convolution per ear
  *   ambisonic  the B-format IR through Omnitone's own decode — its embedded
- *              HRIRs and its exact routing, so this is the real thing
+ *              HRIRs and its exact routing
  *
- * The fourth cannot be. The modelled binaural render uses the browser's
- * PannerNode, whose HRTF database lives inside Chrome and is not reachable from
- * here. This renders it with the SADIE set at the same +-30 degrees instead,
- * which gets the geometry right — two speakers, both ears — but not that
- * particular pair of ears. Its number is reported as an estimate and marked as
- * one. Where a church has already been trimmed by ear, the two are printed side
- * by side so the size of that error can be seen rather than assumed.
+ * The binaural render used to be the exception: it went through a PannerNode,
+ * whose HRTF database lives inside the browser and could only be approximated
+ * from here, so its figure was an estimate anchored on one church trimmed by
+ * ear. Moving that stage onto the same SADIE ears as the other two removed the
+ * approximation along with the inconsistency — no part of this measurement has
+ * to be taken on trust any more.
  *
  * @author Kritan Duwal
  */
@@ -67,8 +68,8 @@ const DEFAULT_SOURCE = 'Source Files/Clarinet.wav';
  */
 const DEFAULT_SECONDS = 12;
 
-/** Where the modelled render's virtual speakers stand, matching the engine */
-const VIRTUAL_SPEAKER_AZIMUTH = 30;
+/** Where the virtual speakers stand, matching the engine; see its constant */
+const VIRTUAL_SPEAKER_AZIMUTH = 45;
 
 /** The app's defaults: the slider at 100%, so the dry path sits at its floor */
 const MIX = 1.0;
@@ -300,7 +301,7 @@ function renderModes(source, ir, options) {
         addScaled(Float64Array.from(dry), wetRight, MIX),
     ];
 
-    // Modelled binaural: the same two signals on virtual speakers at +-30
+    // Modelled binaural: the same two signals on virtual speakers at +-45
     if (options.speakers) {
         const feedLeft = modes.stereo[0];
         const feedRight = modes.stereo[1];

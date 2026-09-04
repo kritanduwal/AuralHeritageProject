@@ -130,22 +130,34 @@ function setConvolutionMix(mix) {
 
 // ── Binaural rendering ────────────────────────────────────────────────────
 
-/** Half the angle between the virtual loudspeakers: a stereo listening triangle */
-const VIRTUAL_SPEAKER_AZIMUTH = 30;
+/**
+ * Half the angle between the virtual loudspeakers.
+ *
+ * Wider than the 30 degrees a stereo listening triangle would put them at. The
+ * pair carries the room rather than a mix, and spreading them opens the image
+ * out and pushes each speaker further from the centre, which buys a larger
+ * interaural difference: the measured responses differ by 13.4 dB between the
+ * ears here against 11.3 dB at 30 degrees. That difference is what the ear
+ * reads as width.
+ *
+ * Documentation only — the angle itself lives in the two HRIR files below, and
+ * changing this number without cutting new ones changes nothing you can hear.
+ */
+const VIRTUAL_SPEAKER_AZIMUTH = 45;
 
 /**
  * The measured ears this render puts its virtual loudspeakers on.
  *
  * One stereo file per speaker: channel 0 is the left ear, channel 1 the right,
  * so convolving a speaker's mono feed against it produces that speaker as both
- * ears hear it. Cut from the SADIE II set at +-30 degrees and 0 elevation, the
+ * ears hear it. Cut from the SADIE II set at +-45 degrees and 0 elevation, the
  * same subject the BRIR and ambisonic stages decode against, which is what
  * makes the three modes comparable: they now differ in how the room reaches the
  * ears, not in whose ears they are.
  *
  * Named for where the speaker stands rather than for the angle in the file:
- * SADIE counts azimuth counterclockwise, so its 30 degrees is the left speaker
- * and its 330 the right. Changing VIRTUAL_SPEAKER_AZIMUTH means cutting new
+ * SADIE counts azimuth counterclockwise, so its 45 degrees is the left speaker
+ * and its 315 the right. Changing VIRTUAL_SPEAKER_AZIMUTH means cutting new
  * files; these two are fixed at the angle above.
  */
 const VIRTUAL_SPEAKER_HRIR = {

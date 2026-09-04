@@ -413,7 +413,7 @@ test('the speakers stand at the angles the HRIRs were cut for', () => {
     const app = createApp();
     const { VIRTUAL_SPEAKER_HRIR, VIRTUAL_SPEAKER_AZIMUTH } = app.data;
 
-    assert.equal(VIRTUAL_SPEAKER_AZIMUTH, 30, 'a stereo listening triangle');
+    assert.equal(VIRTUAL_SPEAKER_AZIMUTH, 45, 'wider than a stereo listening triangle');
     assert.match(VIRTUAL_SPEAKER_HRIR.left, /virtual-speaker-left\.wav$/);
     assert.match(VIRTUAL_SPEAKER_HRIR.right, /virtual-speaker-right\.wav$/);
 });
