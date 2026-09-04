@@ -16,6 +16,45 @@
  * panorama.dir + "/" + panorama.prefix + "_" + receiverId + panorama.ext
  *     gives the 360 photo. Extensions are case-sensitive once deployed, so they
  *     are spelled here exactly as the files are named on disk.
+ * soundfieldYaw
+ *     the panorama yaw, in degrees, at which the ambisonic recording's own
+ *     front points. Omitted where the two already agree.
+ *
+ *     The photograph and the recording were not oriented together: the array's
+ *     front axis is wherever it was set down, the panorama's zero wherever the
+ *     camera started. Half this collection differs by 180 degrees, and the gap
+ *     is not cosmetic — head tracking turns the soundfield by the camera's
+ *     bearing, so an offset of half a turn reverses which ear a source moves
+ *     toward as you look around. Found by ear: turn the view and check that a
+ *     source crosses to the opposite ear rather than following you.
+ *
+ *     It only affects the live ambisonic render, the one mode whose soundfield
+ *     is still steerable at playback. The other three bake their orientation in.
+ * trim
+ *     per-church output levels for the render modes that are not plain stereo,
+ *     in dB. Negative is quieter; zero leaves the stage at whatever level its
+ *     own processing produced, which is where every church starts. Each key
+ *     replaces that stage's constant in AudioEngine.js outright — it is the
+ *     level the stage runs at, not an adjustment to one — so two churches can
+ *     be read against each other directly:
+ *
+ *         trim: { binaural: 0, brir: 0, ambisonic: 0 }              uncalibrated
+ *         trim: { binaural: 1, brir: -17.8, ambisonic: -20 }        calibrated
+ *
+ *     Decibels because the ear hears ratios: 3 dB is the same size step
+ *     wherever it is taken. Most values take level off, but the binaural render
+ *     lands slightly under stereo and wants a small boost, so the range runs
+ *     both ways and is bounded at -40 and +12 dB.
+ *
+ *     The three land far apart because the stages are not built the same way:
+ *     the impulse-response convolvers normalize and the HRIR ones deliberately
+ *     do not, so the BRIR and ambisonic stages carry the whole gain of the
+ *     offline decode. Expect about +1 dB for binaural against -15 to -22 dB for
+ *     the others. tools/measure-loudness.js derives all three.
+ *
+ *     Measured rather than guessed: tools/measure-loudness.js renders every
+ *     mode through the same chain the engine builds and matches their ITU-R
+ *     BS.1770 loudness to stereo's. Run it with --write to refresh these.
  * receivers[id].pitch / .yaw
  *     camera angles handed to pannellum's lookAt(), in degrees. Every position
  *     spells both out, including the zeroes, so that a straight-ahead view
@@ -29,6 +68,7 @@ const ROOMS = {
     BridgeCommunityChurch: {
         ir:       { dir: "IR/Bridge Community Church", prefix: "Bridge Church" },
         panorama: { dir: "Images/Bridge Community Church", prefix: "Bridge Community Church", ext: ".jpg" },
+        trim:     { binaural: 0.7, brir: -17.8, ambisonic: -20 },
         receivers: {
             R1: { pitch: 0, yaw: 180 },
             R2: { pitch: 0, yaw: 180 },
@@ -40,6 +80,7 @@ const ROOMS = {
     ChristChurchCathedral: {
         ir:       { dir: "IR/Christ Church Cathedral", prefix: "Christ Church Cathedral" },
         panorama: { dir: "Images/Christ Church Cathedral", prefix: "Christ Church Cathedral", ext: ".jpg" },
+        trim:     { binaural: 0.8, brir: -16.5, ambisonic: -18.7 },
         receivers: {
             R1: { pitch: 0, yaw: 180 },
             R2: { pitch: 0, yaw: 180 },
@@ -55,6 +96,8 @@ const ROOMS = {
     DowntownPresbyterianChurch: {
         ir:       { dir: "IR/Downtown Presbyterian Church", prefix: "Downtown Presbyterian" },
         panorama: { dir: "Images/Downtown Presbyterian Church", prefix: "Downtown Presbyterian Church", ext: ".jpg" },
+        soundfieldYaw: 180,
+        trim:     { binaural: 0.6, brir: -17.4, ambisonic: -19.5 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0 },
@@ -67,6 +110,7 @@ const ROOMS = {
     FirstBaptistChurchCapitolHill: {
         ir:       { dir: "IR/First Baptist Church Capitol Hill", prefix: "First Baptist Church" },
         panorama: { dir: "Images/First Baptist Church Capitol Hill", prefix: "First Baptist Church Capitol Hill", ext: ".jpg" },
+        trim:     { binaural: 1, brir: -19.4, ambisonic: -21.7 },
         receivers: {
             R1: { pitch: 0, yaw: 180 },
             R2: { pitch: 0, yaw: 180 },
@@ -79,6 +123,7 @@ const ROOMS = {
     HolyTrinityEpiscopalChurch: {
         ir:       { dir: "IR/Holy Trinity Episcopal Church", prefix: "Holy Trinity Church" },
         panorama: { dir: "Images/Holy Trinity Episcopal Church", prefix: "Holy Trinity Episcopal Church", ext: ".jpg" },
+        trim:     { binaural: 0.7, brir: -20.2, ambisonic: -22.6 },
         receivers: {
             R1: { pitch: 0, yaw: 180 },
             R2: { pitch: 0, yaw: 180 },
@@ -90,6 +135,8 @@ const ROOMS = {
     UnitedMethodistChurch: {
         ir:       { dir: "IR/Church Street United Methodist Church, Knoxville", prefix: "Church Street United" },
         panorama: { dir: "Images/Church Street United Methodist Church, Knoxville", prefix: "Church Street United Methodist Church", ext: ".jpg" },
+        soundfieldYaw: 180,
+        trim:     { binaural: 0.9, brir: -18.7, ambisonic: -21 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0 },
@@ -101,6 +148,8 @@ const ROOMS = {
     CaneRidgeMeetingHouse: {
         ir:       { dir: "IR/Cane Ridge Meeting House, KY", prefix: "Cane Ridge KY" },
         panorama: { dir: "Images/Cane Ridge Meeting House, KY", prefix: "Cane Ridge Meeting House, KY", ext: ".jpg" },
+        soundfieldYaw: 180,
+        trim:     { binaural: 1, brir: -18.5, ambisonic: -20.9 },
         receivers: {
             R1: { pitch:   0, yaw: 4 },
             R2: { pitch:   0, yaw: 0 },
@@ -117,6 +166,8 @@ const ROOMS = {
     FirstPresbyterianChurchKY: {
         ir:       { dir: "IR/First Presbyterian Church, KY", prefix: "FPC KY" },
         panorama: { dir: "Images/First Presbyterian Church, KY", prefix: "First Presbyterian Church, KY", ext: ".jpg" },
+        soundfieldYaw: 180,
+        trim:     { binaural: 0.3, brir: -16.3, ambisonic: -18.7 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0, gainDb: 1.5 },
@@ -133,6 +184,8 @@ const ROOMS = {
     BasilicaStFrancis: {
         ir:       { dir: "IR/Basilica St. Francis, IN", prefix: "St Francis_IN" },
         panorama: { dir: "Images/Basilica St. Francis, IN", prefix: "St Francis_IN", ext: ".JPG" },
+        soundfieldYaw: 180,
+        trim:     { binaural: 0.4, brir: -18.6, ambisonic: -21.3 },
         receivers: {
             R1: { pitch:   0, yaw: 1 },
             R2: { pitch:  -2, yaw: 4, gainDb: 1.5 },
@@ -150,6 +203,8 @@ const ROOMS = {
     MonasteryImmaculateConception: {
         ir:       { dir: "IR/Monastery Immaculate Conception, IN", prefix: "MIC_IN" },
         panorama: { dir: "Images/Monastery Immaculate Conception, IN", prefix: "MIC_IN", ext: ".JPG" },
+        soundfieldYaw: 180,
+        trim:     { binaural: 0.1, brir: -15.4, ambisonic: -17.9 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0, gainDb: 1.5 },
@@ -163,6 +218,8 @@ const ROOMS = {
     OurLadyOfGuadalupe: {
         ir:       { dir: "IR/Our Lady of Guadalupe, NM", prefix: "Guadalupe_SantaFe" },
         panorama: { dir: "Images/Our Lady of Guadalupe, NM", prefix: "Guadalupe_SantaFe", ext: ".JPG" },
+        soundfieldYaw: 180,
+        trim:     { binaural: 1.3, brir: -16.3, ambisonic: -18.5 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0, gainDb: 1.5 },
@@ -176,6 +233,8 @@ const ROOMS = {
     StAugustineIsleta: {
         ir:       { dir: "IR/St Augustine Isleta, NM", prefix: "St Augustine_Isleta" },
         panorama: { dir: "Images/St Augustine Isleta, NM", prefix: "St Augustine_Isleta", ext: ".JPG" },
+        soundfieldYaw: 180,
+        trim:     { binaural: 0.9, brir: -21.4, ambisonic: -23.7 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0, gainDb: 1.5 },

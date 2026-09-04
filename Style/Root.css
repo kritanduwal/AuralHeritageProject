@@ -22,6 +22,17 @@
     --buttoncolor2: #f2bf5a;
     --buttoncolor3: #a6a6a6;
     --bordersize: 0.7px;
+
+    /* Engaged state of a toggle. The same green as an available marker, but
+       fixed, because --maincolor2 turns crimson to report a missing recording
+       and a mode toggle has nothing to say about availability. */
+    --activecolor: #00f47f;
+
+    /* Hover lifts. A toggle needs one per state: the pointer is still resting
+       on the button at the moment it is switched off, so a hover that borrowed
+       the engaged colour would leave it looking engaged until the pointer left. */
+    --belmont-blue-hover: #0a3c96;
+    --activecolor-hover: #5cffb0;
 }
 
 @keyframes filter {

@@ -199,6 +199,108 @@ input, button, select, textarea {
     background-color: var(--maincolor2);
 }
 
+/* ── Render mode toggles ── */
+/* Three alternatives to plain stereo, in a row to the left of play. Appearance
+   is shared; each button's own rule carries only its geometry, which is what
+   assets.test.js checks for overlap and for a common centre line. */
+.mode-toggle {
+    position: fixed;
+    z-index: 4;
+    background-color: var(--belmont-blue);
+    color: var(--text-color-white);
+    font-size: 30px;
+    border: none;
+    outline: none;
+    border-radius: 50%;
+    box-shadow: var(--card-shadow);
+    pointer-events: auto;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Short on purpose. This fill is the only report a toggle makes, and the
+       audio switches in 20 ms; a quarter-second settle here read as the whole
+       switch being slow, because the eye was still watching the colour arrive
+       long after the ears were done. */
+    transition: background-color 0.08s ease, opacity 0.08s ease;
+}
+
+/* Vertically centred on the play button: it is 80px tall at bottom: 20px, so
+   its centre is 60px up, and a 56px button is centred there at bottom: 32px.
+   The horizontal steps are 56 + 12 apart, leaving a 12px gap between each. */
+#binaural  { width: 56px; height: 56px; bottom: 32px; right: 116px; }
+#brir      { width: 56px; height: 56px; bottom: 32px; right: 184px; }
+#ambisonic { width: 56px; height: 56px; bottom: 32px; right: 252px; }
+
+/* Hover and engaged have to be different colours. The glyph does not change
+   with the mode, so the fill is the only thing carrying the state — and your
+   pointer is still on the button at the moment you switch it off. Sharing one
+   green left a toggle that had just turned off looking like it was still on
+   until the pointer moved away. Hover lifts whichever state the button is in
+   rather than announcing a state of its own. */
+.mode-toggle:hover {
+    background-color: var(--belmont-blue-hover);
+}
+
+.mode-toggle.active {
+    background-color: var(--activecolor);
+}
+
+/* Beats both rules above it on specificity, so an engaged button keeps its
+   green while still answering the pointer */
+.mode-toggle.active:hover {
+    background-color: var(--activecolor-hover);
+}
+
+/* Two of the three modes need files most positions do not carry. A greyed
+   button says the mode does not exist here, which is different from off. */
+.mode-toggle:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.mode-toggle:disabled:hover {
+    background-color: var(--belmont-blue);
+}
+
+/* ── Head-tracking toggle ── */
+/* Sits above the button row rather than in it: it modifies one of the modes
+   instead of selecting one, and it is a checkbox rather than another circle so
+   it cannot be mistaken for a fourth alternative. */
+#tracking-control {
+    position: fixed;
+    z-index: 4;
+    bottom: 108px;
+    right: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    border-radius: 18px;
+    background-color: var(--belmont-blue);
+    color: var(--text-color-white);
+    box-shadow: var(--card-shadow);
+    font-family: var(--font), sans-serif;
+    font-size: 13px;
+    pointer-events: auto;
+    cursor: pointer;
+    user-select: none;
+    transition: opacity 0.08s ease;
+}
+
+/* Only the live ambisonic decode can be rotated — the other three renders are
+   fixed-head, and a BRIR has already chosen which way the head was facing. */
+#tracking-control.unavailable {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+#tracking-control input {
+    accent-color: var(--activecolor);
+    cursor: inherit;
+    margin: 0;
+}
+
 .material-icons:hover {
     color: var(--maincolor) !important;
 }

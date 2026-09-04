@@ -5,6 +5,10 @@
  * one convolver per ear, using the impulse response pair recorded at the
  * selected receiver position. See "Reverb ratios" in README.md for the mix law.
  *
+ * The result leaves by one of two output stages: straight out to the headphone
+ * channels, or through a pair of HRTF virtual loudspeakers. See "Binaural
+ * rendering" in README.md.
+ *
  * @author Ben Jordan, Kritan Duwal
  */
 
@@ -21,19 +25,50 @@ let isPlaying = false;
 /**
  * The impulse response pair the next play will use. Set by compile() whenever
  * the room or receiver selection changes.
- *   base   – path prefix; "1.wav" and "2.wav" complete the left/right pair
- *   gainDb – level reduction for this position, in dB (0 = play as recorded)
+ *   base         – path prefix; "1.wav" and "2.wav" complete the left/right pair
+ *   gainDb       – level reduction for this position, in dB (0 = play as recorded)
+ *   distanceFeet – measured receiver-to-source distance, placing the binaural
+ *                  render's virtual loudspeakers (0 = none on record)
  */
-let currentIr = { base: "", gainDb: 0 };
+let currentIr = { base: "", gainDb: 0, distanceFeet: 0 };
 
-function setImpulseResponse(base, gainDb) {
-    currentIr = { base, gainDb };
+function setImpulseResponse(base, gainDb, distanceFeet = 0) {
+    currentIr = { base, gainDb, distanceFeet };
+}
+
+// ── Gain automation ───────────────────────────────────────────────────────
+
+/**
+ * Glides a gain to a new value, starting from where it actually is now.
+ *
+ * linearRampToValueAtTime() interpolates from the previous automation event,
+ * which is not the same thing as "from here". Called on its own, the second
+ * glide on a parameter draws its line from the end of the first one — however
+ * many seconds back that was — so the moment the event is scheduled the gain
+ * leaps almost the whole way in a single sample and then creeps out the
+ * remainder over the ramp. That step is a click, and it lands on every change
+ * after the first: exactly the ones an A/B makes.
+ *
+ * Clearing the timeline and pinning the current value at the current time
+ * gives the ramp a start point in the present, so the glide is the whole of
+ * the change rather than the tail of it.
+ */
+function rampGain(param, value, seconds) {
+    const now = ctx.currentTime;
+    const current = param.value;   // read before cancelling, which discards pending events
+
+    param.cancelScheduledValues(now);
+    param.setValueAtTime(current, now);
+    param.linearRampToValueAtTime(value, now + seconds);
 }
 
 // ── Wet / dry mix ─────────────────────────────────────────────────────────
 
 /** Wet/dry balance: 0 plays the bare source, 1 the full room. */
 let convolutionMix = 1.0;
+
+/** Seconds spent gliding to a new slider position */
+const MIX_GLIDE = 0.05;
 
 /**
  * Dry gain at a fully wet mix, i.e. the bottom of the dry taper (-9.1 dB)
@@ -54,6 +89,15 @@ function dryGainFor(mix) {
     return Math.min(1.0, Math.pow(DRY_GAIN_AT_FULL_WET, (10 * mix - 1) / 9));
 }
 
+/**
+ * Converts a signed level in dB to a linear gain: 0 is unity, negative is
+ * quieter. The counterpart of reductionToGain(), which takes the same number
+ * with the opposite sign because a reduction is stated as a positive amount.
+ */
+function gainFromDb(db) {
+    return Math.pow(10, db / 20);
+}
+
 /** Converts a positive dB reduction to the linear gain that applies it */
 function reductionToGain(reductionDb) {
     return Math.pow(10, -reductionDb / 20);
@@ -67,23 +111,804 @@ function setConvolutionMix(mix) {
     convolutionMix = mix;
     if (!activeGraph) return;
 
-    const target = ctx.currentTime + 0.05;
-    activeGraph.dryGain.gain.linearRampToValueAtTime(dryGainFor(mix), target);
-    activeGraph.wetGainLeft.gain.linearRampToValueAtTime(mix, target);
-    activeGraph.wetGainRight.gain.linearRampToValueAtTime(mix, target);
+    rampGain(activeGraph.dryGain.gain, dryGainFor(mix), MIX_GLIDE);
+    rampGain(activeGraph.wetGainLeft.gain, mix, MIX_GLIDE);
+    rampGain(activeGraph.wetGainRight.gain, mix, MIX_GLIDE);
+
+    // The BRIR stage runs its own convolver pair off the same mono signal, so
+    // it needs the same wet amount applied to its own side of the split.
+    if (activeGraph.brirWetLeft) {
+        rampGain(activeGraph.brirWetLeft.gain, mix, MIX_GLIDE);
+        rampGain(activeGraph.brirWetRight.gain, mix, MIX_GLIDE);
+    }
+
+    // And the ambisonic stage the same, on all four channels at once
+    if (activeGraph.ambiWet) {
+        rampGain(activeGraph.ambiWet.gain, mix, MIX_GLIDE);
+    }
+}
+
+// ── Binaural rendering ────────────────────────────────────────────────────
+
+/**
+ * Half the angle between the virtual loudspeakers.
+ *
+ * Wider than the 30 degrees a stereo listening triangle would put them at. The
+ * pair carries the room rather than a mix, and spreading them opens the image
+ * out and pushes each speaker further from the centre, which buys a larger
+ * interaural difference: the measured responses differ by 13.4 dB between the
+ * ears here against 11.3 dB at 30 degrees. That difference is what the ear
+ * reads as width.
+ *
+ * Documentation only — the angle itself lives in the two HRIR files below, and
+ * changing this number without cutting new ones changes nothing you can hear.
+ */
+const VIRTUAL_SPEAKER_AZIMUTH = 45;
+
+/**
+ * The measured ears this render puts its virtual loudspeakers on.
+ *
+ * One stereo file per speaker: channel 0 is the left ear, channel 1 the right,
+ * so convolving a speaker's mono feed against it produces that speaker as both
+ * ears hear it. Cut from the SADIE II set at +-45 degrees and 0 elevation, the
+ * same subject the BRIR and ambisonic stages decode against, which is what
+ * makes the three modes comparable: they now differ in how the room reaches the
+ * ears, not in whose ears they are.
+ *
+ * Named for where the speaker stands rather than for the angle in the file:
+ * SADIE counts azimuth counterclockwise, so its 45 degrees is the left speaker
+ * and its 315 the right. Changing VIRTUAL_SPEAKER_AZIMUTH means cutting new
+ * files; these two are fixed at the angle above.
+ */
+const VIRTUAL_SPEAKER_HRIR = {
+    left: 'HRIR/virtual-speaker-left.wav',
+    right: 'HRIR/virtual-speaker-right.wav',
+};
+
+/**
+ * Output level of the binaural stage, in dB, for an uncalibrated church.
+ *
+ * Zero, so an uncalibrated stage plays at whatever level its own processing
+ * produces with nothing taken off. That is deliberately not a good listening
+ * level: it is a starting point with an unambiguous direction to move in. A
+ * fallback already close to right is the harder thing to calibrate against,
+ * because the ear has nothing to push away from and every value sounds nearly
+ * as plausible as the last.
+ *
+ * Set trim.binaural per church in ROOMS; tools/measure-loudness.js derives it.
+ */
+const BINAURAL_TRIM_DB = 0;
+
+/**
+ * Seconds spent crossfading between the two output stages.
+ *
+ * Squeezed between two limits rather than chosen for feel. It cannot go to
+ * zero: a gain that steps in a single sample is a click, which is what
+ * rampGain() exists to avoid. It also should not go below the delay the HRIR
+ * convolvers add — a few milliseconds the stereo stage does not pay — because a
+ * fade shorter than that offset would duck both stages at once and punch a hole
+ * in the sound.
+ *
+ * 20 ms clears both and is well under the ~50 ms where a switch stops reading
+ * as immediate.
+ */
+const BINAURAL_CROSSFADE = 0.02;
+
+const BINAURAL_TITLE_ON = "Binaural rendering: on (best with headphones)";
+const BINAURAL_TITLE_OFF = "Binaural rendering: off";
+
+/** Whether playback leaves through the binaural stage. Toggled by its button. */
+let binauralEnabled = false;
+
+/** The speaker HRIRs, once fetched; they are the same for every position */
+let virtualSpeakerHrir = null;
+let virtualSpeakerPending = null;
+
+/**
+ * Loads the pair of speaker HRIRs, once for the life of the page.
+ *
+ * They do not vary by church the way the impulse responses do — the speakers
+ * stand at the same two angles everywhere — so this is fetched once and shared,
+ * and a failure costs the mode rather than the playback.
+ */
+async function ensureVirtualSpeakerHrir() {
+    if (virtualSpeakerHrir) return virtualSpeakerHrir;
+    if (virtualSpeakerPending) return virtualSpeakerPending;
+
+    virtualSpeakerPending = (async () => {
+        try {
+            const [left, right] = await Promise.all([
+                loadImpulseResponse(VIRTUAL_SPEAKER_HRIR.left),
+                loadImpulseResponse(VIRTUAL_SPEAKER_HRIR.right),
+            ]);
+            virtualSpeakerHrir = { left, right };
+            return virtualSpeakerHrir;
+        } catch (err) {
+            console.error(err);
+            virtualSpeakerPending = null;   // let a later play try again
+            return null;
+        }
+    })();
+
+    return virtualSpeakerPending;
+}
+
+/**
+ * One virtual loudspeaker, rendered to both ears through a measured HRIR.
+ *
+ * A convolver with a mono input and a two-channel response outputs both ears,
+ * so one node is the whole speaker. Normalization is off for the same reason it
+ * is off on the other measured stages: the HRIR arrives at the level it was
+ * measured at, and the difference between the two ears is the direction.
+ *
+ * The listener is never reoriented; that is what makes this the untracked
+ * render, and it keeps the image steady however the panorama is dragged.
+ *
+ * @param hrir Two-channel response for the angle this speaker stands at
+ */
+function createVirtualSpeaker(audioCtx, hrir) {
+    const speaker = audioCtx.createConvolver();
+    speaker.normalize = false;
+    speaker.buffer = hrir;
+    return speaker;
+}
+
+/**
+ * Switches output stage, crossfading rather than rebuilding so the toggle can be
+ * pressed mid-playback without interrupting the loop.
+ */
+function setBinauralEnabled(enabled) {
+    if (enabled) engageMode('binaural');
+    else if (binauralEnabled) engageMode('stereo');
+
+    refreshModeButtons();
+    applyOutputStage();
+}
+
+function toggleBinaural() {
+    setBinauralEnabled(!binauralEnabled);
+}
+
+// ── Measured binaural rendering (BRIR) ────────────────────────────────────
+
+/**
+ * The third output stage, and the only one that is measured rather than
+ * modelled.
+ *
+ * The other two render the front L/R pair: stereo sends it to the headphone
+ * channels, binaural stands it on virtual loudspeakers filtered by the
+ * browser's generic HRTFs. This one convolves the mono source against a
+ * binaural room impulse response instead — the room and the head arriving
+ * together in one filter, already carrying this position's early reflections
+ * from the directions they actually came from.
+ *
+ * The BRIR pair is produced offline by tools/aformat-to-bformat.js and
+ * tools/bformat-to-brir.js, which decode the ambisonic capsules against a
+ * SADIE II HRTF set. Neither is run by the app; this only loads the result.
+ */
+
+/** Completes currentIr.base for the pair, as "1.wav"/"2.wav" do for the IR */
+const BRIR_LEFT_SUFFIX = "BRIR-L.wav";
+const BRIR_RIGHT_SUFFIX = "BRIR-R.wav";
+
+/**
+ * Output level of the BRIR stage, in dB, for an uncalibrated church.
+ *
+ * Zero, for the reason given on BINAURAL_TRIM_DB: calibration wants a starting
+ * point that is plainly wrong in a known direction.
+ *
+ * MIND THE VOLUME. Zero here is roughly 14 dB above where this will settle,
+ * because the convolver does not normalize — a BRIR carries the absolute level
+ * the offline decode arrived at, where the IR convolvers hand theirs to
+ * equal-power normalization and lose it. Expect to end near -14 dB. Turn the
+ * headphones down before switching an uncalibrated church into this mode.
+ */
+const BRIR_TRIM_DB = 0;
+
+const BRIR_TITLE_ON = "Measured binaural (BRIR): on (best with headphones)";
+const BRIR_TITLE_OFF = "Measured binaural (BRIR): off";
+const BRIR_TITLE_UNAVAILABLE = "Measured binaural (BRIR): not recorded for this position";
+
+/** Whether playback leaves through the measured binaural stage */
+let brirEnabled = false;
+
+/**
+ * Receiver positions whose BRIR pair could not be fetched.
+ *
+ * Most of the library has no BRIRs — they exist only where the offline tools
+ * have been run — and every play would otherwise re-request a pair that is not
+ * there. Keyed by currentIr.base, so a position is probed at most once.
+ */
+const brirMissing = new Set();
+
+/**
+ * Whether this mode can be engaged.
+ *
+ * A running graph is authoritative: the stage was either built or it was not.
+ * Stopped, the most that can be said is that nothing has ruled this position out
+ * yet — which is enough to let the mode be armed before playback starts, the way
+ * the modelled render can be. Disabling everything until the first play made
+ * both of these look permanently broken on a freshly loaded page.
+ */
+function brirAvailable() {
+    if (activeGraph) return Boolean(activeGraph.brirOut);
+    return !brirMissing.has(currentIr.base);
+}
+
+/**
+ * Loads the BRIR pair for the current selection, or null where there is none.
+ *
+ * Failure is not an error here: the mode is an extra that most positions do not
+ * carry, so a missing pair silences the stage rather than the playback.
+ */
+async function loadBrirPair(base) {
+    if (brirMissing.has(base)) return null;
+
+    try {
+        const [left, right] = await Promise.all([
+            loadImpulseResponse(base + BRIR_LEFT_SUFFIX),
+            loadImpulseResponse(base + BRIR_RIGHT_SUFFIX),
+        ]);
+        return { left, right };
+    } catch (err) {
+        brirMissing.add(base);
+        // Deliberately not reportResourceFailure(): a position without a BRIR is
+        // the normal case, not a broken one, and the banner is for broken.
+        return null;
+    }
+}
+
+function setBrirEnabled(enabled) {
+    if (enabled) engageMode('brir');
+    else if (brirEnabled) engageMode('stereo');
+
+    refreshModeButtons();
+    applyOutputStage();
+}
+
+function toggleBrir() {
+    setBrirEnabled(!brirEnabled);
+}
+
+/** Reflects the current mode on the BRIR button, if the view has one */
+function updateBrirButton() {
+    const btn = document.getElementById('brir');
+    if (!btn) return;
+
+    const available = brirAvailable();
+    btn.classList.toggle('active', brirEnabled && available);
+    btn.disabled = !available;
+    btn.setAttribute('aria-pressed', String(brirEnabled && available));
+    btn.title = !available ? BRIR_TITLE_UNAVAILABLE
+        : brirEnabled ? BRIR_TITLE_ON : BRIR_TITLE_OFF;
+}
+
+// ── Live ambisonic rendering (Omnitone) ───────────────────────────────────
+
+/**
+ * The fourth output stage: the B-format impulse response decoded to binaural in
+ * the browser, rather than baked into a BRIR offline.
+ *
+ * The BRIR stage and this one render the same measurement through the same kind
+ * of decode; the difference is where the decode happens. Baking it offline costs
+ * two convolvers at playback and fixes the listener's head forever. Decoding
+ * live costs four convolvers and a renderer, and keeps the soundfield in
+ * ambisonic form right up to the ears — which is the only arrangement that can
+ * be *rotated*, because a BRIR has already chosen which way the head was facing.
+ *
+ *   splitter ─┬─ convAmbi W ─┐
+ *             ├─ convAmbi Y  ├─► ambiMerger (4ch) ─► FOARenderer ─► ambisonicOut
+ *             ├─ convAmbi Z  │
+ *             └─ convAmbi X ─┘
+ *
+ * Each convolver holds one channel of the position's B-format IR, and all four
+ * are fed the same mono signal, so their outputs are that source as it would
+ * have been captured by the ambisonic array at that seat. The merger reassembles
+ * them into the 4-channel stream the renderer decodes.
+ */
+
+/** Completes currentIr.base for the 4-channel AmbiX file the tools write */
+const BFORMAT_SUFFIX = "Bformat.wav";
+
+/**
+ * Channel map handed to Omnitone: identity, because the files are already AmbiX.
+ *
+ * Omnitone's own default is the same, but the mapping is the single most
+ * damaging thing to get wrong here — a reorder swaps front for left with no
+ * other symptom — so it is passed explicitly to record that the decision was
+ * made rather than inherited.
+ */
+const AMBIX_CHANNEL_MAP = [0, 1, 2, 3];
+
+/** Channels in a first-order B-format stream, and so convolvers in this stage */
+const AMBISONIC_CHANNELS = 4;
+
+/**
+ * Output level of the live ambisonic stage, in dB, for an uncalibrated church.
+ *
+ * Zero, as above, and the loudest of the three to start from: the same
+ * unnormalized decode as the BRIR stage with Omnitone's own gain through the
+ * renderer on top. Roughly 16 dB above where it will settle, so mind the
+ * volume here too. Expect to end near -16.5 dB.
+ */
+const AMBISONIC_TRIM_DB = 0;
+
+const AMBISONIC_TITLE_ON = "Live ambisonic decode: on (best with headphones)";
+const AMBISONIC_TITLE_OFF = "Live ambisonic decode: off";
+const AMBISONIC_TITLE_UNAVAILABLE = "Live ambisonic decode: not available for this position";
+
+/** Whether playback leaves through the live ambisonic stage */
+let ambisonicEnabled = false;
+
+/**
+ * Whether the soundfield turns with the panorama.
+ *
+ * Off by default and deliberately so: the other three renders are all
+ * fixed-head, and a mode that tracked the view while they did not would be
+ * comparing two things at once. Turn it on to hear what head tracking buys;
+ * leave it off while judging the decode against the others.
+ */
+let soundfieldTracking = false;
+
+/** Positions whose B-format file could not be fetched, so it is asked for once */
+const bformatMissing = new Set();
+
+/** The live FOARenderer, and the initialization that is producing it */
+let foaRenderer = null;
+let foaRendererPending = null;
+
+/** Whether a missing Omnitone has already been reported, so it is said once */
+let omnitoneReported = false;
+
+/** Handle of the rotation loop, or null when the soundfield is not tracking */
+let soundfieldFrame = null;
+
+/**
+ * Initializes Omnitone's decoder once and hands the same instance out after.
+ *
+ * The renderer belongs to the AudioContext rather than to any one position, and
+ * initialize() fetches its own HRIR files, so building a new one per play would
+ * re-download them and stall the start of the sound.
+ *
+ * @returns the renderer, or null if Omnitone is absent or failed to start
+ */
+async function ensureAmbisonicRenderer() {
+    if (foaRenderer) return foaRenderer;
+
+    if (typeof Omnitone === 'undefined') {
+        // Say so once. A dead script tag disables this mode with no other
+        // symptom — the button simply never becomes pressable — and silence
+        // here makes that indistinguishable from a position lacking the file.
+        if (!omnitoneReported) {
+            omnitoneReported = true;
+            console.warn('Omnitone did not load, so the live ambisonic decode is unavailable. ' +
+                'Check the <script> tag in index.html resolves (a version that does not ' +
+                'exist on the CDN returns 404 without failing the page).');
+        }
+        return null;
+    }
+
+    if (foaRendererPending) return foaRendererPending;
+
+    foaRendererPending = (async () => {
+        try {
+            const renderer = Omnitone.createFOARenderer(ctx, { channelMap: AMBIX_CHANNEL_MAP });
+            await renderer.initialize();
+            foaRenderer = renderer;
+            return renderer;
+        } catch (err) {
+            console.error(err);
+            foaRendererPending = null;   // let a later play try again
+            return null;
+        }
+    })();
+
+    return foaRendererPending;
+}
+
+/**
+ * Loads the position's 4-channel AmbiX impulse response, split into the mono
+ * buffers the four convolvers need.
+ *
+ * A ConvolverNode reads a 4-channel buffer as a true-stereo matrix, not as four
+ * independent responses, so the channels have to be handed over one at a time.
+ *
+ * @returns an array of AMBISONIC_CHANNELS buffers, or null where there is none
+ */
+async function loadBformatChannels(audioCtx, base) {
+    if (bformatMissing.has(base)) return null;
+
+    let buffer;
+    try {
+        buffer = await loadImpulseResponse(base + BFORMAT_SUFFIX);
+    } catch (err) {
+        bformatMissing.add(base);
+        return null;   // most positions have none; that is not a failure
+    }
+
+    if (buffer.numberOfChannels < AMBISONIC_CHANNELS) {
+        console.warn(`${base}${BFORMAT_SUFFIX}: ${buffer.numberOfChannels} channels, ` +
+            `first-order ambisonics needs ${AMBISONIC_CHANNELS}`);
+        bformatMissing.add(base);
+        return null;
+    }
+
+    const channels = [];
+    for (let ch = 0; ch < AMBISONIC_CHANNELS; ch++) {
+        const mono = audioCtx.createBuffer(1, buffer.length, buffer.sampleRate);
+        mono.copyToChannel(buffer.getChannelData(ch), 0);
+        channels.push(mono);
+    }
+    return channels;
+}
+
+function setAmbisonicEnabled(enabled) {
+    if (enabled) engageMode('ambisonic');
+    else if (ambisonicEnabled) engageMode('stereo');
+
+    refreshModeButtons();
+    applyOutputStage();
+    syncSoundfieldTracking();
+}
+
+function toggleAmbisonic() {
+    setAmbisonicEnabled(!ambisonicEnabled);
+}
+
+/** Whether the live decode can be engaged; see brirAvailable() for the rule */
+function ambisonicAvailable() {
+    if (activeGraph) return Boolean(activeGraph.ambisonicOut);
+    return typeof Omnitone !== 'undefined' && !bformatMissing.has(currentIr.base);
+}
+
+function updateAmbisonicButton() {
+    const btn = document.getElementById('ambisonic');
+    if (!btn) return;
+
+    const available = ambisonicAvailable();
+    btn.classList.toggle('active', ambisonicEnabled && available);
+    btn.disabled = !available;
+    btn.setAttribute('aria-pressed', String(ambisonicEnabled && available));
+    btn.title = !available ? AMBISONIC_TITLE_UNAVAILABLE
+        : ambisonicEnabled ? AMBISONIC_TITLE_ON : AMBISONIC_TITLE_OFF;
+}
+
+// ── Soundfield rotation ───────────────────────────────────────────────────
+
+const TRACKING_TITLE_ON = "Head tracking: the soundfield turns with the view";
+const TRACKING_TITLE_OFF = "Head tracking: off, so this render is fixed-head like the others";
+const TRACKING_TITLE_UNAVAILABLE = "Head tracking: available with the live ambisonic decode";
+
+/**
+ * Turns head tracking on or off. Off by default; see soundfieldTracking.
+ */
+function setSoundfieldTracking(enabled) {
+    soundfieldTracking = enabled;
+    updateTrackingControl();
+    syncSoundfieldTracking();
+}
+
+/**
+ * Reflects tracking on its checkbox, if the view has one.
+ *
+ * The control is disabled unless the live decode is the mode running: it is the
+ * only one of the four that keeps the soundfield in a form that can be turned.
+ */
+function updateTrackingControl() {
+    const box = document.getElementById('tracking');
+    const control = document.getElementById('tracking-control');
+    if (!box) return;
+
+    const available = ambisonicEnabled && ambisonicAvailable();
+    box.checked = soundfieldTracking;
+    box.disabled = !available;
+
+    if (control) {
+        control.classList.toggle('unavailable', !available);
+        control.title = !available ? TRACKING_TITLE_UNAVAILABLE
+            : soundfieldTracking ? TRACKING_TITLE_ON : TRACKING_TITLE_OFF;
+    }
+}
+
+function toggleSoundfieldTracking() {
+    setSoundfieldTracking(!soundfieldTracking);
+}
+
+/** Runs the rotation loop only while it could do something */
+function syncSoundfieldTracking() {
+    const wanted = soundfieldTracking && ambisonicEnabled && Boolean(foaRenderer);
+    if (wanted) startSoundfieldTracking();
+    else stopSoundfieldTracking();
+}
+
+function startSoundfieldTracking() {
+    if (soundfieldFrame !== null) return;
+    if (typeof requestAnimationFrame !== 'function') return;
+
+    const step = () => {
+        soundfieldFrame = requestAnimationFrame(step);
+        updateSoundfieldRotation();
+    };
+    soundfieldFrame = requestAnimationFrame(step);
+}
+
+function stopSoundfieldTracking() {
+    if (soundfieldFrame === null) return;
+    if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(soundfieldFrame);
+    soundfieldFrame = null;
+
+    // Leave the soundfield where the head is pointing, not where it last was
+    if (foaRenderer) foaRenderer.setRotationMatrix4(rotationMatrix4(0, 0));
+}
+
+/**
+ * Where the soundfield's front points, as a panorama yaw in degrees.
+ *
+ * The recording and the photograph do not agree about which way is forward.
+ * The ambisonic array's front axis is wherever it was set down; the panorama's
+ * zero is wherever the camera happened to start. Half this collection differs
+ * by 180 degrees, and that gap does not merely put sources in the wrong place —
+ * it reverses which way they travel as the view turns, because the apparent
+ * lateral position goes as -sin(yaw - offset) and a half turn lands on the
+ * opposite slope of it. Set by compile() from the church's soundfieldYaw.
+ */
+let soundfieldYaw = 0;
+
+function setSoundfieldOrientation(yawDegrees) {
+    soundfieldYaw = Number.isFinite(yawDegrees) ? yawDegrees : 0;
+}
+
+/**
+ * Reads the panorama camera and turns the soundfield to match.
+ *
+ * The camera is pannellum's, read the same way aimViewer() writes it: yaw and
+ * pitch in degrees, yaw increasing to the right. What the soundfield is turned
+ * by is the camera's bearing *relative to the recording's own front*, which is
+ * why the church's offset comes off it here. Nothing is cached — the viewer is
+ * replaced on every panorama change, so holding a reference would rotate to the
+ * angles of a view that is no longer on screen.
+ */
+function updateSoundfieldRotation() {
+    if (!foaRenderer || typeof viewer === 'undefined' || !viewer) return;
+
+    try {
+        foaRenderer.setRotationMatrix4(
+            rotationMatrix4(viewer.getYaw() - soundfieldYaw, viewer.getPitch()));
+    } catch (err) {
+        // A viewer torn down mid-frame throws rather than returning an angle
+        console.error(err);
+    }
+}
+
+/**
+ * Matrix that expresses world directions in the listener's frame, column-major,
+ * as setRotationMatrix4() wants it.
+ *
+ * THE INVERSE, NOT THE ORIENTATION
+ *
+ * Omnitone converts the directional channels to graphics axes (−Y→x, Z→y,
+ * −X→z), multiplies by this matrix as given, and converts back — so a sound
+ * encoded as arriving from direction d comes out encoded as arriving from M·d.
+ *
+ * The camera's orientation R is therefore the wrong thing to send. Turning your
+ * head left does not move the room left; it leaves the room where it is, which
+ * is the same as moving every source right *relative to you*. What the decoder
+ * needs is the world seen from the listener, R⁻¹, and for a rotation that is
+ * simply Rᵀ. Sending R instead drags the soundfield along with the view, so a
+ * source stays glued to whichever ear it started in — the symptom that a turn
+ * to the left keeps the sound on the left instead of handing it to the right.
+ *
+ * Rᵀ rather than R(−yaw)·R(−pitch): negating both angles inverts each rotation
+ * but leaves them composed in the original order, which is only the same thing
+ * when one of them is zero. It would look right under pure yaw and go quietly
+ * wrong the moment the view was also tilted.
+ *
+ * R = Ry(yaw) · Rx(pitch), so this returns Rᵀ = Rx(−pitch) · Ry(−yaw). Roll is
+ * not represented because the panorama has none.
+ */
+function rotationMatrix4(yawDegrees, pitchDegrees) {
+    // Pannellum counts yaw positive to the RIGHT — dragging the view rightward
+    // decreases it, which is a leftward turn — while a positive rotation about
+    // the up axis in this frame turns LEFT. Negating reconciles the two. Left
+    // unreconciled, head tracking swings the room the same way as the head
+    // instead of against it, which is what an inverted tracker sounds like.
+    //
+    // Pitch needs no such flip: both call positive "up".
+    const yaw = -yawDegrees * Math.PI / 180;
+    const pitch = pitchDegrees * Math.PI / 180;
+
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+
+    return [
+        cy, sy * sp, sy * cp, 0,
+        0, cp, -sp, 0,
+        -sy, cy * sp, cy * cp, 0,
+        0, 0, 0, 1,
+    ];
+}
+
+// ── Per-church stage calibration ──────────────────────────────────────────
+
+/**
+ * Output levels for the render stages of the church being listened to, in dB,
+ * keyed by stage name. Set by compile() from that church's `trim` in ROOMS.
+ *
+ * Decibels rather than linear gain because these are found by ear, and the ear
+ * hears ratios: a step of 3 dB is the same size wherever it is taken, while a
+ * step of 0.05 in linear gain is enormous near silence and inaudible near
+ * unity. It also makes zero mean exactly what it looks like — no change — so a
+ * church waiting to be listened to reads as calibrated to nothing rather than
+ * needing a sentinel value.
+ *
+ * Each entry replaces that stage's constant outright rather than nudging it, so
+ * a church's trim is the level its stage runs at and can be read against any
+ * other church's directly.
+ *
+ * Stereo has no entry because it is the reference the others are matched to.
+ */
+let stageTrims = {};
+
+/** Points the calibration at a church. Anything missing falls back. */
+function setStageTrims(trims) {
+    stageTrims = trims || {};
+}
+
+/**
+ * A stage's level in dB: this church's calibration, or the shared default.
+ *
+ * Bounded rather than one-sided. Most of these take level off — the BRIR and
+ * ambisonic stages carry the whole gain of the offline decode and land fifteen
+ * to twenty dB hot — but the virtual-loudspeaker render comes back a decibel or
+ * so *under* stereo, because its HRIRs are convolved at the level they were
+ * measured at and two speakers only partly make that up. So a small boost is a
+ * real answer, not a dropped minus sign.
+ *
+ * The range is wide enough for every measured value and narrow enough that a
+ * typo cannot be catastrophic: past +12 dB a stage is heading for clipping, and
+ * below -40 dB it is inaudible, which is a misplaced decimal point rather than
+ * a calibration.
+ *
+ * Type is checked before value, or null would coerce to 0 and read as a
+ * deliberate "no change" from a church that has none.
+ *
+ * @param stage      'binaural', 'brir' or 'ambisonic'
+ * @param fallbackDb That stage's constant, used until the church is calibrated
+ */
+const STAGE_TRIM_MAX_DB = 12;
+const STAGE_TRIM_MIN_DB = -40;
+
+function stageTrimDb(stage, fallbackDb) {
+    const db = stageTrims[stage];
+    const usable = typeof db === 'number' && Number.isFinite(db)
+        && db >= STAGE_TRIM_MIN_DB && db <= STAGE_TRIM_MAX_DB;
+    return usable ? db : fallbackDb;
+}
+
+
+// ── Output stage selection ────────────────────────────────────────────────
+
+/**
+ * Which stage carries the signal. Four modes, three flags: engageMode() keeps
+ * them mutually exclusive, and this is the single place that resolves them.
+ */
+function outputStage() {
+    if (ambisonicEnabled) return 'ambisonic';
+    if (brirEnabled) return 'brir';
+    if (binauralEnabled) return 'binaural';
+    return 'stereo';
+}
+
+/**
+ * Makes one mode the live one. The modes are alternatives, not layers: leaving
+ * two engaged would silently pick one and make the other button a lie.
+ */
+function engageMode(mode) {
+    binauralEnabled = mode === 'binaural';
+    brirEnabled = mode === 'brir';
+    ambisonicEnabled = mode === 'ambisonic';
+}
+
+/** Reflects whichever mode is live on every control the view has */
+function refreshModeButtons() {
+    updateBinauralButton();
+    updateBrirButton();
+    updateAmbisonicButton();
+    updateTrackingControl();
+}
+
+/** The gain each stage's output should rest at for a given mode */
+function stageGainsFor(stage) {
+    return {
+        stereo: stage === 'stereo' ? 1 : 0,
+        binaural: stage === 'binaural'
+            ? gainFromDb(stageTrimDb('binaural', BINAURAL_TRIM_DB)) : 0,
+        brir: stage === 'brir'
+            ? gainFromDb(stageTrimDb('brir', BRIR_TRIM_DB)) : 0,
+        ambisonic: stage === 'ambisonic'
+            ? gainFromDb(stageTrimDb('ambisonic', AMBISONIC_TRIM_DB)) : 0,
+    };
+}
+
+/**
+ * The stage that will actually be heard: the selected one, or stereo where the
+ * selection was never built. Falling back matters because two of the four modes
+ * depend on files most positions do not carry, and fading to a stage that is not
+ * there would fade to silence.
+ */
+function builtStage(graph) {
+    const stage = outputStage();
+    if (stage === 'binaural' && !graph.binauralOut) return 'stereo';
+    if (stage === 'brir' && !graph.brirOut) return 'stereo';
+    if (stage === 'ambisonic' && !graph.ambisonicOut) return 'stereo';
+    return stage;
+}
+
+/** Crossfades the live graph to whichever stage the current mode selects */
+function applyOutputStage() {
+    if (!activeGraph) return;
+
+    const gains = stageGainsFor(builtStage(activeGraph));
+
+    rampGain(activeGraph.stereoOut.gain, gains.stereo, BINAURAL_CROSSFADE);
+    if (activeGraph.binauralOut) {
+        rampGain(activeGraph.binauralOut.gain, gains.binaural, BINAURAL_CROSSFADE);
+    }
+    if (activeGraph.brirOut) {
+        rampGain(activeGraph.brirOut.gain, gains.brir, BINAURAL_CROSSFADE);
+    }
+    if (activeGraph.ambisonicOut) {
+        rampGain(activeGraph.ambisonicOut.gain, gains.ambisonic, BINAURAL_CROSSFADE);
+    }
+}
+
+/** Reflects the current mode on the toggle button */
+function updateBinauralButton() {
+    const btn = document.getElementById('binaural');
+    if (!btn) return;
+
+    btn.classList.toggle('active', binauralEnabled);
+    btn.setAttribute('aria-pressed', String(binauralEnabled));
+    btn.title = binauralEnabled ? BINAURAL_TITLE_ON : BINAURAL_TITLE_OFF;
 }
 
 /**
  * Wires a source node through the wet/dry convolution graph to the context's
  * destination.
  *
- *   source ─┬─ dryGain ───────────────────────────────► merger L+R
- *           └─ irTrim ─ splitter ─┬─ convL ─ wetL ────► merger L
- *                                 └─ convR ─ wetR ────► merger R
+ *   source ─┬─ dryGain
+ *           └─ irTrim ─ splitter ─┬─ convL ─ wetGainLeft
+ *                                 └─ convR ─ wetGainRight
  *
- * @returns the gain nodes the mix slider retunes, plus the merger to unhook on stop
+ * Those three feed both stages; whichever is faded up is the one heard:
+ *
+ *   dryGain ──────► merger L + R ─┐
+ *   wetGainLeft ──► merger L      ├─► stereoOut ────┐
+ *   wetGainRight ─► merger R      ┘                 │
+ *                                                   ├──► output ──► destination
+ *   dryGain ──────► both speakers ┐                 │
+ *   wetGainLeft ──► speaker -30°  ├─► binauralOut ──┤
+ *   wetGainRight ─► speaker +30°  ┘                 │
+ *                                                   │
+ *   dryGain ──────► merger L + R ─┐                 │
+ *   brirWetLeft ──► merger L      ├─► brirOut ──────┘
+ *   brirWetRight ─► merger R      ┘
+ *
+ * The third stage is only built where the position has a BRIR pair, and it taps
+ * the same splitter rather than the same convolvers: it is the same wet path
+ * with a different pair of impulse responses in it, so its convolvers hold the
+ * measured binaural room response instead of IR channels 1 and 2. Its output
+ * goes straight to the headphone channels, because a BRIR has already been
+ * through a head and must not be sent through another one.
+ *
+ * All available stages are built every time and the unused ones silenced:
+ * tearing the graph down to change stage would restart the source and lose its
+ * place in the loop.
+ *
+ * @returns the gain nodes the mix slider and the mode toggles retune, plus the
+ *          output node to unhook on stop
  */
-function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irGainDb }) {
+function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irGainDb, binaural, brir, brirLeft, brirRight, ambisonic, bformatChannels, ambisonicRenderer, speakerHrir }) {
     const convolverLeft = audioCtx.createConvolver();
     convolverLeft.buffer = irLeft;
     const convolverRight = audioCtx.createConvolver();
@@ -100,7 +925,6 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
     // A one-output splitter keeps channel 0 only, so a stereo source file is
     // convolved as mono rather than folded into both ears.
     const splitter = audioCtx.createChannelSplitter(1);
-    const merger = audioCtx.createChannelMerger(2);
 
     const dryGain = audioCtx.createGain();
     const wetGainLeft = audioCtx.createGain();
@@ -109,24 +933,151 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
     wetGainLeft.gain.value = mix;
     wetGainRight.gain.value = mix;
 
-    // Dry path: unconvolved source to both ears
     sourceNode.connect(dryGain);
-    dryGain.connect(merger, 0, 0);
-    dryGain.connect(merger, 0, 1);
 
-    // Wet path: one convolver per ear, both fed the same mono signal
+    // Wet path: one convolver per side, both fed the same mono signal
     sourceNode.connect(irTrim);
     irTrim.connect(splitter);
     splitter.connect(convolverLeft, 0);
     splitter.connect(convolverRight, 0);
     convolverLeft.connect(wetGainLeft);
     convolverRight.connect(wetGainRight);
+
+    const output = audioCtx.createGain();
+
+    // Stereo stage: dry to both channels so it stays centred, one convolver per ear
+    const merger = audioCtx.createChannelMerger(2);
+    const stereoOut = audioCtx.createGain();
+    dryGain.connect(merger, 0, 0);
+    dryGain.connect(merger, 0, 1);
     wetGainLeft.connect(merger, 0, 0);
     wetGainRight.connect(merger, 0, 1);
+    merger.connect(stereoOut);
+    stereoOut.connect(output);
 
-    merger.connect(audioCtx.destination);
+    // Binaural stage: the same signals through virtual loudspeakers, dry centred
+    // between the pair exactly as it is centred between the headphone channels.
+    // Built only where the speaker HRIRs loaded; they ship with the app, so this
+    // is a network failure rather than a property of the position.
+    let binauralOut = null;
+    let speakerLeft = null;
+    let speakerRight = null;
 
-    return { dryGain, wetGainLeft, wetGainRight, output: merger };
+    if (speakerHrir) {
+        speakerLeft = createVirtualSpeaker(audioCtx, speakerHrir.left);
+        speakerRight = createVirtualSpeaker(audioCtx, speakerHrir.right);
+        binauralOut = audioCtx.createGain();
+        dryGain.connect(speakerLeft);
+        dryGain.connect(speakerRight);
+        wetGainLeft.connect(speakerLeft);
+        wetGainRight.connect(speakerRight);
+        speakerLeft.connect(binauralOut);
+        speakerRight.connect(binauralOut);
+        binauralOut.connect(output);
+    }
+
+    // BRIR stage: the same mono signal off the same splitter, convolved against
+    // the measured binaural response instead of the raw IR pair. Built only
+    // where the position has one.
+    let brirOut = null;
+    let brirWetLeft = null;
+    let brirWetRight = null;
+
+    if (brirLeft && brirRight) {
+        const brirConvolverLeft = audioCtx.createConvolver();
+        // The BRIR carries the absolute level the offline decode arrived at, and
+        // normalization would scale it back out the way it would an IR trim.
+        // BRIR_TRIM_DB is where this stage's level is set instead.
+        brirConvolverLeft.normalize = false;
+        brirConvolverLeft.buffer = brirLeft;
+
+        const brirConvolverRight = audioCtx.createConvolver();
+        brirConvolverRight.normalize = false;
+        brirConvolverRight.buffer = brirRight;
+
+        brirWetLeft = audioCtx.createGain();
+        brirWetRight = audioCtx.createGain();
+        brirWetLeft.gain.value = mix;
+        brirWetRight.gain.value = mix;
+
+        const brirMerger = audioCtx.createChannelMerger(2);
+        brirOut = audioCtx.createGain();
+
+        splitter.connect(brirConvolverLeft, 0);
+        splitter.connect(brirConvolverRight, 0);
+        brirConvolverLeft.connect(brirWetLeft);
+        brirConvolverRight.connect(brirWetRight);
+
+        // Dry stays centred here exactly as it is in the other two stages
+        dryGain.connect(brirMerger, 0, 0);
+        dryGain.connect(brirMerger, 0, 1);
+        brirWetLeft.connect(brirMerger, 0, 0);
+        brirWetRight.connect(brirMerger, 0, 1);
+        brirMerger.connect(brirOut);
+        brirOut.connect(output);
+    }
+
+    // Ambisonic stage: four convolvers, one per AmbiX channel of this position's
+    // B-format IR, all fed the same mono signal. Built only where the file and
+    // the renderer are both there.
+    let ambisonicOut = null;
+    let ambiMerger = null;
+    let ambiWet = null;
+
+    if (bformatChannels && ambisonicRenderer) {
+        ambiMerger = audioCtx.createChannelMerger(AMBISONIC_CHANNELS);
+        ambiWet = audioCtx.createGain();
+        ambisonicOut = audioCtx.createGain();
+
+        for (let ch = 0; ch < AMBISONIC_CHANNELS; ch++) {
+            const convolver = audioCtx.createConvolver();
+            // As with the BRIR: the offline decode set the absolute level of
+            // these channels, and their level *relative to each other* is the
+            // soundfield. Normalizing each one would flatten the directions out.
+            convolver.normalize = false;
+            convolver.buffer = bformatChannels[ch];
+            splitter.connect(convolver, 0);
+            convolver.connect(ambiMerger, 0, ch);
+        }
+
+        // The mix slider, applied to the whole 4-channel stream at once. Ambisonic
+        // channels are not speaker feeds, so the stream is carried as discrete
+        // channels — left to the default "speakers" interpretation a 4-channel
+        // signal would be read as a quad layout and remapped.
+        ambiWet.channelCount = AMBISONIC_CHANNELS;
+        ambiWet.channelCountMode = 'explicit';
+        ambiWet.channelInterpretation = 'discrete';
+        ambiWet.gain.value = mix;
+
+        // Dry is centred here as it is everywhere else, but a soundfield has no
+        // centre channel to put it in: encoded as a plane wave from straight
+        // ahead, it lands on W and X, which is where a source in front belongs.
+        dryGain.connect(ambiMerger, 0, 0);   // ACN 0, W
+        dryGain.connect(ambiMerger, 0, 3);   // ACN 3, X
+
+        ambiMerger.connect(ambiWet);
+        ambiWet.connect(ambisonicRenderer.input);
+        ambisonicRenderer.output.connect(ambisonicOut);
+        ambisonicOut.connect(output);
+    }
+
+    const stage = ambisonic && ambisonicOut ? 'ambisonic'
+        : brir && brirOut ? 'brir'
+            : binaural ? 'binaural' : 'stereo';
+    const gains = stageGainsFor(stage);
+    stereoOut.gain.value = gains.stereo;
+    if (binauralOut) binauralOut.gain.value = gains.binaural;
+    if (brirOut) brirOut.gain.value = gains.brir;
+    if (ambisonicOut) ambisonicOut.gain.value = gains.ambisonic;
+
+    output.connect(audioCtx.destination);
+
+    return {
+        dryGain, wetGainLeft, wetGainRight, irTrim,
+        stereoOut, binauralOut, brirOut, brirWetLeft, brirWetRight,
+        ambisonicOut, ambiMerger, ambiWet, ambisonicRenderer: ambisonicRenderer || null,
+        output,
+    };
 }
 
 // ── File loading ──────────────────────────────────────────────────────────
@@ -248,6 +1199,16 @@ async function startPlayback() {
         return;
     }
 
+    // Optional, and absent for most of the library. Loaded before the graph is
+    // built rather than on demand so the modes can be toggled mid-playback like
+    // the other two, without a rebuild that would restart the loop.
+    const [brirPair, bformatChannels, ambisonicRenderer, speakerHrir] = await Promise.all([
+        loadBrirPair(currentIr.base),
+        loadBformatChannels(ctx, currentIr.base),
+        ensureAmbisonicRenderer(),
+        ensureVirtualSpeakerHrir(),
+    ]);
+
     // A context constructed before any user gesture starts out suspended
     await ctx.resume();
 
@@ -263,11 +1224,26 @@ async function startPlayback() {
         irLeft,
         irRight,
         mix: convolutionMix,
-        irGainDb: currentIr.gainDb
+        irGainDb: currentIr.gainDb,
+        binaural: binauralEnabled,
+        brir: brirEnabled,
+        brirLeft: brirPair && brirPair.left,
+        brirRight: brirPair && brirPair.right,
+        ambisonic: ambisonicEnabled,
+        bformatChannels,
+        ambisonicRenderer,
+        speakerHrir
     });
 
     source.start();
     setPlaying(true);
+
+    // These controls can only say whether their mode exists once the files have
+    // been looked for, which is here rather than at selection time
+    updateBrirButton();
+    updateAmbisonicButton();
+    updateTrackingControl();
+    syncSoundfieldTracking();
 
     //downloadConvolvedAudio(); // Uncomment to download the convolved output for testing
 }
@@ -283,14 +1259,28 @@ function stopPlayback() {
         source = null;
     }
 
-    // Unhooking the merger releases the whole graph for collection; leaving it
+    // Unhooking the output releases the whole graph for collection; leaving it
     // attached to the destination would pin every node of every past playback.
     if (activeGraph) {
         activeGraph.output.disconnect();
+
+        // The Omnitone renderer outlives the graph — it belongs to the context
+        // and is reused across plays — so the two edges that cross into it have
+        // to be cut by hand. Left attached, every past graph's convolvers stay
+        // hanging off its input.
+        if (activeGraph.ambiWet) activeGraph.ambiWet.disconnect();
+        if (activeGraph.ambisonicRenderer) activeGraph.ambisonicRenderer.output.disconnect();
+
         activeGraph = null;
     }
 
+    stopSoundfieldTracking();
     setPlaying(false);
+
+    // Availability is read off the graph while one is running, so the controls
+    // have to be asked again once it is gone or they keep reporting the last
+    // position's answer.
+    refreshModeButtons();
 }
 
 async function playpause() {
@@ -319,8 +1309,15 @@ async function downloadConvolvedAudio() {
         loadImpulseResponse(currentIr.base + "2.wav")
     ]);
 
-    // Room for the source plus the reverb tail it leaves behind
-    const frames = sourceBuffer.length + irLeft.length;
+    const [brirPair, speakerHrir] = await Promise.all([
+        loadBrirPair(currentIr.base),
+        ensureVirtualSpeakerHrir(),
+    ]);
+
+    // Room for the source plus the longest tail any built stage leaves behind.
+    // A BRIR carries the room and the head together and outruns the raw IR.
+    const tail = Math.max(irLeft.length, brirPair ? brirPair.left.length : 0);
+    const frames = sourceBuffer.length + tail;
     const offlineCtx = new OfflineAudioContext(2, frames, ctx.sampleRate);
 
     const offlineSource = offlineCtx.createBufferSource();
@@ -329,7 +1326,18 @@ async function downloadConvolvedAudio() {
         irLeft,
         irRight,
         mix: convolutionMix,
-        irGainDb: currentIr.gainDb
+        irGainDb: currentIr.gainDb,
+        binaural: binauralEnabled,
+        brir: brirEnabled,
+        brirLeft: brirPair && brirPair.left,
+        brirRight: brirPair && brirPair.right,
+        // No ambisonic stage offline: an Omnitone renderer belongs to the
+        // context that made it, so the live one cannot be borrowed here. The
+        // render falls back to stereo when that is the mode being listened to.
+        ambisonic: false,
+        bformatChannels: null,
+        ambisonicRenderer: null,
+        speakerHrir
     });
 
     offlineSource.start();

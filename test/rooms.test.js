@@ -145,3 +145,36 @@ test('every room has matching reference data in ChurchData.js', () => {
         );
     }
 });
+
+// ── receiver distances ────────────────────────────────────────────────────
+// The binaural render stands its virtual loudspeakers at these, so they are
+// load-bearing for playback and no longer only modal text.
+
+test('every receiver in the table yields a usable distance', () => {
+    const { receiverDistanceFeet } = app.g;
+    for (const [key] of rooms) {
+        for (const r of Object.keys(ROOMS[key].receivers)) {
+            const feet = receiverDistanceFeet(key, r);
+            assert.ok(feet > 0, `${key}.${r}: distance did not parse — the binaural render would fall back`);
+            assert.ok(feet < 500, `${key}.${r}: ${feet} ft is not a distance inside a church`);
+        }
+    }
+});
+
+test('receiverDistanceFeet reads the figure the modal shows', () => {
+    const { receiverDistanceFeet } = app.g;
+    assert.equal(receiverDistanceFeet('StAugustineIsleta', 'R5'), 90.17);
+    assert.equal(receiverDistanceFeet('CaneRidgeMeetingHouse', 'R1'), 8.7);
+    assert.equal(
+        receiverDistanceFeet('StAugustineIsleta', 'R5') + ' ft',
+        app.data.churchData.StAugustineIsleta.receivers.R5,
+        'the parsed value must be the same number the visitor is shown'
+    );
+});
+
+test('receiverDistanceFeet reports nothing rather than guessing', () => {
+    const { receiverDistanceFeet } = app.g;
+    for (const [room, rcv] of [['StAugustineIsleta', 'R99'], ['NoSuchChurch', 'R1'], ['', '']]) {
+        assert.equal(receiverDistanceFeet(room, rcv), 0, `expected 0 for ${room}.${rcv}`);
+    }
+});

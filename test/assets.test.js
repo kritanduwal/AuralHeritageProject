@@ -115,6 +115,142 @@ test('the cover photo is shown whole rather than cropped', () => {
     assert.match(rule, /max-height:/, 'a tall photo must not push the history out of view');
 });
 
+// ── the playback controls ─────────────────────────────────────────────────
+
+/** Pulls the px value of one property out of a CSS rule body */
+const px = (rule, prop) => Number(rule.match(new RegExp(prop + ':\\s*(-?[\\d.]+)px'))[1]);
+/** Body of the rule whose selector is exactly `selector`, at the start of a line */
+const ruleFor = (selector) =>
+    layoutCss.match(new RegExp('^' + selector + '\\s*\\{([^}]*)\\}', 'm'))[1];
+
+/** The playback controls, in the order they sit leftward from the corner */
+const CONTROL_ROW = ['#play', '#binaural', '#brir', '#ambisonic'];
+
+/** The three render modes and the engine call each one makes */
+const MODE_TOGGLES = [
+    ['binaural', 'toggleBinaural'],
+    ['brir', 'toggleBrir'],
+    ['ambisonic', 'toggleAmbisonic'],
+];
+
+test('every render mode has a button wired to the engine', () => {
+    for (const [id, handler] of MODE_TOGGLES) {
+        assert.match(html, new RegExp(`id="${id}"`), `no ${id} button in the view`);
+        assert.match(html, new RegExp(`id="${id}"[^>]*onclick="${handler}\\(\\)"`),
+            `the ${id} button must call the engine, not just sit there`);
+        assert.match(html, new RegExp(`id="${id}"[^>]*aria-pressed=`),
+            `${id} has to announce its state to assistive technology`);
+        assert.match(html, new RegExp(`id="${id}"[^>]*class="[^"]*mode-toggle`),
+            `${id} must carry the shared toggle styling`);
+    }
+});
+
+test('the modes needing offline-built files start disabled', () => {
+    // Most positions have neither a BRIR nor a B-format IR. A button that looks
+    // live until it is pressed is worse than one that says so up front.
+    for (const id of ['brir', 'ambisonic']) {
+        assert.match(html, new RegExp(`id="${id}"[^>]*\\sdisabled`),
+            `${id} should start disabled; the engine enables it once the files are found`);
+    }
+    assert.doesNotMatch(html, /id="binaural"[^>]*\sdisabled/,
+        'the modelled binaural render needs no extra files and is always available');
+});
+
+test('the playback controls sit in a row without overlapping', () => {
+    // All are position: fixed against the bottom-right corner, so a change to
+    // any one's size silently stacks it on top of its neighbour.
+    const spans = CONTROL_ROW.map(selector => {
+        const rule = ruleFor(selector);
+        const inner = px(rule, 'right');
+        return { selector, inner, outer: inner + px(rule, 'width') };
+    });
+
+    for (let i = 1; i < spans.length; i++) {
+        const left = spans[i], right = spans[i - 1];
+        assert.ok(left.inner >= right.outer,
+            `${left.selector} overlaps ${right.selector}: ${right.selector} reaches ` +
+            `${right.outer}px from the right, ${left.selector} starts at ${left.inner}px`);
+        assert.ok(left.inner - right.outer <= 32,
+            `${left.selector} strays from ${right.selector}; the row should read as one group`);
+    }
+});
+
+test('the playback controls share a centre line', () => {
+    const centre = (selector) => {
+        const rule = ruleFor(selector);
+        return px(rule, 'bottom') + px(rule, 'height') / 2;
+    };
+    const line = centre('#play');
+    for (const selector of CONTROL_ROW) {
+        assert.equal(centre(selector), line,
+            `${selector} is a different size, so its bottom offset has to differ to line up`);
+    }
+});
+
+test('the head-tracking control is wired and clears the button row', () => {
+    assert.match(html, /id="tracking"[^>]*onchange="setSoundfieldTracking\(this\.checked\)"/,
+        'the checkbox must drive the engine');
+    assert.match(html, /id="tracking"[^>]*\sdisabled/,
+        'tracking applies to one mode only, so it starts unavailable');
+
+    const row = ruleFor('#play');
+    const rowTop = px(row, 'bottom') + px(row, 'height');
+    assert.ok(px(ruleFor('#tracking-control'), 'bottom') >= rowTop,
+        'the tracking control would sit on top of the buttons');
+});
+
+test('the engaged colour of a toggle does not double as the availability colour', () => {
+    // --maincolor2 turns crimson to report a missing recording. A mode toggle
+    // borrowing it would look like it was reporting a failure of its own.
+    const rule = ruleFor('\\.mode-toggle\\.active');
+    assert.doesNotMatch(rule, /--maincolor2/);
+    assert.match(rule, /var\(--activecolor\)/);
+    assert.match(read('Style/Root.css'), /--activecolor:/, 'the variable has to be defined somewhere');
+});
+
+test('a toggle reports its new state as fast as the audio switches', () => {
+    // The fill is the only report these buttons make, so a slow settle here is
+    // read as the whole switch being slow however fast the audio actually was.
+    const seconds = Number(ruleFor('\\.mode-toggle').match(/transition:[^;]*?([\d.]+)s/)[1]);
+    assert.ok(seconds <= 0.1,
+        `the colour takes ${seconds}s to arrive, long after the 0.02s audio crossfade`);
+});
+
+test('hovering a toggle never looks like engaging it', () => {
+    // No glyph changes with its mode, so colour is the only state there is —
+    // and the pointer is still on the button the instant it is switched off. A
+    // hover that painted it the engaged colour would report the mode just left.
+    const fill = (selector) => {
+        const match = ruleFor(selector).match(/background-color:\s*var\((--[\w-]+)\)/);
+        assert.ok(match, `${selector} must set a background colour`);
+        return match[1];
+    };
+
+    const resting = fill('\\.mode-toggle');
+    const hover = fill('\\.mode-toggle:hover');
+    const engaged = fill('\\.mode-toggle\\.active');
+    const engagedHover = fill('\\.mode-toggle\\.active:hover');
+
+    assert.notEqual(hover, engaged, 'hovering an off toggle must not paint it the engaged colour');
+    assert.notEqual(hover, resting, 'hover still has to answer the pointer');
+    assert.notEqual(engagedHover, hover, 'the two states must stay apart under the pointer too');
+
+    const root = read('Style/Root.css');
+    for (const name of [hover, engagedHover]) {
+        assert.match(root, new RegExp(name + ':'), `${name} has to be defined somewhere`);
+    }
+});
+
+test('an unavailable mode does not answer the pointer as though it were live', () => {
+    // Two of the three modes are disabled on most positions. A greyed button
+    // that still lit up on hover would look pressable.
+    const disabled = ruleFor('\\.mode-toggle:disabled');
+    assert.match(disabled, /cursor:\s*not-allowed/);
+    assert.match(disabled, /opacity:/, 'a disabled mode has to look different from an off one');
+    assert.match(ruleFor('\\.mode-toggle:disabled:hover'), /background-color:\s*var\(--belmont-blue\)/,
+        'hovering a mode that does not exist here must not tint it');
+});
+
 test('every church diagram referenced by CSS exists, spelled with the right case', () => {
     const missing = [];
     for (const m of layoutCss.matchAll(/url\("\.\.\/([^"]+)"\)/g)) {
@@ -127,6 +263,8 @@ test('every local file referenced by index.html exists', () => {
     const missing = [];
     for (const m of html.matchAll(/(?:src|href)="([^"]+)"/g)) {
         if (/^(https?:|#|mailto:|data:)/.test(m[1])) continue;
+        // <base href="/"> names the document's root, not a file to load
+        if (m[1] === '/') continue;
         if (!existsExactly(m[1])) missing.push(m[1]);
     }
     assert.deepEqual(missing, []);
@@ -244,4 +382,54 @@ test('no application source references a file that no longer exists', () => {
         }
     }
     assert.deepEqual(missing, []);
+});
+test('no church trim is left at a level the engine would refuse', () => {
+    // The engine ignores a value outside its bounds and falls back silently, so
+    // a church left there would play unmatched with nothing to show for it.
+    // Read the bounds off the engine rather than restating them, or the two can
+    // drift apart and this stops guarding anything.
+    const { STAGE_TRIM_MIN_DB, STAGE_TRIM_MAX_DB } = app.data;
+
+    const bad = [];
+    for (const key of roomKeys) {
+        for (const [stage, db] of Object.entries(ROOMS[key].trim)) {
+            if (typeof db !== 'number' || !Number.isFinite(db) ||
+                db < STAGE_TRIM_MIN_DB || db > STAGE_TRIM_MAX_DB) {
+                bad.push(`${key}.${stage} = ${JSON.stringify(db)}`);
+            }
+        }
+    }
+    assert.deepEqual(bad, [],
+        `trims must be finite numbers between ${STAGE_TRIM_MIN_DB} and ${STAGE_TRIM_MAX_DB} dB`);
+});
+
+test('each stage lands where the way it is built says it should', () => {
+    // The impulse-response convolvers normalize and the HRIR ones do not, so
+    // the two decoded stages carry the whole gain of the offline render while
+    // the virtual-loudspeaker one sits within a decibel or two of stereo. If
+    // that ordering ever inverts, a stage has stopped doing what it was built
+    // to do and the numbers are measuring something else.
+    for (const key of roomKeys) {
+        const { binaural, brir, ambisonic } = ROOMS[key].trim;
+        assert.ok(Math.abs(binaural) < 6,
+            `${key}: binaural at ${binaural} dB is too far from stereo to be that stage`);
+        assert.ok(brir < -10 && ambisonic < -10,
+            `${key}: the decoded stages should need heavy attenuation`);
+        assert.ok(ambisonic < brir,
+            `${key}: the ambisonic decode carries Omnitone's gain on top of the BRIR's`);
+    }
+});
+test('every church declares which way its recording faces', () => {
+    // Omitted means "the photograph and the recording agree", which is a claim
+    // about that session rather than a default worth inheriting silently. The
+    // value only ever comes from listening, so a church added later needs the
+    // check made rather than the field forgotten.
+    const bad = [];
+    for (const key of roomKeys) {
+        const yaw = ROOMS[key].soundfieldYaw;
+        if (yaw !== undefined && (typeof yaw !== 'number' || !Number.isFinite(yaw))) {
+            bad.push(`${key}: ${JSON.stringify(yaw)}`);
+        }
+    }
+    assert.deepEqual(bad, [], 'soundfieldYaw must be a number of degrees when present');
 });
