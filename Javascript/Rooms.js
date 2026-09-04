@@ -16,6 +16,20 @@
  * panorama.dir + "/" + panorama.prefix + "_" + receiverId + panorama.ext
  *     gives the 360 photo. Extensions are case-sensitive once deployed, so they
  *     are spelled here exactly as the files are named on disk.
+ * soundfieldYaw
+ *     the panorama yaw, in degrees, at which the ambisonic recording's own
+ *     front points. Omitted where the two already agree.
+ *
+ *     The photograph and the recording were not oriented together: the array's
+ *     front axis is wherever it was set down, the panorama's zero wherever the
+ *     camera started. Half this collection differs by 180 degrees, and the gap
+ *     is not cosmetic — head tracking turns the soundfield by the camera's
+ *     bearing, so an offset of half a turn reverses which ear a source moves
+ *     toward as you look around. Found by ear: turn the view and check that a
+ *     source crosses to the opposite ear rather than following you.
+ *
+ *     It only affects the live ambisonic render, the one mode whose soundfield
+ *     is still steerable at playback. The other three bake their orientation in.
  * trim
  *     per-church output levels for the render modes that are not plain stereo,
  *     in dB. Negative is quieter; zero leaves the stage at whatever level its
@@ -82,6 +96,7 @@ const ROOMS = {
     DowntownPresbyterianChurch: {
         ir:       { dir: "IR/Downtown Presbyterian Church", prefix: "Downtown Presbyterian" },
         panorama: { dir: "Images/Downtown Presbyterian Church", prefix: "Downtown Presbyterian Church", ext: ".jpg" },
+        soundfieldYaw: 180,
         trim:     { binaural: 0.6, brir: -17.4, ambisonic: -19.5 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
@@ -120,6 +135,7 @@ const ROOMS = {
     UnitedMethodistChurch: {
         ir:       { dir: "IR/Church Street United Methodist Church, Knoxville", prefix: "Church Street United" },
         panorama: { dir: "Images/Church Street United Methodist Church, Knoxville", prefix: "Church Street United Methodist Church", ext: ".jpg" },
+        soundfieldYaw: 180,
         trim:     { binaural: 0.9, brir: -18.7, ambisonic: -21 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
@@ -132,6 +148,7 @@ const ROOMS = {
     CaneRidgeMeetingHouse: {
         ir:       { dir: "IR/Cane Ridge Meeting House, KY", prefix: "Cane Ridge KY" },
         panorama: { dir: "Images/Cane Ridge Meeting House, KY", prefix: "Cane Ridge Meeting House, KY", ext: ".jpg" },
+        soundfieldYaw: 180,
         trim:     { binaural: 1, brir: -18.5, ambisonic: -20.9 },
         receivers: {
             R1: { pitch:   0, yaw: 4 },
@@ -149,6 +166,7 @@ const ROOMS = {
     FirstPresbyterianChurchKY: {
         ir:       { dir: "IR/First Presbyterian Church, KY", prefix: "FPC KY" },
         panorama: { dir: "Images/First Presbyterian Church, KY", prefix: "First Presbyterian Church, KY", ext: ".jpg" },
+        soundfieldYaw: 180,
         trim:     { binaural: 0.3, brir: -16.3, ambisonic: -18.7 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
@@ -166,6 +184,7 @@ const ROOMS = {
     BasilicaStFrancis: {
         ir:       { dir: "IR/Basilica St. Francis, IN", prefix: "St Francis_IN" },
         panorama: { dir: "Images/Basilica St. Francis, IN", prefix: "St Francis_IN", ext: ".JPG" },
+        soundfieldYaw: 180,
         trim:     { binaural: 0.4, brir: -18.6, ambisonic: -21.3 },
         receivers: {
             R1: { pitch:   0, yaw: 1 },
@@ -184,6 +203,7 @@ const ROOMS = {
     MonasteryImmaculateConception: {
         ir:       { dir: "IR/Monastery Immaculate Conception, IN", prefix: "MIC_IN" },
         panorama: { dir: "Images/Monastery Immaculate Conception, IN", prefix: "MIC_IN", ext: ".JPG" },
+        soundfieldYaw: 180,
         trim:     { binaural: 0.1, brir: -15.4, ambisonic: -17.9 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
@@ -198,6 +218,7 @@ const ROOMS = {
     OurLadyOfGuadalupe: {
         ir:       { dir: "IR/Our Lady of Guadalupe, NM", prefix: "Guadalupe_SantaFe" },
         panorama: { dir: "Images/Our Lady of Guadalupe, NM", prefix: "Guadalupe_SantaFe", ext: ".JPG" },
+        soundfieldYaw: 180,
         trim:     { binaural: 1.3, brir: -16.3, ambisonic: -18.5 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
@@ -212,6 +233,7 @@ const ROOMS = {
     StAugustineIsleta: {
         ir:       { dir: "IR/St Augustine Isleta, NM", prefix: "St Augustine_Isleta" },
         panorama: { dir: "Images/St Augustine Isleta, NM", prefix: "St Augustine_Isleta", ext: ".JPG" },
+        soundfieldYaw: 180,
         trim:     { binaural: 0.9, brir: -21.4, ambisonic: -23.7 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },

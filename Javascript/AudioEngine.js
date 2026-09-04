@@ -450,16 +450,6 @@ let ambisonicEnabled = false;
  */
 let soundfieldTracking = false;
 
-/**
- * Sign of the rotation applied to the soundfield.
- *
- * Whether a renderer wants the listener's orientation or the world's opposite
- * rotation is a convention, and getting it backwards makes the soundfield swing
- * the wrong way — which reads as a badly lagging tracker rather than as an
- * inverted one. Flip this if dragging the view right moves the room right.
- */
-const SOUNDFIELD_ROTATION_SIGN = 1;
-
 /** Positions whose B-format file could not be fetched, so it is asked for once */
 const bformatMissing = new Set();
 
@@ -652,18 +642,38 @@ function stopSoundfieldTracking() {
 }
 
 /**
+ * Where the soundfield's front points, as a panorama yaw in degrees.
+ *
+ * The recording and the photograph do not agree about which way is forward.
+ * The ambisonic array's front axis is wherever it was set down; the panorama's
+ * zero is wherever the camera happened to start. Half this collection differs
+ * by 180 degrees, and that gap does not merely put sources in the wrong place —
+ * it reverses which way they travel as the view turns, because the apparent
+ * lateral position goes as -sin(yaw - offset) and a half turn lands on the
+ * opposite slope of it. Set by compile() from the church's soundfieldYaw.
+ */
+let soundfieldYaw = 0;
+
+function setSoundfieldOrientation(yawDegrees) {
+    soundfieldYaw = Number.isFinite(yawDegrees) ? yawDegrees : 0;
+}
+
+/**
  * Reads the panorama camera and turns the soundfield to match.
  *
  * The camera is pannellum's, read the same way aimViewer() writes it: yaw and
- * pitch in degrees, yaw increasing to the right. Nothing is cached — the viewer
- * is replaced on every panorama change, so holding a reference would rotate to
- * the angles of a view that is no longer on screen.
+ * pitch in degrees, yaw increasing to the right. What the soundfield is turned
+ * by is the camera's bearing *relative to the recording's own front*, which is
+ * why the church's offset comes off it here. Nothing is cached — the viewer is
+ * replaced on every panorama change, so holding a reference would rotate to the
+ * angles of a view that is no longer on screen.
  */
 function updateSoundfieldRotation() {
     if (!foaRenderer || typeof viewer === 'undefined' || !viewer) return;
 
     try {
-        foaRenderer.setRotationMatrix4(rotationMatrix4(viewer.getYaw(), viewer.getPitch()));
+        foaRenderer.setRotationMatrix4(
+            rotationMatrix4(viewer.getYaw() - soundfieldYaw, viewer.getPitch()));
     } catch (err) {
         // A viewer torn down mid-frame throws rather than returning an angle
         console.error(err);
@@ -697,8 +707,15 @@ function updateSoundfieldRotation() {
  * not represented because the panorama has none.
  */
 function rotationMatrix4(yawDegrees, pitchDegrees) {
-    const yaw = yawDegrees * Math.PI / 180 * SOUNDFIELD_ROTATION_SIGN;
-    const pitch = pitchDegrees * Math.PI / 180 * SOUNDFIELD_ROTATION_SIGN;
+    // Pannellum counts yaw positive to the RIGHT — dragging the view rightward
+    // decreases it, which is a leftward turn — while a positive rotation about
+    // the up axis in this frame turns LEFT. Negating reconciles the two. Left
+    // unreconciled, head tracking swings the room the same way as the head
+    // instead of against it, which is what an inverted tracker sounds like.
+    //
+    // Pitch needs no such flip: both call positive "up".
+    const yaw = -yawDegrees * Math.PI / 180;
+    const pitch = pitchDegrees * Math.PI / 180;
 
     const cy = Math.cos(yaw), sy = Math.sin(yaw);
     const cp = Math.cos(pitch), sp = Math.sin(pitch);

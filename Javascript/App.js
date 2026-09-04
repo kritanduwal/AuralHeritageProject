@@ -232,6 +232,10 @@ async function compile() {
     const receiver = config && config.receivers[receiverId];
     if (!receiver) return;
 
+    // Which way the recording faces, so head tracking turns against the view
+    // rather than with it
+    setSoundfieldOrientation(config.soundfieldYaw || 0);
+
     // Output levels for this church's render stages; absent until calibrated
     setStageTrims(config.trim);
 

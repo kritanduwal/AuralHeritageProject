@@ -419,3 +419,17 @@ test('each stage lands where the way it is built says it should', () => {
             `${key}: the ambisonic decode carries Omnitone's gain on top of the BRIR's`);
     }
 });
+test('every church declares which way its recording faces', () => {
+    // Omitted means "the photograph and the recording agree", which is a claim
+    // about that session rather than a default worth inheriting silently. The
+    // value only ever comes from listening, so a church added later needs the
+    // check made rather than the field forgotten.
+    const bad = [];
+    for (const key of roomKeys) {
+        const yaw = ROOMS[key].soundfieldYaw;
+        if (yaw !== undefined && (typeof yaw !== 'number' || !Number.isFinite(yaw))) {
+            bad.push(`${key}: ${JSON.stringify(yaw)}`);
+        }
+    }
+    assert.deepEqual(bad, [], 'soundfieldYaw must be a number of degrees when present');
+});

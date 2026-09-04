@@ -995,32 +995,76 @@ function rotate(matrix, [x, y, z]) {
 }
 
 test('turning the view hands a centred source to the other ear', () => {
-    // The bug this pins: sending the camera's orientation instead of its inverse
-    // drags the soundfield along with the view, so a source stays glued to the
-    // ear it started in rather than swinging across. Nothing else here catches
-    // it — the orientation and its inverse are both orthonormal, and both are
-    // the identity when the view is level and forward.
-    const { rotationMatrix4, SOUNDFIELD_ROTATION_SIGN } = createApp().data;
+    // Pannellum counts yaw positive to the right, so a positive angle here is a
+    // rightward turn and a source ahead of you must move LEFT. Getting that
+    // backwards is not subtle to listen to but is invisible to every other test
+    // in this file: the matrix stays orthonormal and stays the identity at rest.
+    const { rotationMatrix4 } = createApp().data;
     const FORWARD = [0, 0, -1];
     const lateral = (yaw) => rotate(rotationMatrix4(yaw, 0), FORWARD)[0];
 
     close(lateral(0), 0, 1e-12, 'a level, forward view leaves a centred source centred');
 
-    const turned = lateral(40);
-    assert.ok(Math.abs(turned) > 0.5, 'a 40° turn should move a centred source well off centre');
-    assert.ok(turned * lateral(-40) < 0, 'opposite turns must move it to opposite ears');
-    close(turned, Math.sin(40 * Math.PI / 180) * SOUNDFIELD_ROTATION_SIGN, 1e-12,
-        'the source must swing the opposite way from the head, by the angle turned');
+    const turnedRight = lateral(40);
+    assert.ok(turnedRight < 0, 'turning right must move a centred source to the left ear');
+    close(turnedRight, -Math.sin(40 * Math.PI / 180), 1e-12,
+        'and by the angle turned, not some fraction of it');
+
+    assert.ok(lateral(-40) > 0, 'turning left must move it to the right ear');
+    close(lateral(-40), -turnedRight, 1e-12, 'the two turns must mirror each other');
 });
 
 test('tilting the view moves a centred source the opposite way in height', () => {
-    const { rotationMatrix4, SOUNDFIELD_ROTATION_SIGN } = createApp().data;
+    // Pitch needs no sign reconciliation: pannellum and this frame both call
+    // positive "up". Pinned so that a future fix to yaw cannot quietly take
+    // pitch with it — flipping one shared sign would have inverted both.
+    const { rotationMatrix4 } = createApp().data;
     const height = (pitch) => rotate(rotationMatrix4(0, pitch), [0, 0, -1])[1];
 
     close(height(0), 0, 1e-12);
-    close(height(30), -Math.sin(30 * Math.PI / 180) * SOUNDFIELD_ROTATION_SIGN, 1e-12,
+    close(height(30), -Math.sin(30 * Math.PI / 180), 1e-12,
         'looking up must put a source ahead of you below your new eyeline');
-    assert.ok(height(30) * height(-30) < 0, 'looking up and down must disagree');
+    assert.ok(height(-30) > 0, 'and looking down must put it above');
+});
+
+test('a church whose recording faces the other way turns the other way', () => {
+    // The offset is not cosmetic: the apparent lateral position goes as
+    // -sin(yaw - offset), so half a turn lands on the opposite slope and
+    // reverses which ear a source moves toward. Half the collection needs it.
+    const app = createApp();
+    const { rotationMatrix4 } = app.data;
+    const lateral = (yaw, offset) => rotate(rotationMatrix4(yaw - offset, 0), [0, 0, -1])[0];
+
+    const aligned = lateral(30, 0);
+    const opposed = lateral(30, 180);
+
+    assert.ok(aligned < 0, 'facing the same way, turning right sends a source left');
+    assert.ok(opposed > 0, 'facing opposite, the same turn sends it right');
+    close(opposed, -aligned, 1e-12, 'the two are exact mirrors, not merely different');
+});
+
+test('the soundfield offset reaches the renderer through the selection', async () => {
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    app.g.setAmbisonicEnabled(true);
+    app.g.setSoundfieldTracking(true);
+
+    app.g.setSoundfieldOrientation(180);
+    app.viewer.yaw = 30;
+    app.frames.tick();
+
+    assert.deepEqual(plain(app.foa.rotations.at(-1)),
+        plain(app.data.rotationMatrix4(30 - 180, 0)),
+        'the matrix must be built from the bearing relative to the recording');
+});
+
+test('a church with no offset is left alone', () => {
+    const app = createApp();
+    app.g.setSoundfieldOrientation(undefined);
+    assert.equal(app.state.soundfieldYaw, 0, 'a missing field must not become NaN');
+
+    app.g.setSoundfieldOrientation(180);
+    assert.equal(app.state.soundfieldYaw, 180);
 });
 
 test('rotationMatrix4 composes yaw and pitch as a true inverse', () => {
