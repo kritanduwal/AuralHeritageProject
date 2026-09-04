@@ -124,12 +124,13 @@ const ruleFor = (selector) =>
     layoutCss.match(new RegExp('^' + selector + '\\s*\\{([^}]*)\\}', 'm'))[1];
 
 /** The playback controls, in the order they sit leftward from the corner */
-const CONTROL_ROW = ['#play', '#binaural', '#brir'];
+const CONTROL_ROW = ['#play', '#binaural', '#brir', '#ambisonic'];
 
 /** The three render modes and the engine call each one makes */
 const MODE_TOGGLES = [
     ['binaural', 'toggleBinaural'],
     ['brir', 'toggleBrir'],
+    ['ambisonic', 'toggleAmbisonic'],
 ];
 
 test('every render mode has a button wired to the engine', () => {
@@ -147,7 +148,7 @@ test('every render mode has a button wired to the engine', () => {
 test('the modes needing offline-built files start disabled', () => {
     // Most positions have neither a BRIR nor a B-format IR. A button that looks
     // live until it is pressed is worse than one that says so up front.
-    for (const id of ['brir']) {
+    for (const id of ['brir', 'ambisonic']) {
         assert.match(html, new RegExp(`id="${id}"[^>]*\\sdisabled`),
             `${id} should start disabled; the engine enables it once the files are found`);
     }
@@ -186,6 +187,17 @@ test('the playback controls share a centre line', () => {
     }
 });
 
+test('the head-tracking control is wired and clears the button row', () => {
+    assert.match(html, /id="tracking"[^>]*onchange="setSoundfieldTracking\(this\.checked\)"/,
+        'the checkbox must drive the engine');
+    assert.match(html, /id="tracking"[^>]*\sdisabled/,
+        'tracking applies to one mode only, so it starts unavailable');
+
+    const row = ruleFor('#play');
+    const rowTop = px(row, 'bottom') + px(row, 'height');
+    assert.ok(px(ruleFor('#tracking-control'), 'bottom') >= rowTop,
+        'the tracking control would sit on top of the buttons');
+});
 
 test('the engaged colour of a toggle does not double as the availability colour', () => {
     // --maincolor2 turns crimson to report a missing recording. A mode toggle

@@ -731,6 +731,434 @@ test('the BRIR pair is named as the offline tools write it', () => {
     assert.equal(app.data.BRIR_RIGHT_SUFFIX, 'BRIR-R.wav');
 });
 
+// ── live ambisonic rendering (Omnitone) ───────────────────────────────────
+
+/** Makes the position's 4-channel B-format file resolve on the server */
+function withAmbisonic(app) {
+    const server = app.net.respond.bind(app.net);
+    app.net.respond = (url, opts) => (/-Bformat\.wav$/.test(url)
+        ? { ok: true, status: 200, channels: 4 }
+        : server(url, opts));
+    return app;
+}
+
+/**
+ * Copies an array out of the app's vm realm, normalizing negative zero.
+ *
+ * Arrays the sandbox builds carry its Array.prototype, not this one, and
+ * deepStrictEqual compares prototypes — so an identical array fails without
+ * this. It also distinguishes -0 from 0, which a rotation matrix does not:
+ * sin(0) lands on -0 wherever the sign is flipped, and the two are the same
+ * rotation.
+ */
+const plain = (arrayLike) => Array.from(arrayLike, (v) => (Object.is(v, -0) ? 0 : v));
+
+test('one convolver per AmbiX channel, all fed the same mono signal', () => {
+    const app = createApp();
+    const { splitter, ambiConvolvers, ambiMerger } = buildGraph(app, { withBformat: true });
+
+    assert.equal(ambiConvolvers.length, app.data.AMBISONIC_CHANNELS);
+    ambiConvolvers.forEach((convolver, ch) => {
+        assert.ok(app.edgesTo(convolver).some(e => e.from === splitter),
+            `channel ${ch} must convolve the same mono source as the rest`);
+        const toMerger = app.edgesFrom(convolver).find(e => e.to === ambiMerger);
+        assert.ok(toMerger, `channel ${ch} never reaches the merger`);
+        assert.equal(toMerger.input, ch, 'a channel must land on its own ACN index');
+    });
+});
+
+test('the ambisonic convolvers do not normalize, because the ratios are the field', () => {
+    // The level of these four channels relative to each other *is* the
+    // direction. Normalizing each one independently would flatten it out.
+    const app = createApp();
+    const { ambiConvolvers } = buildGraph(app, { withBformat: true });
+    for (const c of ambiConvolvers) assert.equal(c.normalize, false);
+});
+
+test('the merger reassembles all four channels for the decoder', () => {
+    const app = createApp();
+    const { ambiMerger, graph } = buildGraph(app, { withBformat: true });
+
+    assert.equal(ambiMerger.inputs, app.data.AMBISONIC_CHANNELS);
+    assert.ok(app.edgesFrom(ambiMerger).some(e => e.to === graph.ambiWet));
+});
+
+test('the ambisonic stream is carried as discrete channels, not as speaker feeds', () => {
+    // Under the default "speakers" interpretation a 4-channel signal is read as
+    // a quad layout and remapped, which would scramble W/Y/Z/X into positions.
+    const app = createApp();
+    const { graph } = buildGraph(app, { withBformat: true });
+
+    assert.equal(graph.ambiWet.channelInterpretation, 'discrete');
+    assert.equal(graph.ambiWet.channelCountMode, 'explicit');
+    assert.equal(graph.ambiWet.channelCount, app.data.AMBISONIC_CHANNELS);
+});
+
+test('the chain runs merger → renderer → its own output gain → destination', () => {
+    const app = createApp();
+    const { graph, renderer } = buildGraph(app, { ambisonic: true });
+
+    assert.ok(app.edgesFrom(graph.ambiWet).some(e => e.to === renderer.input),
+        'the 4-channel stream must reach the decoder');
+    assert.ok(app.edgesFrom(renderer.output).some(e => e.to === graph.ambisonicOut),
+        'the decoded pair must land on this mode’s own output gain');
+    assert.equal(graph.ambisonicOut.gain.value, app.data.AMBISONIC_TRIM);
+    assert.ok(app.edgesFrom(graph.ambisonicOut).some(e => e.to === graph.output));
+    assert.ok(app.edgesFrom(graph.output).some(e => e.to === app.ctx.destination));
+});
+
+test('the decoder is told the stream is already AmbiX', () => {
+    // A channel reorder here would swap front for left with no other symptom.
+    const app = createApp();
+    const { renderer } = buildGraph(app, { withBformat: true });
+
+    assert.deepEqual(plain(app.data.AMBIX_CHANNEL_MAP), [0, 1, 2, 3],
+        'the files are ACN/SN3D already, so the map must be the identity');
+    assert.deepEqual(plain(renderer.config.channelMap), plain(app.data.AMBIX_CHANNEL_MAP));
+});
+
+test('dry enters the soundfield as a plane wave from straight ahead', () => {
+    // A soundfield has no centre channel to put the dry signal in. Encoded from
+    // the front it lands on W and X, which is where a source in front belongs.
+    const app = createApp();
+    const { graph, ambiMerger } = buildGraph(app, { withBformat: true });
+
+    const inputs = app.edgesFrom(graph.dryGain)
+        .filter(e => e.to === ambiMerger).map(e => e.input).sort();
+    assert.deepEqual(inputs, [0, 3], 'dry belongs on ACN 0 (W) and ACN 3 (X), nowhere else');
+});
+
+test('the upstream trim and taper are untouched by the ambisonic stage', () => {
+    const app = createApp();
+    const plain = buildGraph(app, { mix: 0.4, irGainDb: 6 });
+    const withStage = buildGraph(app, { mix: 0.4, irGainDb: 6, withBformat: true });
+
+    assert.equal(withStage.irTrim.gain.value, plain.irTrim.gain.value);
+    assert.equal(withStage.graph.dryGain.gain.value, plain.graph.dryGain.gain.value);
+});
+
+test('the mix slider retunes the ambisonic stage along with the rest', async () => {
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+
+    app.g.setConvolutionMix(0.3);
+    assert.equal(app.state.activeGraph.ambiWet.gain.value, 0.3);
+});
+
+test('all four modes are alternatives, not layers', async () => {
+    const app = await readyToPlay(withAmbisonic(withBrir(createApp())));
+    await app.g.startPlayback();
+
+    app.g.setAmbisonicEnabled(true);
+    assert.equal(app.state.ambisonicEnabled, true);
+    assert.equal(app.state.brirEnabled, false);
+    assert.equal(app.state.binauralEnabled, false);
+
+    const graph = app.state.activeGraph;
+    assert.equal(graph.stereoOut.gain.value, 0);
+    assert.equal(graph.binauralOut.gain.value, 0);
+    assert.equal(graph.brirOut.gain.value, 0);
+    assert.equal(graph.ambisonicOut.gain.value, app.data.AMBISONIC_TRIM);
+
+    app.g.setBinauralEnabled(true);
+    assert.equal(app.state.ambisonicEnabled, false, 'engaging another must release this one');
+    assert.equal(graph.ambisonicOut.gain.value, 0);
+});
+
+test('the renderer is initialized once and reused across plays', async () => {
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    await app.g.startPlayback();
+
+    assert.equal(app.foaRenderers.length, 1,
+        'initialize() fetches HRIRs; a renderer per play would refetch them');
+    assert.equal(app.foa.initialized, true);
+});
+
+test('stopping cuts the edges that cross into the shared renderer', async () => {
+    // The renderer outlives the graph, so nothing else will release them.
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    const { ambiWet, ambisonicRenderer } = app.state.activeGraph;
+
+    app.g.stopPlayback();
+
+    assert.ok(app.edges.some(e => e.from === ambiWet && e.disconnected),
+        'the graph would stay hanging off the decoder input');
+    assert.ok(app.edges.some(e => e.from === ambisonicRenderer.output && e.disconnected));
+});
+
+test('a position with no B-format falls back to stereo rather than to silence', async () => {
+    const app = await readyToPlay(withoutDerived(createApp()));
+    await app.g.startPlayback();
+
+    app.g.setAmbisonicEnabled(true);
+    assert.equal(app.state.activeGraph.ambisonicOut, null);
+    assert.equal(app.state.activeGraph.stereoOut.gain.value, 1);
+});
+
+test('a position with no B-format is looked for once, not on every play', async () => {
+    const app = await readyToPlay(withoutDerived(createApp()));
+    const requests = () => app.net.log.filter(r => /-Bformat\.wav$/.test(r.url)).length;
+
+    await app.g.startPlayback();
+    const first = requests();
+    assert.ok(first > 0);
+
+    await app.g.startPlayback();
+    assert.equal(requests(), first);
+});
+
+test('the mode is simply unavailable when Omnitone did not load', async () => {
+    // A CDN that fails must cost one mode, not the whole engine.
+    const app = await readyToPlay(withAmbisonic(createApp({ noOmnitone: true })));
+    await app.g.startPlayback();
+
+    app.g.setAmbisonicEnabled(true);
+    assert.equal(app.state.activeGraph.ambisonicOut, null);
+    assert.equal(app.state.activeGraph.stereoOut.gain.value, 1, 'playback must survive');
+    assert.equal(app.el('ambisonic').disabled, true);
+    assert.equal(app.el('ambisonic').title, app.data.AMBISONIC_TITLE_UNAVAILABLE);
+});
+
+test('a renderer that fails to initialize costs the mode, not the playback', async () => {
+    const app = await readyToPlay(withAmbisonic(createApp({ omnitoneFails: true })));
+    await app.g.startPlayback();
+
+    assert.equal(app.state.isPlaying, true);
+    assert.equal(app.state.activeGraph.ambisonicOut, null);
+});
+
+// ── soundfield rotation ───────────────────────────────────────────────────
+
+test('rotationMatrix4 is the identity when the camera is level and forward', () => {
+    const app = createApp();
+    assert.deepEqual(plain(app.data.rotationMatrix4(0, 0)),
+        [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+});
+
+/**
+ * Applies a column-major 4x4 to a direction, exactly as Omnitone's rotator
+ * does: it converts the ACN directional channels to graphics axes (x right,
+ * y up, z back), multiplies by the matrix as given, and converts back — so a
+ * sound arriving from d ends up encoded as arriving from M·d.
+ */
+function rotate(matrix, [x, y, z]) {
+    const m = plain(matrix);
+    return [
+        m[0] * x + m[4] * y + m[8] * z,
+        m[1] * x + m[5] * y + m[9] * z,
+        m[2] * x + m[6] * y + m[10] * z,
+    ];
+}
+
+test('turning the view hands a centred source to the other ear', () => {
+    // The bug this pins: sending the camera's orientation instead of its inverse
+    // drags the soundfield along with the view, so a source stays glued to the
+    // ear it started in rather than swinging across. Nothing else here catches
+    // it — the orientation and its inverse are both orthonormal, and both are
+    // the identity when the view is level and forward.
+    const { rotationMatrix4, SOUNDFIELD_ROTATION_SIGN } = createApp().data;
+    const FORWARD = [0, 0, -1];
+    const lateral = (yaw) => rotate(rotationMatrix4(yaw, 0), FORWARD)[0];
+
+    close(lateral(0), 0, 1e-12, 'a level, forward view leaves a centred source centred');
+
+    const turned = lateral(40);
+    assert.ok(Math.abs(turned) > 0.5, 'a 40° turn should move a centred source well off centre');
+    assert.ok(turned * lateral(-40) < 0, 'opposite turns must move it to opposite ears');
+    close(turned, Math.sin(40 * Math.PI / 180) * SOUNDFIELD_ROTATION_SIGN, 1e-12,
+        'the source must swing the opposite way from the head, by the angle turned');
+});
+
+test('tilting the view moves a centred source the opposite way in height', () => {
+    const { rotationMatrix4, SOUNDFIELD_ROTATION_SIGN } = createApp().data;
+    const height = (pitch) => rotate(rotationMatrix4(0, pitch), [0, 0, -1])[1];
+
+    close(height(0), 0, 1e-12);
+    close(height(30), -Math.sin(30 * Math.PI / 180) * SOUNDFIELD_ROTATION_SIGN, 1e-12,
+        'looking up must put a source ahead of you below your new eyeline');
+    assert.ok(height(30) * height(-30) < 0, 'looking up and down must disagree');
+});
+
+test('rotationMatrix4 composes yaw and pitch as a true inverse', () => {
+    // Negating both angles inverts each rotation but leaves them composed in the
+    // original order, which matches a real inverse only when one of them is
+    // zero. It would look right under pure yaw and go quietly wrong on a tilt.
+    const { rotationMatrix4 } = createApp().data;
+    const m = plain(rotationMatrix4(35, 25));
+
+    // Rᵀ undoes R: applying the matrix and then its transpose is the identity
+    const round = rotate(m, rotate(
+        [m[0], m[4], m[8], 0, m[1], m[5], m[9], 0, m[2], m[6], m[10], 0, 0, 0, 0, 1],
+        [0, 0, -1]));
+    round.forEach((v, i) => close(v, [0, 0, -1][i], 1e-12, 'the pair should cancel exactly'));
+});
+
+test('rotationMatrix4 stays orthonormal as the camera turns', () => {
+    // A matrix that drifts off orthonormal would scale the soundfield as well as
+    // turn it, which is heard as the room breathing while the view is dragged.
+    const { rotationMatrix4 } = createApp().data;
+    for (const [yaw, pitch] of [[90, 0], [-45, 20], [180, -30], [37, 12]]) {
+        const m = rotationMatrix4(yaw, pitch);
+        const columns = [[m[0], m[1], m[2]], [m[4], m[5], m[6]], [m[8], m[9], m[10]]];
+        for (const c of columns) close(Math.hypot(...c), 1, 1e-12, 'column is not a unit vector');
+        close(columns[0][0] * columns[1][0] + columns[0][1] * columns[1][1]
+            + columns[0][2] * columns[1][2], 0, 1e-12, 'columns are not perpendicular');
+    }
+});
+
+test('the soundfield does not track the view by default', async () => {
+    // The other three renders are fixed-head. A mode that tracked while they did
+    // not would be comparing two differences at once.
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    app.g.setAmbisonicEnabled(true);
+
+    assert.equal(app.state.soundfieldTracking, false);
+    app.viewer.yaw = 90;
+    app.frames.tick();
+    assert.equal(app.foa.rotations.length, 0, 'nothing should be driving the renderer');
+});
+
+test('tracking drives the renderer from the panorama camera each frame', async () => {
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    app.g.setAmbisonicEnabled(true);
+    app.g.setSoundfieldTracking(true);
+
+    app.viewer.yaw = 90;
+    app.viewer.pitch = 0;
+    app.frames.tick();
+
+    const sent = app.foa.rotations.at(-1);
+    assert.deepEqual(plain(sent), plain(app.data.rotationMatrix4(90, 0)),
+        'the matrix must come from the angles aimViewer() works in');
+
+    app.viewer.yaw = -30;
+    app.frames.tick();
+    assert.deepEqual(plain(app.foa.rotations.at(-1)), plain(app.data.rotationMatrix4(-30, 0)),
+        'and follow the camera on every frame, not just the first');
+});
+
+test('tracking stops with the mode, leaving the soundfield facing forward', async () => {
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    app.g.setAmbisonicEnabled(true);
+    app.g.setSoundfieldTracking(true);
+
+    app.viewer.yaw = 120;
+    app.frames.tick();
+
+    app.g.setAmbisonicEnabled(false);
+
+    assert.deepEqual(plain(app.foa.rotations.at(-1)), plain(app.data.rotationMatrix4(0, 0)),
+        'a soundfield left rotated would be wrong for every other mode');
+    app.viewer.yaw = 10;
+    const before = app.foa.rotations.length;
+    app.frames.tick();
+    assert.equal(app.foa.rotations.length, before, 'the loop should have stopped');
+});
+
+test('a file-backed mode can be armed before playback has started', async () => {
+    // Availability is read off the running graph, so gating on that alone left
+    // both of these greyed out on a freshly loaded page with no way in: you
+    // cannot press play *and* have already chosen how to listen.
+    const app = await readyToPlay(withAmbisonic(withBrir(createApp())));
+    assert.equal(app.state.activeGraph, null, 'nothing is playing yet');
+
+    app.g.refreshModeButtons();
+    assert.equal(app.el('brir').disabled, false, 'nothing has ruled this position out');
+    assert.equal(app.el('ambisonic').disabled, false);
+
+    app.g.setAmbisonicEnabled(true);
+    await app.g.startPlayback();
+    assert.equal(app.state.activeGraph.ambisonicOut.gain.value, app.data.AMBISONIC_TRIM,
+        'the mode chosen while stopped should be the one that comes up');
+});
+
+test('a mode proved missing stays disabled after playback stops', async () => {
+    const app = await readyToPlay(withoutDerived(createApp()));
+    await app.g.startPlayback();
+    app.g.stopPlayback();
+
+    assert.equal(app.el('brir').disabled, true, 'this position is now known not to have one');
+    assert.equal(app.el('ambisonic').disabled, true);
+});
+
+test('the decode is reported as unavailable rather than failing silently', async () => {
+    // A dead <script> tag disables this mode with no other symptom. Without a
+    // word in the console it is indistinguishable from a missing file.
+    const warnings = [];
+    const app = await readyToPlay(withAmbisonic(createApp({ noOmnitone: true })));
+    app.g.console = { warn: (m) => warnings.push(m), error: () => {} };
+
+    await app.g.startPlayback();
+
+    assert.equal(warnings.length, 1, 'it should say so, once');
+    assert.match(warnings[0], /Omnitone did not load/);
+});
+
+test('the head-tracking control is live only in the mode it can act on', async () => {
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    const box = app.el('tracking');
+
+    assert.equal(box.disabled, true, 'stereo has no soundfield to turn');
+
+    app.g.setAmbisonicEnabled(true);
+    assert.equal(box.disabled, false);
+
+    app.g.setBinauralEnabled(true);
+    assert.equal(box.disabled, true, 'the modelled render is fixed-head');
+});
+
+test('the head-tracking control stays unavailable where the decode is', async () => {
+    // No B-format for this position, so there is no soundfield to rotate even
+    // though the mode was asked for.
+    const app = await readyToPlay(withoutDerived(createApp()));
+    await app.g.startPlayback();
+
+    app.g.setAmbisonicEnabled(true);
+    assert.equal(app.el('tracking').disabled, true);
+    assert.equal(app.el('tracking-control').title, app.data.TRACKING_TITLE_UNAVAILABLE);
+});
+
+test('the head-tracking control reports whether tracking is on', async () => {
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    app.g.setAmbisonicEnabled(true);
+
+    app.g.setSoundfieldTracking(true);
+    assert.equal(app.el('tracking').checked, true);
+    assert.equal(app.el('tracking-control').title, app.data.TRACKING_TITLE_ON);
+    assert.equal(app.el('tracking-control').classList.contains('unavailable'), false);
+
+    app.g.setSoundfieldTracking(false);
+    assert.equal(app.el('tracking').checked, false);
+    assert.equal(app.el('tracking-control').title, app.data.TRACKING_TITLE_OFF);
+});
+
+test('every mode toggle reports its own state, and only one is ever engaged', async () => {
+    const app = await readyToPlay(withAmbisonic(withBrir(createApp())));
+    await app.g.startPlayback();
+
+    const engaged = () => ['binaural', 'brir', 'ambisonic']
+        .filter(id => app.el(id).classList.contains('active'));
+
+    assert.deepEqual(engaged(), [], 'stereo is no mode at all');
+
+    for (const [id, turnOn] of [
+        ['binaural', () => app.g.setBinauralEnabled(true)],
+        ['brir', () => app.g.setBrirEnabled(true)],
+        ['ambisonic', () => app.g.setAmbisonicEnabled(true)],
+    ]) {
+        turnOn();
+        assert.deepEqual(engaged(), [id], `${id} should be the only lit button`);
+        assert.equal(app.el(id)['aria-pressed'], 'true');
+    }
+});
+
 // ── loading and caching ───────────────────────────────────────────────────
 
 test('an impulse response is fetched once and then served from cache', async () => {

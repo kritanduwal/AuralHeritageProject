@@ -230,6 +230,7 @@ input, button, select, textarea {
    The horizontal steps are 56 + 12 apart, leaving a 12px gap between each. */
 #binaural  { width: 56px; height: 56px; bottom: 32px; right: 116px; }
 #brir      { width: 56px; height: 56px; bottom: 32px; right: 184px; }
+#ambisonic { width: 56px; height: 56px; bottom: 32px; right: 252px; }
 
 /* Hover and engaged have to be different colours. The glyph does not change
    with the mode, so the fill is the only thing carrying the state — and your
@@ -260,6 +261,44 @@ input, button, select, textarea {
 
 .mode-toggle:disabled:hover {
     background-color: var(--belmont-blue);
+}
+
+/* ── Head-tracking toggle ── */
+/* Sits above the button row rather than in it: it modifies one of the modes
+   instead of selecting one, and it is a checkbox rather than another circle so
+   it cannot be mistaken for a fourth alternative. */
+#tracking-control {
+    position: fixed;
+    z-index: 4;
+    bottom: 108px;
+    right: 24px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    border-radius: 18px;
+    background-color: var(--belmont-blue);
+    color: var(--text-color-white);
+    box-shadow: var(--card-shadow);
+    font-family: var(--font), sans-serif;
+    font-size: 13px;
+    pointer-events: auto;
+    cursor: pointer;
+    user-select: none;
+    transition: opacity 0.08s ease;
+}
+
+/* Only the live ambisonic decode can be rotated — the other three renders are
+   fixed-head, and a BRIR has already chosen which way the head was facing. */
+#tracking-control.unavailable {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+#tracking-control input {
+    accent-color: var(--activecolor);
+    cursor: inherit;
+    margin: 0;
 }
 
 .material-icons:hover {

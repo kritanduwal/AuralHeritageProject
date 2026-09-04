@@ -112,6 +112,11 @@ function setConvolutionMix(mix) {
         rampGain(activeGraph.brirWetLeft.gain, mix, MIX_GLIDE);
         rampGain(activeGraph.brirWetRight.gain, mix, MIX_GLIDE);
     }
+
+    // And the ambisonic stage the same, on all four channels at once
+    if (activeGraph.ambiWet) {
+        rampGain(activeGraph.ambiWet.gain, mix, MIX_GLIDE);
+    }
 }
 
 // ── Binaural rendering ────────────────────────────────────────────────────
@@ -326,6 +331,334 @@ function updateBrirButton() {
         : brirEnabled ? BRIR_TITLE_ON : BRIR_TITLE_OFF;
 }
 
+// ── Live ambisonic rendering (Omnitone) ───────────────────────────────────
+
+/**
+ * The fourth output stage: the B-format impulse response decoded to binaural in
+ * the browser, rather than baked into a BRIR offline.
+ *
+ * The BRIR stage and this one render the same measurement through the same kind
+ * of decode; the difference is where the decode happens. Baking it offline costs
+ * two convolvers at playback and fixes the listener's head forever. Decoding
+ * live costs four convolvers and a renderer, and keeps the soundfield in
+ * ambisonic form right up to the ears — which is the only arrangement that can
+ * be *rotated*, because a BRIR has already chosen which way the head was facing.
+ *
+ *   splitter ─┬─ convAmbi W ─┐
+ *             ├─ convAmbi Y  ├─► ambiMerger (4ch) ─► FOARenderer ─► ambisonicOut
+ *             ├─ convAmbi Z  │
+ *             └─ convAmbi X ─┘
+ *
+ * Each convolver holds one channel of the position's B-format IR, and all four
+ * are fed the same mono signal, so their outputs are that source as it would
+ * have been captured by the ambisonic array at that seat. The merger reassembles
+ * them into the 4-channel stream the renderer decodes.
+ */
+
+/** Completes currentIr.base for the 4-channel AmbiX file the tools write */
+const BFORMAT_SUFFIX = "Bformat.wav";
+
+/**
+ * Channel map handed to Omnitone: identity, because the files are already AmbiX.
+ *
+ * Omnitone's own default is the same, but the mapping is the single most
+ * damaging thing to get wrong here — a reorder swaps front for left with no
+ * other symptom — so it is passed explicitly to record that the decision was
+ * made rather than inherited.
+ */
+const AMBIX_CHANNEL_MAP = [0, 1, 2, 3];
+
+/** Channels in a first-order B-format stream, and so convolvers in this stage */
+const AMBISONIC_CHANNELS = 4;
+
+/**
+ * Output level of the live ambisonic stage — this mode's calibration point.
+ *
+ * A listening control, and the loudest of the three to start from: the same
+ * unnormalized decode as the BRIR stage with Omnitone's own gain through the
+ * renderer on top. Roughly 16 dB above where it will settle, so mind the
+ * volume here too. Expect to end near -16.5 dB.
+ */
+const AMBISONIC_TRIM = 1;
+
+const AMBISONIC_TITLE_ON = "Live ambisonic decode: on (best with headphones)";
+const AMBISONIC_TITLE_OFF = "Live ambisonic decode: off";
+const AMBISONIC_TITLE_UNAVAILABLE = "Live ambisonic decode: not available for this position";
+
+/** Whether playback leaves through the live ambisonic stage */
+let ambisonicEnabled = false;
+
+/**
+ * Whether the soundfield turns with the panorama.
+ *
+ * Off by default and deliberately so: the other three renders are all
+ * fixed-head, and a mode that tracked the view while they did not would be
+ * comparing two things at once. Turn it on to hear what head tracking buys;
+ * leave it off while judging the decode against the others.
+ */
+let soundfieldTracking = false;
+
+/**
+ * Sign of the rotation applied to the soundfield.
+ *
+ * Whether a renderer wants the listener's orientation or the world's opposite
+ * rotation is a convention, and getting it backwards makes the soundfield swing
+ * the wrong way — which reads as a badly lagging tracker rather than as an
+ * inverted one. Flip this if dragging the view right moves the room right.
+ */
+const SOUNDFIELD_ROTATION_SIGN = 1;
+
+/** Positions whose B-format file could not be fetched, so it is asked for once */
+const bformatMissing = new Set();
+
+/** The live FOARenderer, and the initialization that is producing it */
+let foaRenderer = null;
+let foaRendererPending = null;
+
+/** Whether a missing Omnitone has already been reported, so it is said once */
+let omnitoneReported = false;
+
+/** Handle of the rotation loop, or null when the soundfield is not tracking */
+let soundfieldFrame = null;
+
+/**
+ * Initializes Omnitone's decoder once and hands the same instance out after.
+ *
+ * The renderer belongs to the AudioContext rather than to any one position, and
+ * initialize() fetches its own HRIR files, so building a new one per play would
+ * re-download them and stall the start of the sound.
+ *
+ * @returns the renderer, or null if Omnitone is absent or failed to start
+ */
+async function ensureAmbisonicRenderer() {
+    if (foaRenderer) return foaRenderer;
+
+    if (typeof Omnitone === 'undefined') {
+        // Say so once. A dead script tag disables this mode with no other
+        // symptom — the button simply never becomes pressable — and silence
+        // here makes that indistinguishable from a position lacking the file.
+        if (!omnitoneReported) {
+            omnitoneReported = true;
+            console.warn('Omnitone did not load, so the live ambisonic decode is unavailable. ' +
+                'Check the <script> tag in index.html resolves (a version that does not ' +
+                'exist on the CDN returns 404 without failing the page).');
+        }
+        return null;
+    }
+
+    if (foaRendererPending) return foaRendererPending;
+
+    foaRendererPending = (async () => {
+        try {
+            const renderer = Omnitone.createFOARenderer(ctx, { channelMap: AMBIX_CHANNEL_MAP });
+            await renderer.initialize();
+            foaRenderer = renderer;
+            return renderer;
+        } catch (err) {
+            console.error(err);
+            foaRendererPending = null;   // let a later play try again
+            return null;
+        }
+    })();
+
+    return foaRendererPending;
+}
+
+/**
+ * Loads the position's 4-channel AmbiX impulse response, split into the mono
+ * buffers the four convolvers need.
+ *
+ * A ConvolverNode reads a 4-channel buffer as a true-stereo matrix, not as four
+ * independent responses, so the channels have to be handed over one at a time.
+ *
+ * @returns an array of AMBISONIC_CHANNELS buffers, or null where there is none
+ */
+async function loadBformatChannels(audioCtx, base) {
+    if (bformatMissing.has(base)) return null;
+
+    let buffer;
+    try {
+        buffer = await loadImpulseResponse(base + BFORMAT_SUFFIX);
+    } catch (err) {
+        bformatMissing.add(base);
+        return null;   // most positions have none; that is not a failure
+    }
+
+    if (buffer.numberOfChannels < AMBISONIC_CHANNELS) {
+        console.warn(`${base}${BFORMAT_SUFFIX}: ${buffer.numberOfChannels} channels, ` +
+            `first-order ambisonics needs ${AMBISONIC_CHANNELS}`);
+        bformatMissing.add(base);
+        return null;
+    }
+
+    const channels = [];
+    for (let ch = 0; ch < AMBISONIC_CHANNELS; ch++) {
+        const mono = audioCtx.createBuffer(1, buffer.length, buffer.sampleRate);
+        mono.copyToChannel(buffer.getChannelData(ch), 0);
+        channels.push(mono);
+    }
+    return channels;
+}
+
+function setAmbisonicEnabled(enabled) {
+    if (enabled) engageMode('ambisonic');
+    else if (ambisonicEnabled) engageMode('stereo');
+
+    refreshModeButtons();
+    applyOutputStage();
+    syncSoundfieldTracking();
+}
+
+function toggleAmbisonic() {
+    setAmbisonicEnabled(!ambisonicEnabled);
+}
+
+/** Whether the live decode can be engaged; see brirAvailable() for the rule */
+function ambisonicAvailable() {
+    if (activeGraph) return Boolean(activeGraph.ambisonicOut);
+    return typeof Omnitone !== 'undefined' && !bformatMissing.has(currentIr.base);
+}
+
+function updateAmbisonicButton() {
+    const btn = document.getElementById('ambisonic');
+    if (!btn) return;
+
+    const available = ambisonicAvailable();
+    btn.classList.toggle('active', ambisonicEnabled && available);
+    btn.disabled = !available;
+    btn.setAttribute('aria-pressed', String(ambisonicEnabled && available));
+    btn.title = !available ? AMBISONIC_TITLE_UNAVAILABLE
+        : ambisonicEnabled ? AMBISONIC_TITLE_ON : AMBISONIC_TITLE_OFF;
+}
+
+// ── Soundfield rotation ───────────────────────────────────────────────────
+
+const TRACKING_TITLE_ON = "Head tracking: the soundfield turns with the view";
+const TRACKING_TITLE_OFF = "Head tracking: off, so this render is fixed-head like the others";
+const TRACKING_TITLE_UNAVAILABLE = "Head tracking: available with the live ambisonic decode";
+
+/**
+ * Turns head tracking on or off. Off by default; see soundfieldTracking.
+ */
+function setSoundfieldTracking(enabled) {
+    soundfieldTracking = enabled;
+    updateTrackingControl();
+    syncSoundfieldTracking();
+}
+
+/**
+ * Reflects tracking on its checkbox, if the view has one.
+ *
+ * The control is disabled unless the live decode is the mode running: it is the
+ * only one of the four that keeps the soundfield in a form that can be turned.
+ */
+function updateTrackingControl() {
+    const box = document.getElementById('tracking');
+    const control = document.getElementById('tracking-control');
+    if (!box) return;
+
+    const available = ambisonicEnabled && ambisonicAvailable();
+    box.checked = soundfieldTracking;
+    box.disabled = !available;
+
+    if (control) {
+        control.classList.toggle('unavailable', !available);
+        control.title = !available ? TRACKING_TITLE_UNAVAILABLE
+            : soundfieldTracking ? TRACKING_TITLE_ON : TRACKING_TITLE_OFF;
+    }
+}
+
+function toggleSoundfieldTracking() {
+    setSoundfieldTracking(!soundfieldTracking);
+}
+
+/** Runs the rotation loop only while it could do something */
+function syncSoundfieldTracking() {
+    const wanted = soundfieldTracking && ambisonicEnabled && Boolean(foaRenderer);
+    if (wanted) startSoundfieldTracking();
+    else stopSoundfieldTracking();
+}
+
+function startSoundfieldTracking() {
+    if (soundfieldFrame !== null) return;
+    if (typeof requestAnimationFrame !== 'function') return;
+
+    const step = () => {
+        soundfieldFrame = requestAnimationFrame(step);
+        updateSoundfieldRotation();
+    };
+    soundfieldFrame = requestAnimationFrame(step);
+}
+
+function stopSoundfieldTracking() {
+    if (soundfieldFrame === null) return;
+    if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(soundfieldFrame);
+    soundfieldFrame = null;
+
+    // Leave the soundfield where the head is pointing, not where it last was
+    if (foaRenderer) foaRenderer.setRotationMatrix4(rotationMatrix4(0, 0));
+}
+
+/**
+ * Reads the panorama camera and turns the soundfield to match.
+ *
+ * The camera is pannellum's, read the same way aimViewer() writes it: yaw and
+ * pitch in degrees, yaw increasing to the right. Nothing is cached — the viewer
+ * is replaced on every panorama change, so holding a reference would rotate to
+ * the angles of a view that is no longer on screen.
+ */
+function updateSoundfieldRotation() {
+    if (!foaRenderer || typeof viewer === 'undefined' || !viewer) return;
+
+    try {
+        foaRenderer.setRotationMatrix4(rotationMatrix4(viewer.getYaw(), viewer.getPitch()));
+    } catch (err) {
+        // A viewer torn down mid-frame throws rather than returning an angle
+        console.error(err);
+    }
+}
+
+/**
+ * Matrix that expresses world directions in the listener's frame, column-major,
+ * as setRotationMatrix4() wants it.
+ *
+ * THE INVERSE, NOT THE ORIENTATION
+ *
+ * Omnitone converts the directional channels to graphics axes (−Y→x, Z→y,
+ * −X→z), multiplies by this matrix as given, and converts back — so a sound
+ * encoded as arriving from direction d comes out encoded as arriving from M·d.
+ *
+ * The camera's orientation R is therefore the wrong thing to send. Turning your
+ * head left does not move the room left; it leaves the room where it is, which
+ * is the same as moving every source right *relative to you*. What the decoder
+ * needs is the world seen from the listener, R⁻¹, and for a rotation that is
+ * simply Rᵀ. Sending R instead drags the soundfield along with the view, so a
+ * source stays glued to whichever ear it started in — the symptom that a turn
+ * to the left keeps the sound on the left instead of handing it to the right.
+ *
+ * Rᵀ rather than R(−yaw)·R(−pitch): negating both angles inverts each rotation
+ * but leaves them composed in the original order, which is only the same thing
+ * when one of them is zero. It would look right under pure yaw and go quietly
+ * wrong the moment the view was also tilted.
+ *
+ * R = Ry(yaw) · Rx(pitch), so this returns Rᵀ = Rx(−pitch) · Ry(−yaw). Roll is
+ * not represented because the panorama has none.
+ */
+function rotationMatrix4(yawDegrees, pitchDegrees) {
+    const yaw = yawDegrees * Math.PI / 180 * SOUNDFIELD_ROTATION_SIGN;
+    const pitch = pitchDegrees * Math.PI / 180 * SOUNDFIELD_ROTATION_SIGN;
+
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+
+    return [
+        cy, sy * sp, sy * cp, 0,
+        0, cp, -sp, 0,
+        -sy, cy * sp, cy * cp, 0,
+        0, 0, 0, 1,
+    ];
+}
+
 // ── Output stage selection ────────────────────────────────────────────────
 
 /**
@@ -333,6 +666,7 @@ function updateBrirButton() {
  * them mutually exclusive, and this is the single place that resolves them.
  */
 function outputStage() {
+    if (ambisonicEnabled) return 'ambisonic';
     if (brirEnabled) return 'brir';
     if (binauralEnabled) return 'binaural';
     return 'stereo';
@@ -345,12 +679,15 @@ function outputStage() {
 function engageMode(mode) {
     binauralEnabled = mode === 'binaural';
     brirEnabled = mode === 'brir';
+    ambisonicEnabled = mode === 'ambisonic';
 }
 
 /** Reflects whichever mode is live on every control the view has */
 function refreshModeButtons() {
     updateBinauralButton();
     updateBrirButton();
+    updateAmbisonicButton();
+    updateTrackingControl();
 }
 
 /** The gain each stage's output should rest at for a given mode */
@@ -359,6 +696,7 @@ function stageGainsFor(stage) {
         stereo: stage === 'stereo' ? 1 : 0,
         binaural: stage === 'binaural' ? BINAURAL_TRIM : 0,
         brir: stage === 'brir' ? BRIR_TRIM : 0,
+        ambisonic: stage === 'ambisonic' ? AMBISONIC_TRIM : 0,
     };
 }
 
@@ -371,6 +709,7 @@ function stageGainsFor(stage) {
 function builtStage(graph) {
     const stage = outputStage();
     if (stage === 'brir' && !graph.brirOut) return 'stereo';
+    if (stage === 'ambisonic' && !graph.ambisonicOut) return 'stereo';
     return stage;
 }
 
@@ -384,6 +723,9 @@ function applyOutputStage() {
     rampGain(activeGraph.binauralOut.gain, gains.binaural, BINAURAL_CROSSFADE);
     if (activeGraph.brirOut) {
         rampGain(activeGraph.brirOut.gain, gains.brir, BINAURAL_CROSSFADE);
+    }
+    if (activeGraph.ambisonicOut) {
+        rampGain(activeGraph.ambisonicOut.gain, gains.ambisonic, BINAURAL_CROSSFADE);
     }
 }
 
@@ -438,7 +780,7 @@ function updateBinauralButton() {
  * @returns the gain nodes the mix slider and the mode toggles retune, plus the
  *          output node to unhook on stop
  */
-function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irGainDb, binaural, brir, brirLeft, brirRight, speakerDistance = DEFAULT_SPEAKER_DISTANCE_FEET }) {
+function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irGainDb, binaural, brir, brirLeft, brirRight, ambisonic, bformatChannels, ambisonicRenderer, speakerDistance = DEFAULT_SPEAKER_DISTANCE_FEET }) {
     const convolverLeft = audioCtx.createConvolver();
     convolverLeft.buffer = irLeft;
     const convolverRight = audioCtx.createConvolver();
@@ -538,17 +880,66 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
         brirMerger.connect(brirOut);
         brirOut.connect(output);
     }
-    const stage = brir && brirOut ? 'brir' : binaural ? 'binaural' : 'stereo';
+
+    // Ambisonic stage: four convolvers, one per AmbiX channel of this position's
+    // B-format IR, all fed the same mono signal. Built only where the file and
+    // the renderer are both there.
+    let ambisonicOut = null;
+    let ambiMerger = null;
+    let ambiWet = null;
+
+    if (bformatChannels && ambisonicRenderer) {
+        ambiMerger = audioCtx.createChannelMerger(AMBISONIC_CHANNELS);
+        ambiWet = audioCtx.createGain();
+        ambisonicOut = audioCtx.createGain();
+
+        for (let ch = 0; ch < AMBISONIC_CHANNELS; ch++) {
+            const convolver = audioCtx.createConvolver();
+            // As with the BRIR: the offline decode set the absolute level of
+            // these channels, and their level *relative to each other* is the
+            // soundfield. Normalizing each one would flatten the directions out.
+            convolver.normalize = false;
+            convolver.buffer = bformatChannels[ch];
+            splitter.connect(convolver, 0);
+            convolver.connect(ambiMerger, 0, ch);
+        }
+
+        // The mix slider, applied to the whole 4-channel stream at once. Ambisonic
+        // channels are not speaker feeds, so the stream is carried as discrete
+        // channels — left to the default "speakers" interpretation a 4-channel
+        // signal would be read as a quad layout and remapped.
+        ambiWet.channelCount = AMBISONIC_CHANNELS;
+        ambiWet.channelCountMode = 'explicit';
+        ambiWet.channelInterpretation = 'discrete';
+        ambiWet.gain.value = mix;
+
+        // Dry is centred here as it is everywhere else, but a soundfield has no
+        // centre channel to put it in: encoded as a plane wave from straight
+        // ahead, it lands on W and X, which is where a source in front belongs.
+        dryGain.connect(ambiMerger, 0, 0);   // ACN 0, W
+        dryGain.connect(ambiMerger, 0, 3);   // ACN 3, X
+
+        ambiMerger.connect(ambiWet);
+        ambiWet.connect(ambisonicRenderer.input);
+        ambisonicRenderer.output.connect(ambisonicOut);
+        ambisonicOut.connect(output);
+    }
+
+    const stage = ambisonic && ambisonicOut ? 'ambisonic'
+        : brir && brirOut ? 'brir'
+            : binaural ? 'binaural' : 'stereo';
     const gains = stageGainsFor(stage);
     stereoOut.gain.value = gains.stereo;
     binauralOut.gain.value = gains.binaural;
     if (brirOut) brirOut.gain.value = gains.brir;
+    if (ambisonicOut) ambisonicOut.gain.value = gains.ambisonic;
 
     output.connect(audioCtx.destination);
 
     return {
         dryGain, wetGainLeft, wetGainRight, irTrim,
         stereoOut, binauralOut, brirOut, brirWetLeft, brirWetRight,
+        ambisonicOut, ambiMerger, ambiWet, ambisonicRenderer: ambisonicRenderer || null,
         output,
     };
 }
@@ -675,7 +1066,11 @@ async function startPlayback() {
     // Optional, and absent for most of the library. Loaded before the graph is
     // built rather than on demand so the modes can be toggled mid-playback like
     // the other two, without a rebuild that would restart the loop.
-    const brirPair = await loadBrirPair(currentIr.base);
+    const [brirPair, bformatChannels, ambisonicRenderer] = await Promise.all([
+        loadBrirPair(currentIr.base),
+        loadBformatChannels(ctx, currentIr.base),
+        ensureAmbisonicRenderer(),
+    ]);
 
     // A context constructed before any user gesture starts out suspended
     await ctx.resume();
@@ -697,15 +1092,21 @@ async function startPlayback() {
         brir: brirEnabled,
         brirLeft: brirPair && brirPair.left,
         brirRight: brirPair && brirPair.right,
+        ambisonic: ambisonicEnabled,
+        bformatChannels,
+        ambisonicRenderer,
         speakerDistance: speakerDistanceFeet()
     });
 
     source.start();
     setPlaying(true);
 
-    // This button can only say whether their mode exists once the files have
+    // These controls can only say whether their mode exists once the files have
     // been looked for, which is here rather than at selection time
     updateBrirButton();
+    updateAmbisonicButton();
+    updateTrackingControl();
+    syncSoundfieldTracking();
 
     //downloadConvolvedAudio(); // Uncomment to download the convolved output for testing
 }
@@ -726,9 +1127,17 @@ function stopPlayback() {
     if (activeGraph) {
         activeGraph.output.disconnect();
 
+        // The Omnitone renderer outlives the graph — it belongs to the context
+        // and is reused across plays — so the two edges that cross into it have
+        // to be cut by hand. Left attached, every past graph's convolvers stay
+        // hanging off its input.
+        if (activeGraph.ambiWet) activeGraph.ambiWet.disconnect();
+        if (activeGraph.ambisonicRenderer) activeGraph.ambisonicRenderer.output.disconnect();
+
         activeGraph = null;
     }
 
+    stopSoundfieldTracking();
     setPlaying(false);
 
     // Availability is read off the graph while one is running, so the controls
@@ -782,6 +1191,12 @@ async function downloadConvolvedAudio() {
         brir: brirEnabled,
         brirLeft: brirPair && brirPair.left,
         brirRight: brirPair && brirPair.right,
+        // No ambisonic stage offline: an Omnitone renderer belongs to the
+        // context that made it, so the live one cannot be borrowed here. The
+        // render falls back to stereo when that is the mode being listened to.
+        ambisonic: false,
+        bformatChannels: null,
+        ambisonicRenderer: null,
         speakerDistance: speakerDistanceFeet()
     });
 

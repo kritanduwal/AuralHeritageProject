@@ -35,6 +35,10 @@ const EPILOGUE = `
     get binauralEnabled() { return binauralEnabled; }, set binauralEnabled(v) { binauralEnabled = v; },
     get brirEnabled()     { return brirEnabled; },     set brirEnabled(v)     { brirEnabled = v; },
     get brirMissing()     { return brirMissing; },
+    get ambisonicEnabled(){ return ambisonicEnabled; },set ambisonicEnabled(v){ ambisonicEnabled = v; },
+    get soundfieldTracking() { return soundfieldTracking; },
+    get foaRenderer()     { return foaRenderer; },
+    get bformatMissing()  { return bformatMissing; },
 };
 ;globalThis.__consts = {
     ROOMS, churchData, MissingResourceError, BUNDLED_SOURCE_FILES,
@@ -44,6 +48,10 @@ const EPILOGUE = `
     BINAURAL_TITLE_ON, BINAURAL_TITLE_OFF, BINAURAL_TRIM,
     BRIR_TRIM, BRIR_LEFT_SUFFIX, BRIR_RIGHT_SUFFIX,
     BRIR_TITLE_ON, BRIR_TITLE_OFF, BRIR_TITLE_UNAVAILABLE,
+    AMBISONIC_TRIM, BFORMAT_SUFFIX, AMBIX_CHANNEL_MAP, AMBISONIC_CHANNELS,
+    AMBISONIC_TITLE_ON, AMBISONIC_TITLE_OFF, AMBISONIC_TITLE_UNAVAILABLE,
+    SOUNDFIELD_ROTATION_SIGN, rotationMatrix4,
+    TRACKING_TITLE_ON, TRACKING_TITLE_OFF, TRACKING_TITLE_UNAVAILABLE,
 };
 `;
 
