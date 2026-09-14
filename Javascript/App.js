@@ -233,16 +233,24 @@ async function compile() {
     if (!receiver) return;
 
     // Which way the recording faces, so head tracking turns against the view
-    // rather than with it
-    setSoundfieldOrientation(config.soundfieldYaw || 0);
+    // rather than with it. Per set: the two decode to different orientations,
+    // and the wrong one puts the source behind the listener, where its lateral
+    // motion runs backwards.
+    setSoundfieldOrientation(soundfieldYawOf(config));
 
-    // Output levels for this church's render stages; absent until calibrated
-    setStageTrims(config.trim);
+    // Output levels for this church's render stages; absent until calibrated.
+    // Taken per stage from the set that stage is playing, since a trim only
+    // calibrates the files it was measured against.
+    setStageTrims(stageTrimsOf(config));
 
+    // Two bases: the impulse response pair stereo and the virtual-loudspeaker
+    // render convolve, and the decoded files behind the other two stages. They
+    // differ only where this visit asked for a church's recovered originals.
     setImpulseResponse(
         impulseResponseBase(config, receiverId),
         receiver.gainDb || 0,
-        receiverDistanceFeet(room, receiverId)
+        receiverDistanceFeet(room, receiverId),
+        decodedResponseBase(config, receiverId)
     );
 
     const ticket = ++compileSequence;

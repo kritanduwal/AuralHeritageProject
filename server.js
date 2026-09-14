@@ -24,7 +24,7 @@ app.use(express.static(path.join(__dirname)));
  * path and decides which optional renders are reachable. Listed explicitly
  * rather than matched by pattern so that an unknown path still 404s.
  */
-const FEATURE_PATHS = ['/binaural', '/ambisonic'];
+const FEATURE_PATHS = ['/binaural', '/ambisonic', '/unnormalized'];
 
 app.get(FEATURE_PATHS, (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));

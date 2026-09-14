@@ -43,6 +43,111 @@ test('impulseResponseBase honours an irName override', () => {
     );
 });
 
+// ── the un-normalized originals ───────────────────────────────────────────
+
+/** The same table, read by a visit that asked for the original captures */
+const raw = createApp({ path: '/unnormalized' });
+
+const PUBLISHED_BASE = 'IR/Monastery Immaculate Conception, IN/MIC_IN_R3-';
+const ORIGINALS_BASE = 'Ambisonic Files/Monastery Immaculate Conception, IN/Not Nomalized/MIC_IN_R3-';
+
+test('without the flag both bases are the published library', () => {
+    assert.ok(ROOMS.MonasteryImmaculateConception.unnormalized,
+        'this church is the one that has originals; the test means nothing if it stops');
+    assert.equal(impulseResponseBase(ROOMS.MonasteryImmaculateConception, 'R3'), PUBLISHED_BASE);
+    assert.equal(app.g.decodedResponseBase(ROOMS.MonasteryImmaculateConception, 'R3'), PUBLISHED_BASE);
+});
+
+test('the flag moves the decoded files and leaves the stereo pair alone', () => {
+    // Stereo and the virtual-loudspeaker render convolve channels 1 and 2
+    // through normalizing convolvers, so the originals would change how they
+    // sound without improving them — and would move the very reference the
+    // other stages are matched against.
+    const church = raw.data.ROOMS.MonasteryImmaculateConception;
+    assert.equal(raw.g.impulseResponseBase(church, 'R3'), PUBLISHED_BASE,
+        'the stereo pair must not move');
+    assert.equal(raw.g.decodedResponseBase(church, 'R3'), ORIGINALS_BASE,
+        'the BRIR and B-format must');
+});
+
+test('a church without originals keeps both bases identical under the flag', () => {
+    // The flag means "the originals where they exist", so that it can be used
+    // across the library while they are recovered one church at a time.
+    for (const [key, cfg] of Object.entries(raw.data.ROOMS)) {
+        if (cfg.unnormalized) continue;
+        const published = impulseResponseBase(ROOMS[key], 'R1');
+        assert.equal(raw.g.impulseResponseBase(cfg, 'R1'), published, key);
+        assert.equal(raw.g.decodedResponseBase(cfg, 'R1'), published,
+            `${key} has no originals, so nothing should have moved`);
+    }
+});
+
+test('each stage is trimmed from the set it actually plays', () => {
+    const church = ROOMS.MonasteryImmaculateConception;
+    assert.deepEqual(app.g.stageTrimsOf(church), church.trim,
+        'one set playing, one trim');
+
+    const rawChurch = raw.data.ROOMS.MonasteryImmaculateConception;
+    const trims = raw.g.stageTrimsOf(rawChurch);
+    assert.equal(trims.binaural, rawChurch.trim.binaural,
+        'binaural plays the published library, so it keeps its figure');
+    assert.equal(trims.brir, rawChurch.unnormalized.trim.brir);
+    assert.equal(trims.ambisonic, rawChurch.unnormalized.trim.ambisonic);
+});
+
+test('the originals calibrate the two stages that read them, and no others', () => {
+    // A figure nothing reads is one that goes stale and then gets believed.
+    for (const [key, cfg] of rooms) {
+        if (!cfg.unnormalized) continue;
+        assert.deepEqual(Object.keys(cfg.unnormalized.trim).sort(), ['ambisonic', 'brir'],
+            `${key}.unnormalized.trim should carry the decoded stages only`);
+    }
+});
+
+test('an originals entry describes the files and never the room', () => {
+    // Receivers and panoramas describe the room, which the recovery did not
+    // change. Duplicating them would let the two sets disagree about the same
+    // measurement. Only the three fields that are properties of the files
+    // themselves may be restated.
+    const allowed = ['ir', 'soundfieldYaw', 'trim'];
+    for (const [key, cfg] of rooms) {
+        if (!cfg.unnormalized) continue;
+        for (const field of Object.keys(cfg.unnormalized)) {
+            assert.ok(allowed.includes(field),
+                `${key}.unnormalized.${field} is a property of the room, not of its files`);
+        }
+        assert.ok(cfg.unnormalized.ir.dir, `${key}: missing unnormalized ir.dir`);
+        assert.ok(cfg.unnormalized.ir.prefix, `${key}: missing unnormalized ir.prefix`);
+        assert.ok(cfg.unnormalized.trim, `${key}: missing unnormalized trim`);
+        assert.notEqual(cfg.unnormalized.ir.dir, cfg.ir.dir,
+            `${key}: the originals must not point back at the published library`);
+    }
+});
+
+test('the soundfield orientation follows the set that is playing', () => {
+    // The published value was found by ear against a decode whose directions
+    // are invalid, so a correctly decoding set must be able to disagree with it.
+    const key = 'MonasteryImmaculateConception';
+    assert.equal(app.g.soundfieldYawOf(ROOMS[key]), ROOMS[key].soundfieldYaw);
+    assert.equal(raw.g.soundfieldYawOf(raw.data.ROOMS[key]),
+        raw.data.ROOMS[key].unnormalized.soundfieldYaw);
+});
+
+test('an explicit zero orientation is honoured rather than falling back', () => {
+    // 0 is the value that matters here and the one a loose `||` would drop, so
+    // a set that states it must not inherit the church's half turn instead.
+    const church = raw.data.ROOMS.MonasteryImmaculateConception;
+    assert.equal(church.unnormalized.soundfieldYaw, 0, 'the case this guards');
+    assert.notEqual(church.soundfieldYaw, 0, 'and the value it must not inherit');
+    assert.equal(raw.g.soundfieldYawOf(church), 0);
+});
+
+test('a set that states no orientation inherits the church', () => {
+    const church = raw.data.ROOMS.MonasteryImmaculateConception;
+    const borrowed = { ...church, unnormalized: { ir: church.unnormalized.ir, trim: church.unnormalized.trim } };
+    assert.equal(raw.g.soundfieldYawOf(borrowed), church.soundfieldYaw);
+});
+
 test('panoramaPath joins directory, prefix, receiver and extension', () => {
     assert.equal(
         panoramaPath(ROOMS.MonasteryImmaculateConception, 'R4'),

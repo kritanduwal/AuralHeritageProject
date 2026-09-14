@@ -121,6 +121,35 @@ const RESAMPLE_HALF_TAPS = 48;
  */
 const NORMALIZED_PEAK_EPSILON = 1e-4;
 
+/**
+ * Peak, in dBFS, that `--gain auto` brings a church's whole B-format set to.
+ *
+ * READ THIS BEFORE ASSUMING IT IS THE NORMALIZATION THE HEADER WARNS ABOUT.
+ * It is the opposite kind of operation. The damage described in point 4 is
+ * *per-channel* normalization: every capsule scaled by its own factor, which
+ * destroys the ratios between them and with them the directions. What --gain
+ * applies is a single scalar shared by all four channels of every position in
+ * the church — one number for the set — so every ratio inside it, between
+ * capsules and between positions alike, comes out exactly as it went in. The
+ * only thing that changes is where the set as a whole sits.
+ *
+ * It is needed because that absolute level carries no information to begin
+ * with: a deconvolved IR lands wherever the sweep level and the deconvolution's
+ * own scaling put it. The originals recovered so far sit some 45 dB below the
+ * published library, far enough down that the stages built from them — the BRIR
+ * and ambisonic decodes, whose convolvers deliberately do not normalize — come
+ * back quieter than the dry path and are effectively inaudible under it. No
+ * per-church trim can retrieve that: the engine bounds a trim at +12 dB, and
+ * deliberately, since a bound wide enough to fix this is wide enough for a typo
+ * to deafen somebody.
+ *
+ * 0 dBFS is the full-scale peak of the loudest sample anywhere in the set,
+ * which is the loudest the set can be written without a 24-bit consumer
+ * clipping it. Nothing here is written at 24 bits — writeWav emits float — but
+ * anchoring to the same place keeps the figure meaningful if one ever is.
+ */
+const SET_GAIN_TARGET_PEAK_DB = 0;
+
 // ── WAV reading ───────────────────────────────────────────────────────────
 
 /** Reads a RIFF/WAVE file into planar float channels */
@@ -554,8 +583,15 @@ function ambisonicBlock(channels) {
 // ── Conversion ────────────────────────────────────────────────────────────
 
 /**
- * Converts one position, returning what it did for the caller to report.
- * @returns null if the position cannot be converted
+ * Converts one position and hands back the B-format channels unwritten.
+ *
+ * Writing is finishSet()'s job rather than this function's because `--gain auto`
+ * is a property of the whole church: the scalar cannot be known until every
+ * position in it has been converted and the loudest sample found. Measuring
+ * here and writing there would also report levels that are not the ones on
+ * disk, so the levels are taken after the gain, in finishSet().
+ *
+ * @returns a result carrying `out`, or one carrying `skipped` and no channels
  */
 function convertPosition(stem, channels, options) {
     const block = ambisonicBlock(channels);
@@ -614,24 +650,62 @@ function convertPosition(stem, channels, options) {
         out = out.map(ch => resample(ch, inputRate, options.rate));
     }
 
-    const labels = ['W (ACN 0)', 'Y (ACN 1)', 'Z (ACN 2)', 'X (ACN 3)'];
-    const after = out.map((signal, i) => ({
-        label: labels[i],
-        rms: rms(signal),
-        peak: peak(signal),
-    }));
-
-    let written = null;
-    if (!options.dryRun) {
-        const dir = options.out || path.dirname(block[0].file);
-        written = path.join(dir, `${stem}-Bformat.wav`);
-        writeWav(written, out, options.rate);
-    }
-
     return {
-        stem, before, after, written, normalized,
+        stem, before, out, normalized, sourceDir: path.dirname(block[0].file),
         inputRate, outputRate: options.rate, frames,
     };
+}
+
+/** Labels of the four output channels, in the ACN order they are written in */
+const BFORMAT_LABELS = ['W (ACN 0)', 'Y (ACN 1)', 'Z (ACN 2)', 'X (ACN 3)'];
+
+/**
+ * Applies one church's set gain, measures what that leaves, and writes.
+ *
+ * The gain is resolved once for the whole set and applied identically to every
+ * channel of every position — see SET_GAIN_TARGET_PEAK_DB for why that is a
+ * different operation from the per-channel normalization this script exists to
+ * warn about. `auto` reads the loudest sample anywhere in the set and brings it
+ * to the target; a fixed number is passed straight through.
+ *
+ * A silent set has no peak to scale, so `auto` leaves it alone rather than
+ * dividing by zero and writing a file full of infinities.
+ *
+ * @returns the linear gain applied, so the caller can report it
+ */
+function finishSet(results, options) {
+    const converted = results.filter(r => !r.skipped);
+    if (!converted.length) return 1;
+
+    let gain = 1;
+    if (options.gain === 'auto') {
+        const loudest = Math.max(...converted.flatMap(r => r.out.map(peak)));
+        if (loudest > 0) gain = Math.pow(10, SET_GAIN_TARGET_PEAK_DB / 20) / loudest;
+    } else if (options.gain) {
+        gain = Math.pow(10, options.gain / 20);
+    }
+
+    for (const result of converted) {
+        if (gain !== 1) {
+            for (const channel of result.out) {
+                for (let i = 0; i < channel.length; i++) channel[i] *= gain;
+            }
+        }
+
+        result.after = result.out.map((signal, i) => ({
+            label: BFORMAT_LABELS[i],
+            rms: rms(signal),
+            peak: peak(signal),
+        }));
+
+        if (!options.dryRun) {
+            const dir = options.out || result.sourceDir;
+            result.written = path.join(dir, `${result.stem}-Bformat.wav`);
+            writeWav(result.written, result.out, options.rate);
+        }
+    }
+
+    return gain;
 }
 
 // ── Reporting ─────────────────────────────────────────────────────────────
@@ -679,6 +753,7 @@ function parseArgs(argv) {
         radius: CAPSULE_RADIUS_M,
         rate: DEFAULT_OUTPUT_RATE,
         eq: true,
+        gain: 0,
         dryRun: false,
         warnings: [],
         warn(message) { this.warnings.push(message); },
@@ -695,6 +770,13 @@ function parseArgs(argv) {
                 throw new Error(`--order needs four of ${Object.keys(CAPSULE_AXES).join(', ')}`);
             }
             CAPSULE_ORDER.splice(0, 4, ...order);
+        }
+        else if (arg === '--gain') {
+            const value = argv[++i];
+            options.gain = value === 'auto' ? 'auto' : Number(value);
+            if (options.gain !== 'auto' && !Number.isFinite(options.gain)) {
+                throw new Error('--gain takes a number of dB, or "auto"');
+            }
         }
         else if (arg === '--no-eq') options.eq = false;
         else if (arg === '--dry-run') options.dryRun = true;
@@ -719,6 +801,11 @@ A-format → B-format (AmbiX) converter for the NT-SF1 IRs in IR/
   --radius <m>     capsule radius for the correction (default ${CAPSULE_RADIUS_M})
   --rate <hz>      output sample rate (default ${DEFAULT_OUTPUT_RATE})
   --order <spec>   capsule order, e.g. FLU,FRD,BLD,BRU
+  --gain <db|auto> one gain for the whole church, applied to every channel of
+                   every position; "auto" brings the set's loudest sample to
+                   ${SET_GAIN_TARGET_PEAK_DB} dBFS. Ratios are untouched — this is not the
+                   per-channel normalization described above. Needed for the
+                   un-normalized originals, which sit far too low to be heard.
   --no-eq          matrix only, no non-coincidence correction
   --dry-run        measure and report, write nothing
   --help
@@ -766,16 +853,28 @@ function main() {
             console.log('  no channel files found');
             continue;
         }
+
+        // The whole church is converted before any of it is reported, because
+        // `--gain auto` is resolved across the set and the levels worth printing
+        // are the ones it leaves behind.
+        const churchResults = [];
         for (const [stem, channels] of [...positions].sort()) {
-            let result;
             try {
-                result = convertPosition(stem, channels, options);
+                churchResults.push(convertPosition(stem, channels, options));
             } catch (err) {
-                result = { stem, skipped: err.message };
+                churchResults.push({ stem, skipped: err.message });
             }
-            results.push(result);
-            reportPosition(result);
         }
+
+        const gain = finishSet(churchResults, options);
+        if (gain !== 1) {
+            console.log(`  set gain           ${db(gain) >= 0 ? '+' : ''}${db(gain).toFixed(2)} dB` +
+                ` applied to every channel of every position` +
+                `${options.gain === 'auto' ? ` (auto: peak to ${SET_GAIN_TARGET_PEAK_DB} dBFS)` : ''}`);
+        }
+
+        for (const result of churchResults) reportPosition(result);
+        results.push(...churchResults);
     }
 
     summarize(results, options);

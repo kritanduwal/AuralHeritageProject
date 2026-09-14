@@ -23,17 +23,25 @@ let activeGraph = null;   // gain nodes of the running graph, kept for retuning 
 let isPlaying = false;
 
 /**
- * The impulse response pair the next play will use. Set by compile() whenever
- * the room or receiver selection changes.
+ * The files the next play will use. Set by compile() whenever the room or
+ * receiver selection changes.
  *   base         – path prefix; "1.wav" and "2.wav" complete the left/right pair
+ *   decodedBase  – path prefix for the BRIR pair and the B-format, which the two
+ *                  decoded stages convolve instead of the pair above
  *   gainDb       – level reduction for this position, in dB (0 = play as recorded)
  *   distanceFeet – measured receiver-to-source distance, placing the binaural
  *                  render's virtual loudspeakers (0 = none on record)
+ *
+ * Two bases rather than one because a position can be carried by two sets of
+ * files at once. Where a church's un-normalized originals have been recovered
+ * and this visit asked for them, the decoded stages read from those while
+ * stereo and the virtual-loudspeaker render stay on the published library — see
+ * decodedSourceOf() in Rooms.js. Everywhere else the two are the same string.
  */
-let currentIr = { base: "", gainDb: 0, distanceFeet: 0 };
+let currentIr = { base: "", decodedBase: "", gainDb: 0, distanceFeet: 0 };
 
-function setImpulseResponse(base, gainDb, distanceFeet = 0) {
-    currentIr = { base, gainDb, distanceFeet };
+function setImpulseResponse(base, gainDb, distanceFeet = 0, decodedBase = base) {
+    currentIr = { base, decodedBase, gainDb, distanceFeet };
 }
 
 // ── Gain automation ───────────────────────────────────────────────────────
@@ -287,7 +295,7 @@ function toggleBinaural() {
  * SADIE II HRTF set. Neither is run by the app; this only loads the result.
  */
 
-/** Completes currentIr.base for the pair, as "1.wav"/"2.wav" do for the IR */
+/** Completes currentIr.decodedBase for the pair, as "1.wav"/"2.wav" do for the IR */
 const BRIR_LEFT_SUFFIX = "BRIR-L.wav";
 const BRIR_RIGHT_SUFFIX = "BRIR-R.wav";
 
@@ -317,7 +325,8 @@ let brirEnabled = false;
  *
  * Most of the library has no BRIRs — they exist only where the offline tools
  * have been run — and every play would otherwise re-request a pair that is not
- * there. Keyed by currentIr.base, so a position is probed at most once.
+ * there. Keyed by currentIr.decodedBase, so a position is probed at most once,
+ * and a church carrying two sets of files keeps a verdict per set.
  */
 const brirMissing = new Set();
 
@@ -332,7 +341,7 @@ const brirMissing = new Set();
  */
 function brirAvailable() {
     if (activeGraph) return Boolean(activeGraph.brirOut);
-    return !brirMissing.has(currentIr.base);
+    return !brirMissing.has(currentIr.decodedBase);
 }
 
 /**
@@ -407,7 +416,7 @@ function updateBrirButton() {
  * them into the 4-channel stream the renderer decodes.
  */
 
-/** Completes currentIr.base for the 4-channel AmbiX file the tools write */
+/** Completes currentIr.decodedBase for the 4-channel AmbiX file the tools write */
 const BFORMAT_SUFFIX = "Bformat.wav";
 
 /**
@@ -558,7 +567,7 @@ function toggleAmbisonic() {
 /** Whether the live decode can be engaged; see brirAvailable() for the rule */
 function ambisonicAvailable() {
     if (activeGraph) return Boolean(activeGraph.ambisonicOut);
-    return typeof Omnitone !== 'undefined' && !bformatMissing.has(currentIr.base);
+    return typeof Omnitone !== 'undefined' && !bformatMissing.has(currentIr.decodedBase);
 }
 
 function updateAmbisonicButton() {
@@ -1203,8 +1212,8 @@ async function startPlayback() {
     // built rather than on demand so the modes can be toggled mid-playback like
     // the other two, without a rebuild that would restart the loop.
     const [brirPair, bformatChannels, ambisonicRenderer, speakerHrir] = await Promise.all([
-        loadBrirPair(currentIr.base),
-        loadBformatChannels(ctx, currentIr.base),
+        loadBrirPair(currentIr.decodedBase),
+        loadBformatChannels(ctx, currentIr.decodedBase),
         ensureAmbisonicRenderer(),
         ensureVirtualSpeakerHrir(),
     ]);
@@ -1310,7 +1319,7 @@ async function downloadConvolvedAudio() {
     ]);
 
     const [brirPair, speakerHrir] = await Promise.all([
-        loadBrirPair(currentIr.base),
+        loadBrirPair(currentIr.decodedBase),
         ensureVirtualSpeakerHrir(),
     ]);
 

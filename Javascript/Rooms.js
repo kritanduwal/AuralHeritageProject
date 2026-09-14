@@ -55,6 +55,45 @@
  *     Measured rather than guessed: tools/measure-loudness.js renders every
  *     mode through the same chain the engine builds and matches their ITU-R
  *     BS.1770 loudness to stereo's. Run it with --write to refresh these.
+ * unnormalized
+ *     this church's un-normalized original captures, present only where those
+ *     have been recovered, and reached through /unnormalized (see Features.js).
+ *
+ *     THE TWO DECODED STAGES ONLY. The measured binaural render and the live
+ *     ambisonic one read from here; stereo and the virtual-loudspeaker render
+ *     stay on the published library under every flag. See decodedSourceOf() for
+ *     why — briefly, those two convolve impulse-response channels 1 and 2
+ *     through ConvolverNodes that equal-power normalize, which scales the
+ *     recovered level relationships back out, so the swap would change how they
+ *     sound without improving them and would move the reference the other
+ *     stages are matched against.
+ *
+ *     Carries the three things that describe the files and nothing else:
+ *
+ *         ir             where the recovered set lives
+ *         trim           `brir` and `ambisonic` only, being the two stages that
+ *                        read it. No `binaural`: that stage plays the published
+ *                        library along with the stereo it is matched to, so its
+ *                        figure belongs to the church's own trim.
+ *         soundfieldYaw  optional. Belongs to the files rather than the room
+ *                        only because the church's own value is not the
+ *                        measurement it resembles; see soundfieldYawOf(). Omit
+ *                        it where the recovered set agrees with it.
+ *
+ *     The receivers and the panoramas are not repeated: those describe the
+ *     room, which the recovery did not change.
+ *
+ *     Its trims are not comparable with the church's own and are not meant to
+ *     be. The published capsules were each peak-normalized to 1.0 while the
+ *     originals were scaled as a set by aformat-to-bformat.js --gain auto, so
+ *     the decoded stages land some 11 dB apart depending on which they were
+ *     built from — fifteen to twenty dB of attenuation against a few. Both are
+ *     measured the same way, by tools/measure-loudness.js, and against the same
+ *     stereo, which is the whole point of leaving stereo where it is.
+ *
+ *     Every church without the key plays its published library under the flag
+ *     exactly as it does without it, so the flag means "the originals where
+ *     they exist" rather than "only churches that have originals".
  * receivers[id].pitch / .yaw
  *     camera angles handed to pannellum's lookAt(), in degrees. Every position
  *     spells both out, including the zeroes, so that a straight-ahead view
@@ -205,6 +244,20 @@ const ROOMS = {
         panorama: { dir: "Images/Monastery Immaculate Conception, IN", prefix: "MIC_IN", ext: ".JPG" },
         soundfieldYaw: 180,
         trim:     { binaural: 0.1, brir: -15.4, ambisonic: -17.9 },
+        // The first church whose original captures were recovered. Folder name
+        // is the one on disk, misspelling and all.
+        unnormalized: {
+            ir:   { dir: "Ambisonic Files/Monastery Immaculate Conception, IN/Not Nomalized", prefix: "MIC_IN" },
+            trim: { brir: 2.6, ambisonic: 2.5 },
+            // Zero, not the 180 above, and stated rather than omitted. The
+            // originals put the direct sound at azimuth -39 deg — front, and
+            // within a degree of it at all six positions — so the array's front
+            // and the panorama's already agree. Half a turn on top of that
+            // renders the source behind the listener, where its lateral motion
+            // runs backwards: drag the view left and it moves further left
+            // instead of handing over to the right ear.
+            soundfieldYaw: 0,
+        },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0, gainDb: 1.5 },
@@ -255,12 +308,100 @@ function receiverIdOf(elementId) {
 }
 
 /**
- * Base path of a receiver's impulse response pair. AudioEngine appends the
- * channel number, so this deliberately ends in the trailing "-".
+ * Which set of files the two DECODED stages play from: a church's un-normalized
+ * originals where the flag asks for them and the church has them, and its
+ * published library otherwise.
+ *
+ * The decoded stages only. Stereo and the virtual-loudspeaker render keep the
+ * published library under every flag, because swapping it would change what
+ * they sound like without improving them: both convolve impulse-response
+ * channels 1 and 2 through ConvolverNodes that equal-power normalize, which
+ * scales the recovered level relationships straight back out. All that would
+ * survive the swap is the incidental difference between two takes of the same
+ * measurement — a different length, a different L/R balance — moving the very
+ * reference the other stages are matched to.
+ *
+ * Holding stereo still is what makes the comparison mean something: switch the
+ * flag on and the only thing that changes is the two stages whose directions
+ * the originals actually repair.
+ *
+ * Returns something shaped like a church config either way — an `ir`, a `trim`
+ * and optionally a `soundfieldYaw` — so callers read the same fields off it
+ * without knowing which set answered.
+ */
+function decodedSourceOf(config) {
+    const originals = config.unnormalized;
+    return originals && featureEnabled('unnormalized') ? originals : config;
+}
+
+/**
+ * Which panorama yaw the soundfield calls forward.
+ *
+ * Follows the decoded set, since the live ambisonic render is the only stage a
+ * rotation reaches. Overridable per set, unlike the receivers and the
+ * panoramas, because the published library's value is not the measurement it
+ * looks like: it was found by ear against a decode whose directions are invalid
+ * — the capsules having each been normalized on their own — so it records
+ * whatever offset made a broken soundfield sit least wrong, not where the array
+ * was actually facing. A set that decodes correctly cannot inherit that.
+ *
+ * Falls back to the church's own value, so a recovered set that genuinely
+ * agrees with it says nothing.
+ */
+function soundfieldYawOf(config) {
+    const yaw = decodedSourceOf(config).soundfieldYaw;
+    return Number.isFinite(yaw) ? yaw : (config.soundfieldYaw || 0);
+}
+
+/**
+ * Output levels for this church's stages, taking each from the set that stage
+ * is actually playing.
+ *
+ * A trim calibrates files, so it has to follow them. With the originals
+ * engaged, the decoded stages are the only ones reading from them — binaural
+ * stays on the published library along with the stereo it is matched against,
+ * and so keeps the published library's figure.
+ */
+function stageTrimsOf(config) {
+    const decoded = decodedSourceOf(config);
+    if (decoded === config) return config.trim;
+
+    return { ...config.trim, brir: decoded.trim.brir, ambisonic: decoded.trim.ambisonic };
+}
+
+/**
+ * Base path of a receiver's files within a given set. AudioEngine appends the
+ * channel number or the suffix, so this deliberately ends in the trailing "-".
+ *
+ * The stem comes from the church rather than from the set: `irName` records how
+ * a position was filed at the session, which both sets inherit.
+ */
+function responseBaseIn(source, config, receiverId) {
+    const stem = config.receivers[receiverId].irName || `${source.ir.prefix}_${receiverId}`;
+    return `${source.ir.dir}/${stem}-`;
+}
+
+/**
+ * Base path of a receiver's impulse response pair — channels 1 and 2, which
+ * stereo and the virtual-loudspeaker render convolve.
+ *
+ * Always the published library. See decodedSourceOf() for why the originals do
+ * not reach these two stages.
  */
 function impulseResponseBase(config, receiverId) {
-    const stem = config.receivers[receiverId].irName || `${config.ir.prefix}_${receiverId}`;
-    return `${config.ir.dir}/${stem}-`;
+    return responseBaseIn(config, config, receiverId);
+}
+
+/**
+ * Base path of a receiver's decoded files — the BRIR pair and the B-format —
+ * which the measured binaural and live ambisonic stages convolve.
+ *
+ * The originals where this visit asked for them and the church has them. The
+ * two bases are usually the same string; they differ only under /unnormalized,
+ * and only for a church that has been recovered.
+ */
+function decodedResponseBase(config, receiverId) {
+    return responseBaseIn(decodedSourceOf(config), config, receiverId);
 }
 
 /**

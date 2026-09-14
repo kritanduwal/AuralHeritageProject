@@ -5,6 +5,9 @@
  *   /binaural             adds the virtual-loudspeaker render and its toggle
  *   /ambisonic            adds the measured BRIR and live ambisonic renders,
  *                         and the head-tracking control that belongs to them
+ *   /unnormalized         puts the un-normalized original captures behind the
+ *                         two decoded renders, where a church has them. Stereo
+ *                         and the virtual-loudspeaker render do not move.
  *
  * A query string works everywhere the path form does — "?binaural&ambisonic" —
  * and needs no server routing, which makes it the reliable spelling on a host
@@ -20,7 +23,7 @@
  */
 
 /** Feature names that can be switched on, and what each reveals */
-const FEATURE_NAMES = ['binaural', 'ambisonic'];
+const FEATURE_NAMES = ['binaural', 'ambisonic', 'unnormalized'];
 
 /**
  * Features that carry others with them.
@@ -28,8 +31,18 @@ const FEATURE_NAMES = ['binaural', 'ambisonic'];
  * /ambisonic is the full research build rather than a third thing alongside
  * /binaural: the measured renders are only worth reaching if they can be
  * compared against the modelled one, so asking for them asks for that too.
+ *
+ * /unnormalized sits above /ambisonic for the same reason one step further
+ * along. Swapping in the original captures changes what every stage convolves,
+ * but stereo and the virtual-loudspeaker render pass their impulse responses
+ * through convolvers that normalize, which scales most of the difference back
+ * out. The decoded stages are the ones that can actually show it, so a visit
+ * asking for the originals is asking to hear those.
+ *
+ * Implication is transitive — see resolveImplied() — so this one line also
+ * carries /binaural along behind /ambisonic rather than having to name it.
  */
-const FEATURE_IMPLIES = { ambisonic: ['binaural'] };
+const FEATURE_IMPLIES = { ambisonic: ['binaural'], unnormalized: ['ambisonic'] };
 
 /**
  * Reads the flags out of the address.
@@ -53,10 +66,35 @@ function readFeatures(location) {
 /** The flags for this page load, read once */
 const FEATURES = readFeatures(typeof location === 'undefined' ? {} : location);
 
+/**
+ * Every feature a set of named flags reaches, following implications as far as
+ * they go.
+ *
+ * Transitive rather than one step deep, so a chain can be declared one link at
+ * a time. /unnormalized implies /ambisonic implies /binaural; resolved one step
+ * at a time, asking for the originals would reveal the measured renders but not
+ * the modelled one they are compared against — a gap with no symptom except a
+ * missing button.
+ *
+ * Skipping what `reached` already holds is what stops a mutual implication from
+ * looping. Nothing declares one today; the guard is so that adding one is a
+ * design decision rather than a hang.
+ */
+function resolveImplied(flags) {
+    const reached = new Set();
+    const pending = FEATURE_NAMES.filter(name => flags[name]);
+
+    while (pending.length) {
+        const name = pending.pop();
+        if (reached.has(name)) continue;
+        reached.add(name);
+        pending.push(...(FEATURE_IMPLIES[name] || []));
+    }
+    return reached;
+}
+
 /** Whether a named feature is switched on for this visit, directly or implied */
 function featureEnabled(name) {
-    if (FEATURES[name]) return true;
-    return FEATURE_NAMES.some(flag =>
-        FEATURES[flag] && (FEATURE_IMPLIES[flag] || []).includes(name));
+    return resolveImplied(FEATURES).has(name);
 }
 
