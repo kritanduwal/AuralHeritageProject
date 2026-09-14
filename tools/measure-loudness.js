@@ -369,16 +369,25 @@ function hrirPair(file) {
     return { left: wav.data[0], right: wav.data[1] };
 }
 
-/** What a position can offer, skipping whatever it does not have */
-function loadPosition(base) {
+/**
+ * What a position can offer, skipping whatever it does not have.
+ *
+ * Two bases, mirroring the engine: the impulse response pair that stereo and
+ * the virtual-loudspeaker render convolve, and the decoded files behind the
+ * other two stages. Measuring a recovered set means measuring the combination
+ * the app actually plays — the originals decoded, against the published
+ * library's stereo — rather than the originals on their own, which would
+ * calibrate them to a reference no visitor hears.
+ */
+function loadPosition(base, decodedBase = base) {
     const ir = { left: monoOf(base + '1.wav').data, right: monoOf(base + '2.wav').data };
 
-    const brirLeft = base + 'BRIR-L.wav';
+    const brirLeft = decodedBase + 'BRIR-L.wav';
     if (fs.existsSync(brirLeft)) {
-        ir.brir = { left: monoOf(brirLeft).data, right: monoOf(base + 'BRIR-R.wav').data };
+        ir.brir = { left: monoOf(brirLeft).data, right: monoOf(decodedBase + 'BRIR-R.wav').data };
     }
 
-    const bformat = base + 'Bformat.wav';
+    const bformat = decodedBase + 'Bformat.wav';
     if (fs.existsSync(bformat)) {
         const wav = readWav(bformat);
         if (wav.channels >= 4) ir.bformat = wav.data.slice(0, 4);
@@ -388,25 +397,76 @@ function loadPosition(base) {
 }
 
 /**
+ * A directory as ROOMS spells it: relative to the repository, forward slashes.
+ *
+ * Callers reach this tool with either form — a path typed on the command line
+ * or an absolute one built when it defaults to all of IR/ — and both have to
+ * land on the same key. Matching on the basename alone used to be enough and no
+ * longer is: every church keeps its originals in a folder of the same name, so
+ * the tail is the one part of the path that does not identify a church.
+ */
+const REPO_ROOT = path.join(__dirname, '..');
+
+function irDirKey(dir) {
+    return path.relative(REPO_ROOT, path.resolve(REPO_ROOT, dir)).split(path.sep).join('/');
+}
+
+/**
+ * Which church a directory holds, and which of its two file sets.
+ *
+ * @returns { key, config, source, set } or null for a directory ROOMS does not
+ *          know about — `source` is whichever of the two carries the `ir` and
+ *          the `trim` that belong to these files
+ */
+function setFor(rooms, dir) {
+    const wanted = irDirKey(dir);
+    for (const [key, config] of Object.entries(rooms)) {
+        if (irDirKey(config.ir.dir) === wanted) {
+            return { key, config, source: config, set: 'published' };
+        }
+        if (config.unnormalized && irDirKey(config.unnormalized.ir.dir) === wanted) {
+            return { key, config, source: config.unnormalized, set: 'unnormalized' };
+        }
+    }
+    return null;
+}
+
+/** How a measured directory is named in the report */
+function labelFor(rooms, dir) {
+    const found = setFor(rooms, dir);
+    if (!found) return path.basename(dir);
+    return path.basename(found.config.ir.dir) +
+        (found.set === 'unnormalized' ? '  (originals)' : '');
+}
+
+/**
  * The per-position reverb trim the app would apply, in dB.
  *
  * It sits upstream of every convolver, so it moves all four modes together —
  * but it moves only the wet path, so leaving it out would measure each mode at
  * a slightly different wet-to-dry balance than a listener hears.
+ *
+ * Read off the church rather than off the set: a position's distance from the
+ * source is a fact about the room, so both sets of its files carry it.
  */
 function gainDbFor(rooms, dir, stem) {
-    const folder = path.basename(dir);
-    for (const config of Object.values(rooms)) {
-        if (path.basename(config.ir.dir) !== folder) continue;
-        const match = /_(R\d+)$|\b(R\d+)$/.exec(stem);
-        const receiver = match && (match[1] || match[2]);
-        const entry = receiver && config.receivers[receiver];
-        return (entry && entry.gainDb) || 0;
-    }
-    return 0;
+    const found = setFor(rooms, dir);
+    if (!found) return 0;
+
+    const match = /_(R\d+)$|\b(R\d+)$/.exec(stem);
+    const receiver = match && (match[1] || match[2]);
+    const entry = receiver && found.config.receivers[receiver];
+    return (entry && entry.gainDb) || 0;
 }
 
-/** Rewrites each church's trim line in Rooms.js with the measured levels */
+/**
+ * Rewrites each measured trim line in Rooms.js with the levels just found.
+ *
+ * A church can have two of them — the published library's and its originals' —
+ * and each is found the same way: locate the `ir:` line naming that set's
+ * directory, then take the first `trim:` line below it. Only sets that were
+ * actually measured in this run are touched.
+ */
 function writeTrims(rooms, suggested) {
     const file = path.join(__dirname, '..', 'Javascript', 'Rooms.js');
     const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
@@ -414,16 +474,22 @@ function writeTrims(rooms, suggested) {
 
     const round = (v) => (v === null || v === undefined ? 0 : Math.round(v * 10) / 10);
 
-    for (const [key, config] of Object.entries(rooms)) {
-        const folder = path.basename(config.ir.dir);
-        const trims = suggested[folder];
+    const sets = Object.entries(rooms).flatMap(([key, config]) => [
+        { key, source: config, originals: false },
+        ...(config.unnormalized
+            ? [{ key: key + '.unnormalized', source: config.unnormalized, originals: true }]
+            : []),
+    ]);
+
+    for (const { key, source, originals } of sets) {
+        const trims = suggested[irDirKey(source.ir.dir)];
         if (!trims) continue;
 
         // Line-by-line rather than a pattern over the whole file: church names
         // carry commas, full stops and apostrophes, and escaping them into a
         // regex is a great deal of care spent to arrive back where a plain
         // string comparison already is.
-        const irLine = lines.findIndex(l => l.includes('ir:') && l.includes(config.ir.dir));
+        const irLine = lines.findIndex(l => l.includes('ir:') && l.includes(source.ir.dir));
         if (irLine < 0) continue;
 
         const trimLine = lines.findIndex((l, i) =>
@@ -434,9 +500,22 @@ function writeTrims(rooms, suggested) {
         const binaural = trims.binaural === null || trims.binaural === undefined
             ? 0 : round(trims.binaural);
 
-        lines[trimLine] = `        trim:     { binaural: ${binaural}, ` +
-            `brir: ${round(trims.brir)}, ambisonic: ${round(trims.ambisonic)} },`;
-        written.push(`${key.padEnd(30)} ${lines[trimLine].trim()}`);
+        // A recovered set calibrates the two decoded stages and only those:
+        // binaural plays from the published library along with the stereo it is
+        // matched to, so its figure belongs to that set's line, not this one.
+        // Writing it here would leave a number nothing reads, which is the kind
+        // that goes stale and then gets believed.
+        const levels = originals
+            ? `brir: ${round(trims.brir)}, ambisonic: ${round(trims.ambisonic)}`
+            : `binaural: ${binaural}, brir: ${round(trims.brir)}, ambisonic: ${round(trims.ambisonic)}`;
+
+        // Everything up to the brace is kept as found, so a line is rewritten
+        // at whatever indent and alignment it already had. The two sets are
+        // nested differently and neither should be reformatted to match the
+        // other by a tool that was only asked to change some numbers.
+        const prefix = lines[trimLine].slice(0, lines[trimLine].indexOf('{'));
+        lines[trimLine] = `${prefix}{ ${levels} },`;
+        written.push(`${key.padEnd(34)} ${lines[trimLine].trim()}`);
     }
 
     fs.writeFileSync(file, lines.join('\r\n'));
@@ -515,25 +594,43 @@ function main() {
         ? `the app's own SADIE ears at +-${VIRTUAL_SPEAKER_AZIMUTH} deg — exact`
         : 'skipped'}`);
 
+    const rooms = loadRooms();
+
+    // Defaulting to the whole library means both sets of it: a church whose
+    // originals were recovered has two calibrations, and refreshing one while
+    // leaving the other on last month's numbers is the failure this avoids.
     const root = path.join(__dirname, '..', 'IR');
     const dirs = options.dirs.length ? options.dirs
-        : fs.readdirSync(root).map(d => path.join(root, d))
-            .filter(d => fs.statSync(d).isDirectory());
+        : [
+            ...fs.readdirSync(root).map(d => path.join(root, d))
+                .filter(d => fs.statSync(d).isDirectory()),
+            ...Object.values(rooms)
+                .filter(c => c.unnormalized)
+                .map(c => path.join(REPO_ROOT, c.unnormalized.ir.dir))
+                .filter(d => fs.existsSync(d)),
+        ];
 
-    const rooms = loadRooms();
     const perChurch = [];
     for (const dir of dirs) {
         const positions = [...findPositions(dir)].sort();
         const limit = options.positions || positions.length;
         const rows = [];
 
+        // Measuring a recovered set measures the pairing the app plays: these
+        // decoded files against the published library's stereo, which is the
+        // reference every trim is relative to and which the flag leaves alone.
+        const found = setFor(rooms, dir);
+        const publishedDir = found && found.set === 'unnormalized'
+            ? path.join(REPO_ROOT, found.config.ir.dir) : dir;
+
         for (const [stem, channels] of positions.slice(0, limit)) {
             const block = ambisonicBlock(channels);
             if (!block) continue;
-            const base = path.join(dir, stem + '-');
+            const base = path.join(publishedDir, stem + '-');
+            const decodedBase = path.join(dir, stem + '-');
             let ir;
             try {
-                ir = loadPosition(base);
+                ir = loadPosition(base, decodedBase);
             } catch (err) {
                 continue;
             }
@@ -545,8 +642,9 @@ function main() {
             rows.push({ stem, lufs });
         }
 
-        if (rows.length) perChurch.push({ dir, rows });
-        reportChurch(dir, rows);
+        const label = labelFor(rooms, dir);
+        if (rows.length) perChurch.push({ dir, label, rows });
+        reportChurch(label, rows);
     }
 
     const suggested = summarize(perChurch, options);
@@ -567,8 +665,8 @@ function meanDb(values) {
 
 const MODES = ['stereo', 'binaural', 'brir', 'ambisonic'];
 
-function reportChurch(dir, rows) {
-    console.log(`\n${path.basename(dir)}`);
+function reportChurch(label, rows) {
+    console.log(`\n${label}`);
     if (!rows.length) { console.log('  nothing measurable here'); return; }
 
     console.log('  position                       ' +
@@ -588,7 +686,7 @@ function summarize(perChurch, options) {
     console.log('  church                          binaural      brir  ambisonic');
 
     const suggested = {};
-    for (const { dir, rows } of perChurch) {
+    for (const { dir, label, rows } of perChurch) {
         const trimFor = (mode) => meanDb(rows
             .filter(r => Number.isFinite(r.lufs[mode]) && Number.isFinite(r.lufs.stereo))
             .map(r => r.lufs.stereo - r.lufs[mode]));
@@ -598,9 +696,11 @@ function summarize(perChurch, options) {
             brir: trimFor('brir'),
             ambisonic: trimFor('ambisonic'),
         };
-        suggested[path.basename(dir)] = trims;
+        // Keyed by directory rather than by church: a church measured from both
+        // its sets produces two rows, and they must not overwrite each other.
+        suggested[irDirKey(dir)] = trims;
 
-        console.log('  ' + path.basename(dir).padEnd(30) +
+        console.log('  ' + label.padEnd(30) +
             ['binaural', 'brir', 'ambisonic']
                 .map(m => (trims[m] === null ? '-' : trims[m].toFixed(1)).padStart(10)).join(''));
     }

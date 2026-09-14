@@ -14,24 +14,36 @@ const plain = (value) => JSON.parse(JSON.stringify(value));
 /** Reads flags out of a made-up address without booting a whole app */
 const flagsFor = (app, pathname, search = '') => plain(app.data.readFeatures({ pathname, search }));
 
+/**
+ * The flag set an address should produce: the ones named true, the rest false.
+ *
+ * Built from FEATURE_NAMES rather than written out, so that adding a flag does
+ * not turn every one of these into a failure about a flag it was not testing.
+ */
+const only = (app, ...on) => Object.fromEntries(
+    plain(app.data.FEATURE_NAMES).map(name => [name, on.includes(name)]));
+
 // ── reading the address ───────────────────────────────────────────────────
 
 test('the plain address gives the published experience and nothing else', () => {
     const app = createApp();
-    assert.deepEqual(plain(app.data.FEATURE_NAMES).map(n => app.state.FEATURES[n]), [false, false]);
+    assert.deepEqual(plain(app.data.FEATURE_NAMES).map(n => app.state.FEATURES[n]),
+        plain(app.data.FEATURE_NAMES).map(() => false));
 });
 
 test('a path segment switches on the feature it names', () => {
     const app = createApp();
-    assert.deepEqual(flagsFor(app, '/binaural'), { binaural: true, ambisonic: false });
-    assert.deepEqual(flagsFor(app, '/ambisonic'), { binaural: false, ambisonic: true });
-    assert.deepEqual(flagsFor(app, '/binaural/ambisonic'), { binaural: true, ambisonic: true });
+    assert.deepEqual(flagsFor(app, '/binaural'), only(app, 'binaural'));
+    assert.deepEqual(flagsFor(app, '/ambisonic'), only(app, 'ambisonic'));
+    assert.deepEqual(flagsFor(app, '/unnormalized'), only(app, 'unnormalized'));
+    assert.deepEqual(flagsFor(app, '/binaural/ambisonic'), only(app, 'binaural', 'ambisonic'));
 });
 
 test('a query string does the same, for hosts that cannot route paths', () => {
     const app = createApp();
-    assert.deepEqual(flagsFor(app, '/', '?binaural'), { binaural: true, ambisonic: false });
-    assert.deepEqual(flagsFor(app, '/', '?binaural=1&ambisonic'), { binaural: true, ambisonic: true });
+    assert.deepEqual(flagsFor(app, '/', '?binaural'), only(app, 'binaural'));
+    assert.deepEqual(flagsFor(app, '/', '?binaural=1&ambisonic'), only(app, 'binaural', 'ambisonic'));
+    assert.deepEqual(flagsFor(app, '/', '?unnormalized'), only(app, 'unnormalized'));
 });
 
 test('flags match whole segments, never a word inside one', () => {
@@ -95,6 +107,33 @@ test('the implication runs one way only', () => {
     assert.equal(app.g.featureEnabled('binaural'), true);
     assert.equal(app.g.featureEnabled('ambisonic'), false,
         'the modelled render must not unlock the measured ones');
+    assert.equal(app.g.featureEnabled('unnormalized'), false,
+        'nor must it swap the files out from under the visit');
+});
+
+test('implication is transitive, so a chain can be declared one link at a time', () => {
+    // /unnormalized names only /ambisonic, which names only /binaural. Resolved
+    // one step deep, the originals would arrive with the measured renders but
+    // without the modelled one they exist to be compared against.
+    const app = createApp({ path: '/unnormalized' });
+    app.g.applyFeatureGating();
+
+    for (const id of ['binaural', 'brir', 'ambisonic', 'tracking-control']) {
+        assert.ok(!hidden(app, id), id + ' should come with the unnormalized flag');
+    }
+    assert.equal(app.g.featureEnabled('binaural'), true, 'reached through /ambisonic');
+    assert.equal(app.state.FEATURES.binaural, false, 'though neither flag was set');
+});
+
+test('an implication chain resolves the same whichever way it is reached', () => {
+    // Spelling out every link must add nothing, or the two forms of the same
+    // request would hand out different builds.
+    const chained = createApp({ path: '/unnormalized' });
+    const spelled = createApp({ query: '?unnormalized&ambisonic&binaural' });
+
+    for (const name of ['binaural', 'ambisonic', 'unnormalized']) {
+        assert.equal(chained.g.featureEnabled(name), spelled.g.featureEnabled(name), name);
+    }
 });
 
 test('naming both flags is the same as naming the wider one', () => {

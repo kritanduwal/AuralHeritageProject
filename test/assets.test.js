@@ -419,6 +419,101 @@ test('each stage lands where the way it is built says it should', () => {
             `${key}: the ambisonic decode carries Omnitone's gain on top of the BRIR's`);
     }
 });
+// ── the un-normalized originals ───────────────────────────────────────────
+
+const rawApp = createApp({ path: '/unnormalized' });
+const rawRooms = rawApp.data.ROOMS;
+const withOriginals = roomKeys.filter(key => ROOMS[key].unnormalized);
+
+test('a recovered church has the decoded files the flag sends it to', () => {
+    // Only the three the decoded stages read. Without them the flag silently
+    // drops back to stereo on the very stages it exists to show.
+    assert.ok(withOriginals.length, 'no church has originals; this suite would prove nothing');
+
+    const missing = [];
+    for (const key of withOriginals) {
+        for (const rid of receiversOf(key)) {
+            const base = rawApp.g.decodedResponseBase(rawRooms[key], rid);
+            for (const suffix of ['BRIR-L.wav', 'BRIR-R.wav', 'Bformat.wav']) {
+                if (!existsExactly(base + suffix)) missing.push(base + suffix);
+            }
+        }
+    }
+    assert.deepEqual(missing, [], 'originals referenced by ROOMS but not present');
+});
+
+test('the flag never moves the impulse response pair off the published library', () => {
+    // Stereo is the reference every other stage is trimmed against, so it has
+    // to be the same audio with the flag set as without it. A test rather than
+    // a comment because the two bases are one keystroke apart at the call site.
+    for (const key of roomKeys) {
+        for (const rid of receiversOf(key)) {
+            assert.equal(
+                rawApp.g.impulseResponseBase(rawRooms[key], rid),
+                impulseResponseBase(ROOMS[key], rid),
+                `${key} ${rid}: the stereo pair moved under /unnormalized`
+            );
+        }
+    }
+});
+
+test('the originals carry the same channel layout as the library they replace', () => {
+    for (const key of withOriginals) {
+        const channelsIn = (dir) => new Set(Array.from(
+            fs.readdirSync(path.join(ROOT, dir)),
+            f => (f.match(/-(\d+)\.wav$/) || [])[1]).filter(Boolean));
+
+        assert.deepEqual(
+            [...channelsIn(ROOMS[key].unnormalized.ir.dir)].sort(),
+            [...channelsIn(ROOMS[key].ir.dir)].sort(),
+            `${key}: the recovered capture should hold the same channels as the published one`
+        );
+    }
+});
+
+test('no originals trim is left at a level the engine would refuse', () => {
+    const { STAGE_TRIM_MIN_DB, STAGE_TRIM_MAX_DB } = app.data;
+
+    const bad = [];
+    for (const key of withOriginals) {
+        for (const [stage, db] of Object.entries(ROOMS[key].unnormalized.trim)) {
+            if (typeof db !== 'number' || !Number.isFinite(db) ||
+                db < STAGE_TRIM_MIN_DB || db > STAGE_TRIM_MAX_DB) {
+                bad.push(`${key}.unnormalized.${stage} = ${JSON.stringify(db)}`);
+            }
+        }
+    }
+    assert.deepEqual(bad, [],
+        `trims must be finite numbers between ${STAGE_TRIM_MIN_DB} and ${STAGE_TRIM_MAX_DB} dB`);
+});
+
+test('the originals land near stereo rather than far above it', () => {
+    // The published library's decoded stages need fifteen to twenty dB taken
+    // off, because its capsules were each normalized to full scale and the
+    // convolvers behind those two stages do not normalize. The originals are
+    // scaled as a set to a 0 dBFS peak instead, which lands them within a few
+    // dB of the stereo they are matched to.
+    //
+    // A loose band rather than an ordering: the gap between the two decoded
+    // stages is Omnitone's gain over a wet path that is much quieter in this
+    // set, which closes it to a few tenths of a dB — too fine to assert against
+    // a re-measurement. What would be a real fault is either stage drifting far
+    // from stereo, which is what this catches.
+    for (const key of withOriginals) {
+        for (const [stage, db] of Object.entries(ROOMS[key].unnormalized.trim)) {
+            assert.ok(Math.abs(db) < 10,
+                `${key}: ${stage} at ${db} dB is too far from stereo for a set-scaled decode`);
+        }
+    }
+});
+
+test('a recovered church is reachable by the flag that serves it', () => {
+    // The path form needs a route on both hosts; without them /unnormalized
+    // 404s and the query form is the only spelling that works.
+    assert.match(read('server.js'), /FEATURE_PATHS = \[[^\]]*'\/unnormalized'/);
+    assert.match(read('netlify.toml'), /from = "\/unnormalized"/);
+});
+
 test('every church declares which way its recording faces', () => {
     // Omitted means "the photograph and the recording agree", which is a claim
     // about that session rather than a default worth inheriting silently. The

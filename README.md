@@ -111,6 +111,7 @@ has started. A slow response can never overwrite a later choice.
 | File | Responsibility |
 | --- | --- |
 | `index.html` | Markup: controls, the three tabs, floorplan overlays, modals |
+| `Javascript/Features.js` | Which optional renders this visit can reach, read from the address |
 | `Javascript/Rooms.js` | **Data.** Per-church IR/panorama paths, camera angles, gain trims |
 | `Javascript/ChurchData.js` | **Data.** History, dimensions and distances for the Church Info modal, plus `receiverDistanceFeet()`, which the binaural render places its speakers by |
 | `Javascript/App.js` | Page state, panorama viewer, `compile()`, error banner, modals |
@@ -157,6 +158,12 @@ the **raw A-format** output of the NT-SF1 rather than B-format, and **every file
 in the library is peak-normalized on its own**, so relationships between channels
 are gone. The stereo pair tolerates that because the two front omnis are near
 symmetric; a decode built from linear combinations of four capsules would not.
+
+One church is now the exception. The un-normalized originals for Monastery
+Immaculate Conception have been recovered and live outside `IR/`, under
+`Ambisonic Files/<Church>/Not Nomalized/`, reachable by the
+[`/unnormalized` flag](#feature-flags). See
+[The originals](#the-originals-where-they-have-been-recovered).
 
 Prefixes rarely match the folder name (`Cane Ridge Meeting House, KY` holds files
 named `Cane Ridge KY_…`), which is why `ir.dir` and `ir.prefix` are separate fields.
@@ -393,6 +400,160 @@ A decode from these files would sound spatial while pointing sound in directions
 nobody recorded. Should un-normalized originals ever be recovered, an ambisonic
 stage could be added alongside these two rather than replacing them.
 
+### The originals, where they have been recovered
+
+For **Monastery Immaculate Conception** they have been. `Ambisonic Files/Monastery
+Immaculate Conception, IN/Not Nomalized/` holds the raw captures for all six
+positions, and the second objection above does not hold against them: no channel
+peaks at full scale, and `aformat-to-bformat.js` says so rather than printing its
+`STOP`. The arithmetic agrees. Decoded, the directional channels sit at −6 to −9 dB
+against `W`, near the −4.8 dB a diffuse tail should give, where the same positions
+decoded from the published library scatter to −11, −15, −20 dB — the signature of
+four capsules each rescaled by its own unknown factor.
+
+Reach them with the [`/unnormalized` flag](#feature-flags).
+
+### Which stages the originals reach
+
+**The two decoded stages, and only those.** The flag swaps the files behind the
+measured binaural (BRIR) and live ambisonic renders. Stereo and the
+virtual-loudspeaker binaural render keep the published library under every flag.
+
+| Stage | Files it convolves | Under `/unnormalized` |
+| --- | --- | --- |
+| Stereo | IR channels 1 and 2 | unchanged |
+| Binaural (virtual loudspeakers) | IR channels 1 and 2 | unchanged |
+| Measured binaural (BRIR) | `-BRIR-L/R.wav` | **originals** |
+| Live ambisonic | `-Bformat.wav` | **originals** |
+
+Those first two stages convolve channels 1 and 2 through `ConvolverNode`s that
+equal-power normalize, which scales the recovered level relationships straight
+back out. Swapping them would change how they sound without improving them: all
+that survives the swap is the incidental difference between two takes of one
+measurement — a different length, a different L/R balance — and that difference
+would land on the very reference the other stages are trimmed against.
+
+Holding stereo still is what makes the comparison mean something. Set the flag and
+the only thing that moves is the pair of stages whose directions the originals
+actually repair. `AudioEngine.js` therefore carries two path prefixes,
+`currentIr.base` and `currentIr.decodedBase`, identical everywhere except here.
+
+Two more things are worth knowing before reading much into what you hear:
+
+- **The set is scaled, as a set.** The originals arrive some 45 dB below the
+  published library — a deconvolved IR lands wherever the sweep level put it — far
+  enough down that the two decoded stages, whose convolvers deliberately do not
+  normalize, come back quieter than the dry path and are inaudible under it. So
+  `aformat-to-bformat.js --gain auto` applies **one scalar to all four channels of
+  every position**, bringing the loudest sample in the church to 0 dBFS. This is
+  the opposite of the per-channel normalization above: every ratio inside the set,
+  between capsules and between positions alike, comes out exactly as it went in.
+  The only thing it changes is where the set as a whole sits.
+- **Which leaves one judgment call.** That absolute level sets how loud the
+  measured reverb is against the direct sound on the two decoded stages, and 0 dBFS
+  is a convention rather than a measurement — recovering the true ratio would need
+  the source level at the microphone, which was not recorded. It lands the set
+  about 11 dB below the published library, which is why its trims are a couple of
+  dB where the library's are fifteen to twenty. Playback loudness is matched
+  either way: both sets are measured against the same unchanged stereo.
+
+The receivers, panoramas and `gainDb` trims are shared, because those describe the
+room rather than the files. The `unnormalized` block carries only what describes
+the files:
+
+```js
+unnormalized: {
+    ir:            { dir: "…/Not Nomalized", prefix: "MIC_IN" },
+    trim:          { brir: 2.6, ambisonic: 2.5 },   // the two stages that read it
+    soundfieldYaw: 0,                               // see below
+},
+```
+
+`trim` has no `binaural` key, because that stage plays the published library along
+with the stereo it is matched to — its figure belongs to the church's own `trim`.
+`stageTrimsOf()` assembles the two. **`soundfieldYaw` is the one non-obvious part**
+of the entry.
+
+### Why the originals need their own `soundfieldYaw`
+
+A church's published `soundfieldYaw` looks like a measurement and is not one. It
+was [found by ear](#the-impulse-response-library) against a decode whose directions
+are invalid, so it records whatever offset made a broken soundfield sit least
+wrong — not where the array was facing. A set that decodes correctly cannot
+inherit it.
+
+Monastery Immaculate Conception is the case in point. Taking the active intensity
+vector `W·[X, Y, Z]` over the direct sound, the two sets disagree completely about
+where the source is:
+
+| Set | Direct-sound azimuth, by position | Elevation |
+| --- | --- | --- |
+| Published | −88°, −86°, −98°, −88°, −32°, −129° | ≈ +55° |
+| Originals | −40°, −39°, −39°, −39°, −39°, −39° | ≈ −39° |
+
+The published figures scatter over 97° and put the source *above* the array; the
+originals agree to within a degree across all six positions. That consistency is
+the decode working.
+
+It also means the array's front and the panorama's already agree, so the church's
+`soundfieldYaw: 180` is half a turn too far for this set. That is not a cosmetic
+error: it renders the source **behind** the listener, and behind you the lateral
+motion runs backwards — drag the view left and the source moves further left
+instead of handing over to the right ear. Hence `soundfieldYaw: 0` on the
+originals, stated rather than omitted.
+
+`soundfieldYawOf()` in `Rooms.js` resolves it, falling back to the church where a
+recovered set agrees. Check this by ear for each set you add.
+
+### One thing the originals do not settle
+
+The four capsules are not level-matched. Over the reverberant tail — which is
+diffuse, and so should read nearly equal on all four — they spread **16.7 dB**,
+with channels 3 and 6 some 15 dB below 4 and 5. A coincident tetrahedral array
+cannot do that; on-axis to one capsule is worth about 9.5 dB even for the direct
+sound, and the tail should be flatter still.
+
+That imbalance, not the room, is likely what puts the measured direction at −39°
+azimuth and −39° elevation — a direction which is within a few degrees of the
+`FRD` capsule axis itself, `(1, −1, −1)`. Two candidates, and the files cannot
+distinguish them: the capsules were recorded at unequal gain, or `CAPSULE_ORDER`
+in `aformat-to-bformat.js` does not match how this session was wired. Resolving it
+needs the session notes, which is exactly what that script's header warns about.
+Nothing here compensates for it, because compensating on a guess would bake a
+second unknown into the output.
+
+---
+
+## Feature flags
+
+Optional renders are gated by the address, so the published experience stays plain
+stereo while the research builds remain reachable without a separate deployment.
+
+| Flag | Adds |
+| --- | --- |
+| *(none)* | Stereo only — the published experience |
+| `/binaural` | The virtual-loudspeaker render and its toggle |
+| `/ambisonic` | The measured BRIR and live ambisonic renders, and head tracking |
+| `/unnormalized` | The [un-normalized originals](#the-originals-where-they-have-been-recovered) behind the two decoded stages, where a church has them |
+
+Each flag implies the one above it, transitively: `/unnormalized` is the full
+research build. A query string works identically — `?binaural&ambisonic` — and
+needs no server routing, which makes it the reliable spelling on a static host.
+The path form needs its route in both `server.js` and `netlify.toml`, which hand
+back `index.html` without changing the address the browser shows.
+
+`/unnormalized` is the one flag that reveals no control. It changes which files
+every stage convolves, not what the page offers, and a church whose originals have
+not been recovered plays its published library under it exactly as it does
+without. It implies `/ambisonic` because the stages it can actually be heard on
+are the decoded ones — stereo and the virtual-loudspeaker render pass their
+impulse responses through convolvers that normalize, which scales most of the
+difference back out.
+
+Gating is presentation only. Nothing in `Features.js` disables engine code: a
+hidden mode is one nobody can reach, not one that has been removed, so the audio
+graph and its tests are identical either way.
+
 ---
 
 ## Adding a church
@@ -420,6 +581,45 @@ stage could be added alongside these two rather than replacing them.
 
 No JavaScript logic changes: `switchRoom()`, `compile()` and the audio engine all
 derive their behaviour from the ids and the `ROOMS` entry.
+
+---
+
+### Adding a church's original captures
+
+Where the un-normalized originals of a church already in the table are recovered:
+
+1. **Audio** — drop them in `Ambisonic Files/<Church Name>/Not Nomalized/`, named
+   exactly as the published set is. Confirm the tool does not print its
+   per-channel-normalization `STOP`; if it does, these are not originals.
+
+   ```bash
+   node tools/aformat-to-bformat.js --dry-run "Ambisonic Files/<Church Name>/Not Nomalized"
+   ```
+2. **Derive** the B-format and the BRIR pairs beside them. The set gain belongs on
+   the first step only — the BRIRs inherit it.
+
+   ```bash
+   node tools/aformat-to-bformat.js --gain auto "Ambisonic Files/<Church Name>/Not Nomalized"
+   node tools/bformat-to-brir.js --hrir <sadie dir> "Ambisonic Files/<Church Name>/Not Nomalized"
+   ```
+3. **`Javascript/Rooms.js`** — add an `unnormalized: { ir, trim }` block to that
+   church. `trim` carries `brir` and `ambisonic` only — the two stages that read
+   the set — and no `binaural`. Start both at `0`; step 5 measures them.
+4. **Check which way it faces.** Do not inherit the church's `soundfieldYaw` —
+   [it is not a measurement](#why-the-originals-need-their-own-soundfieldyaw).
+   Turn the view with the live ambisonic render on and confirm a source crosses
+   to the *opposite* ear rather than following you; if it follows, the set is
+   half a turn out and wants its own `soundfieldYaw` in the block.
+5. **Calibrate.** With no arguments this now measures both sets of every church and
+   writes all of them, so the two calibrations cannot drift apart.
+
+   ```bash
+   node tools/measure-loudness.js --write
+   ```
+
+`assets.test.js` checks that every receiver's five files are present and that the
+new trims are ones the engine will accept, so a half-copied set fails the suite
+rather than falling back to stereo in the browser.
 
 ---
 
