@@ -49,9 +49,8 @@ const PUBLISHED_BASE = 'IR/Monastery Immaculate Conception, IN/Normalized/MIC_IN
 const ORIGINALS_BASE = 'IR/Monastery Immaculate Conception, IN/Not Normalized/MIC_IN_R3-';
 
 test('the two bases point at the two sets', () => {
-    // Stereo convolves channels 1 and 2 through normalizing convolvers, so it
-    // plays the published library everywhere and stays the reference the
-    // headphone render is trimmed against. The render reads the originals.
+    // Stereo stays on the published library everywhere, which is what keeps it
+    // the reference the render is trimmed against
     const church = ROOMS.MonasteryImmaculateConception;
     assert.ok(church.unnormalized,
         'this church is one of those that have originals; the test means nothing if it stops');
@@ -60,9 +59,8 @@ test('the two bases point at the two sets', () => {
 });
 
 test('a church without originals offers nothing to decode', () => {
-    // Empty rather than a fallback to the published library: those capsules
-    // were each peak-normalized, so a decode of them would place sound in
-    // directions nobody measured while sounding entirely convincing.
+    // A decode of peak-normalized capsules places sound in directions nobody
+    // measured, while sounding entirely convincing
     for (const [key, cfg] of Object.entries(ROOMS)) {
         if (cfg.unnormalized) continue;
         assert.equal(app.g.decodedResponseBase(cfg, 'R1'), '', key);
@@ -79,9 +77,8 @@ test('the trim comes from the set the stage actually plays, at that position', (
 });
 
 test('two positions of one church get two levels', () => {
-    // The whole reason the table is per receiver: stereo was normalized per
-    // position and the recovered set was not, so the gap between them grows
-    // with distance from the source.
+    // Stereo was normalized per position and the recovered set was not, so the
+    // gap between them grows with distance from the source
     const church = ROOMS.StAugustineIsleta;
     const front = app.g.stageTrimsOf(church, 'R1').ambisonic;
     const back = app.g.stageTrimsOf(church, 'R4').ambisonic;
@@ -98,14 +95,13 @@ test('a church with no recovered set has no trim to state', () => {
 });
 
 test('a position missing from the table is left to the engine constant', () => {
-    // Rather than silently borrowing a neighbour's level, which would be a
-    // plausible-sounding number that no measurement stands behind.
+    // Rather than borrowing a neighbour's level, which no measurement backs
     const church = ROOMS.MonasteryImmaculateConception;
     assert.deepEqual(Object.keys(app.g.stageTrimsOf(church, 'R99')), []);
 });
 
 test('the originals calibrate the one stage that reads them, and no others', () => {
-    // A figure nothing reads is one that goes stale and then gets believed.
+    // A figure nothing reads goes stale and then gets believed
     for (const [key, cfg] of rooms) {
         if (!cfg.unnormalized) continue;
         assert.deepEqual(Object.keys(cfg.unnormalized.trim), ['ambisonic'],
@@ -134,8 +130,8 @@ test('an originals entry describes the files and never the room', () => {
 });
 
 test('the soundfield orientation comes from the set that is playing', () => {
-    // The church's own value was found by ear against a decode whose directions
-    // are invalid, so a correctly decoding set must be able to disagree with it.
+    // The church's value was found against an invalid decode, so a correct set
+    // must be able to disagree with it
     const church = ROOMS.MonasteryImmaculateConception;
     assert.equal(app.g.soundfieldYawOf(church), church.unnormalized.soundfieldYaw);
     assert.notEqual(church.unnormalized.soundfieldYaw, church.soundfieldYaw,
@@ -261,11 +257,10 @@ test('every room has matching reference data in ChurchData.js', () => {
 });
 
 // ── receiver distances ────────────────────────────────────────────────────
-// Reference text in the Church Info modal. Nothing in playback reads them any
-// more: they placed the virtual loudspeakers of the render that was removed.
+// Reference text in the Church Info modal; nothing in playback reads them.
 
 test('every receiver distance is stated in a form the modal can show', () => {
-    // A stray unit or a missing number would appear verbatim in the table
+    // A stray unit or missing number would appear verbatim in the table
     for (const [key, data] of Object.entries(app.data.churchData)) {
         for (const [r, text] of Object.entries(data.receivers)) {
             assert.match(text, /^\d+(\.\d+)? ft$/,

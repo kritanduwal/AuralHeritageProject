@@ -10,9 +10,7 @@ const close = (actual, expected, tolerance = 1e-9, msg) =>
 
 /**
  * Builds a graph in a fresh app and returns the pieces tests reason about.
- *
- * `withBformat` decides whether the church has un-normalized originals to
- * decode, which is what makes the headphone stage exist at all.
+ * `withBformat` is what makes the headphone stage exist at all.
  */
 function buildGraph(app, { mix = 1, irGainDb = 0, ambisonic = false,
                            withBformat = ambisonic } = {}) {
@@ -304,11 +302,9 @@ test('setConvolutionMix is remembered while stopped and applied on the next play
 /**
  * Makes the derived files 404, whatever is on disk.
  *
- * The default responder answers from the real repository, which is right for
- * the recordings but wrong for anything the offline tools produce: those appear
- * the moment someone runs a script, and a test that assumed their absence would
- * start failing on a machine where the pipeline had been run. Absence has to be
- * asked for as explicitly as presence.
+ * The default responder answers from the real repository, so a test assuming a
+ * B-format is absent would start failing wherever the tools had been run.
+ * Absence has to be asked for as explicitly as presence.
  */
 function withoutDerived(app) {
     const server = app.net.respond.bind(app.net);
@@ -334,9 +330,7 @@ test('building for the headphone render swaps which stage carries the signal', (
 });
 
 test('the headphone stage takes its level from the church, not the fallback', () => {
-    // The fallback is 0 dB: an uncalibrated stage plays raw, which is the wrong
-    // level on purpose. How far off it lands depends on how the recovered set
-    // was scaled, so the figure is per set rather than shared.
+    // The fallback is 0 dB: an uncalibrated stage plays raw, on purpose
     const app = createApp();
     app.g.setStageTrims({ ambisonic: -2.5 });
 
@@ -348,8 +342,7 @@ test('the headphone stage takes its level from the church, not the fallback', ()
 });
 
 test('a church with nothing to decode falls back to stereo rather than to silence', async () => {
-    // Most of the library has no recovered originals, so compile() hands the
-    // engine an empty decoded base and the stage is never built.
+    // compile() hands the engine an empty decoded base, so the stage is never built
     const app = await readyToPlay(createApp(), 0, '');
     await app.g.startPlayback();
 
@@ -398,8 +391,7 @@ test('the toggle glides rather than jumping', async () => {
 });
 
 test('every crossfade is anchored in the present, so none of them can step', async () => {
-    // The A/B is the whole point of the toggle, so the change that matters is
-    // the second one and the fiftieth, not the first.
+    // The change that matters is the second toggle and the fiftieth, not the first
     const app = await readyToPlay(withAmbisonic(createApp()));
     await app.g.startPlayback();
     const graph = app.state.activeGraph;
@@ -418,9 +410,8 @@ test('every crossfade is anchored in the present, so none of them can step', asy
 });
 
 test('the crossfade reads as instant without clicking', () => {
-    // Bounded from both sides: a gain that steps in one sample clicks, and a
-    // fade shorter than the latency the decode adds would duck both stages at
-    // once and leave a hole. Between those it should be as short as it can.
+    // A gain that steps in one sample clicks; a fade shorter than the decode's
+    // latency ducks both stages at once and leaves a hole
     const fade = createApp().data.STAGE_CROSSFADE;
     assert.ok(fade >= 0.01, `${fade}s is short enough to duck both stages at once`);
     assert.ok(fade <= 0.05, `${fade}s is long enough to be heard as a transition`);
@@ -497,8 +488,7 @@ test('the toggle button reports the mode it is in', async () => {
 
 test('the offline render falls back to stereo, since the decoder cannot travel', async () => {
     // An Omnitone renderer belongs to the context that made it, so the live one
-    // cannot be borrowed by an OfflineAudioContext. The render says so by
-    // producing the stereo stage rather than silence.
+    // cannot be borrowed offline — stereo rather than silence
     const app = await readyToPlay(withAmbisonic(createApp()));
     await app.g.startPlayback();
     app.g.toggleAmbisonic();
@@ -626,8 +616,7 @@ test('the mix slider retunes the ambisonic stage along with the rest', async () 
 });
 
 test('the two modes are alternatives, not layers', async () => {
-    // One flag and two stages today. engageMode() is the single place that
-    // resolves them, so that a third stage cannot quietly arrive alongside.
+    // engageMode() is the single place that resolves them
     const app = await readyToPlay(withAmbisonic(createApp()));
     await app.g.startPlayback();
 
@@ -883,9 +872,8 @@ test('tracking stops with the mode, leaving the soundfield facing forward', asyn
 });
 
 test('the mode can be armed before playback has started', async () => {
-    // Availability is read off the running graph, so gating on that alone left
-    // the button greyed out on a freshly loaded page with no way in: you cannot
-    // press play *and* have already chosen how to listen.
+    // Gating on the running graph alone greyed the button out on a fresh page:
+    // you cannot press play *and* have already chosen how to listen
     const app = await readyToPlay(withAmbisonic(createApp()));
     assert.equal(app.state.activeGraph, null, 'nothing is playing yet');
 
@@ -909,9 +897,8 @@ test('the button is dead at a church with nothing to decode, before any play', a
 });
 
 test('an unavailable mode refuses the press rather than lighting up', async () => {
-    // The button stays hoverable so it can explain itself, which means a click
-    // reaches the engine. Engaging a stage that was never built would leave the
-    // toggle lit over audio that had not changed.
+    // The button stays hoverable to explain itself, so a click reaches the
+    // engine; engaging an unbuilt stage would light the toggle over unchanged audio
     const app = await readyToPlay(createApp(), 0, '');
     await app.g.startPlayback();
 
@@ -1037,8 +1024,7 @@ test('equal dB steps are equal ratios wherever they are taken', () => {
 });
 
 test('a trim keyed to no stage changes nothing', () => {
-    // stageTrims is keyed by stage name, so a leftover key from a render that
-    // was removed must be inert rather than land on whatever is left.
+    // A leftover key from a removed render must be inert, not land on what is left
     const app = createApp();
     app.g.setStageTrims({ binaural: -12, brir: -12 });
 
@@ -1054,8 +1040,8 @@ test('stereo carries no trim, being the reference the rest are matched to', () =
 });
 
 test('a trim that is not a usable level falls back to the constant', () => {
-    // ROOMS is hand-edited. A typo must not silence a mode, and a misplaced
-    // decimal point must not make an already-hot stage the loudest thing here.
+    // ROOMS is hand-edited: a typo must not silence a mode, and a misplaced
+    // decimal point must not make an already-hot stage the loudest thing here
     const app = createApp();
     const { STAGE_TRIM_MAX_DB, STAGE_TRIM_MIN_DB } = app.data;
 
@@ -1068,9 +1054,8 @@ test('a trim that is not a usable level falls back to the constant', () => {
 });
 
 test('a modest boost is a real answer, not a dropped minus sign', () => {
-    // Monastery Immaculate Conception's originals come back a couple of
-    // decibels *under* stereo and want lifting. A one-sided guard would have
-    // refused the true value.
+    // MIC's originals come back *under* stereo; a one-sided guard would have
+    // refused the true value
     const app = createApp();
 
     app.g.setStageTrims({ ambisonic: 1 });
@@ -1102,10 +1087,8 @@ test('switching churches switches levels', () => {
 });
 
 test('the fallback is 0 dB, so calibration starts from raw', () => {
-    // Calibrating against a fallback that is already close to right is the hard
-    // case: every value sounds nearly as plausible as the last, because the ear
-    // has nothing to push away from. Untouched is plainly wrong in a known
-    // direction, which is what makes the search converge.
+    // A fallback already close to right is the hard case to calibrate against:
+    // the ear has nothing to push away from
     assert.equal(createApp().data.AMBISONIC_TRIM_DB, 0,
         'AMBISONIC_TRIM_DB should leave an uncalibrated stage untouched');
 });
@@ -1193,11 +1176,8 @@ test('impulseResponseExists survives a network error', async () => {
 // ── playback lifecycle ────────────────────────────────────────────────────
 
 /**
- * A church ready to play, at a position that has both sets of files.
- *
- * Monastery Immaculate Conception rather than Cane Ridge, because the headphone
- * render needs a church whose originals were recovered. Pass '' as decodedBase
- * for the other case — a church that has only ever been published.
+ * A church ready to play, at a position that has both sets of files. Pass '' as
+ * decodedBase for the other case: a church that has only ever been published.
  */
 const PLAYABLE_BASE = 'IR/Monastery Immaculate Conception, IN/Normalized/MIC_IN_R1-';
 const PLAYABLE_DECODED = 'IR/Monastery Immaculate Conception, IN/Not Normalized/MIC_IN_R1-';

@@ -2,13 +2,9 @@
 /**
  * Features.js — the URL feature flags, and the controls each one reveals.
  *
- * NOTHING IS GATED TODAY, which makes this the suite that keeps the mechanism
- * honest while it has no work to do. The first two sections declare a flag of
- * their own and drive the real readFeatures()/resolveImplied(), so the parts
- * that are easy to get subtly wrong — whole-segment matching, the query
- * spelling, transitive implication — stay covered against the day the next
- * research build needs them. The last section checks the opposite: that the
- * roster really is empty and nothing has been left half-gated behind it.
+ * Nothing is gated today, so the suite declares flags of its own to keep the
+ * mechanism covered, then checks that the shipped roster really is empty and
+ * nothing has been left half-gated behind it.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -31,11 +27,9 @@ const app0 = createApp();
 /**
  * An app with flags declared, since the shipped roster is empty.
  *
- * FEATURE_NAMES is read live by readFeatures() and resolveImplied(), so pushing
- * onto it exercises the real resolver rather than a copy of it. FEATURES is
- * not: the app reads its address once at load, before these names existed, so
- * it is re-read here — through the same function, against the same address —
- * rather than assigned by hand.
+ * FEATURE_NAMES is read live, so pushing onto it drives the real resolver.
+ * FEATURES is not — the app read its address at load, before these names
+ * existed — so it is re-read through the same function rather than assigned.
  *
  * @param names  flags to declare, as FEATURE_NAMES would
  * @param where  the address this visit arrived at, { path, query }
@@ -71,8 +65,8 @@ test('a query string does the same, for hosts that cannot route paths', () => {
 });
 
 test('flags match whole segments, never a word inside one', () => {
-    // A church folder or query value that happened to contain one of these
-    // words must not quietly hand out a research feature.
+    // A church folder or query value containing the word must not hand out a
+    // research feature
     const app = withFlags(['demo']);
     assert.equal(flagsFor(app, '/not-demo').demo, false);
     assert.equal(flagsFor(app, '/demoted').demo, false);
@@ -86,8 +80,7 @@ test('the flags are read case-insensitively', () => {
 });
 
 test('an address naming something undeclared manufactures no flag', () => {
-    // readFeatures() answers for FEATURE_NAMES and only those, which is what
-    // stops a removed flag from coming back to life through an old bookmark.
+    // What stops a removed flag coming back to life through an old bookmark
     const app = createApp({ path: '/ambisonic' });
     assert.deepEqual(plain(app.state.FEATURES), {});
     assert.equal(app.g.featureEnabled('ambisonic'), false);
@@ -96,8 +89,7 @@ test('an address naming something undeclared manufactures no flag', () => {
 // ── implication ───────────────────────────────────────────────────────────
 
 test('implication is transitive, so a chain can be declared one link at a time', () => {
-    // The failure this prevents is silent: resolved one step deep, the far end
-    // of a chain simply does not appear, and the symptom is a missing button.
+    // Resolved one step deep, the far end of a chain would simply not appear
     const app = withFlags(['near', 'middle', 'far'], { path: '/near' });
     Object.assign(app.data.FEATURE_IMPLIES, { near: ['middle'], middle: ['far'] });
 
@@ -116,8 +108,7 @@ test('implication runs one way only', () => {
 });
 
 test('a mutual implication resolves rather than hanging', () => {
-    // Nothing declares one; the guard exists so that adding one is a design
-    // decision rather than a frozen tab.
+    // Nothing declares one; the guard is so adding one is a decision, not a hang
     const app = withFlags(['near', 'other'], { path: '/near' });
     Object.assign(app.data.FEATURE_IMPLIES, { near: ['other'], other: ['near'] });
 
@@ -171,9 +162,8 @@ test('the roster is empty, so a plain visit gets the whole experience', () => {
 });
 
 test('a plain visit is shown every control the page has', () => {
-    // The counterpart of the gating tests above: with nothing declared, the
-    // loop must leave the page alone rather than hide what it cannot account
-    // for. A stale entry here would grey out the app for every visitor.
+    // With nothing declared the loop must leave the page alone; a stale entry
+    // would grey out the app for every visitor
     const app = createApp();
     app.g.applyFeatureGating();
 
@@ -183,8 +173,7 @@ test('a plain visit is shown every control the page has', () => {
 });
 
 test('no markup is left waiting on a flag that no longer exists', () => {
-    // data-feature is resolved against FEATURE_NAMES, so an attribute naming a
-    // removed flag hides that help text permanently and silently.
+    // An attribute naming a removed flag hides that help text permanently
     const declared = plain(app0.data.FEATURE_NAMES);
     const orphaned = [...read('index.html').matchAll(/data-feature="([^"]+)"/g)]
         .map(m => m[1])
@@ -194,8 +183,7 @@ test('no markup is left waiting on a flag that no longer exists', () => {
 });
 
 test('every gated control names a flag that exists', () => {
-    // A control keyed to a flag nobody declares would be hidden forever, with
-    // nothing in the address able to bring it back.
+    // A control keyed to no flag is hidden forever, unreachable by any address
     const declared = plain(app0.data.FEATURE_NAMES);
 
     for (const feature of Object.keys(plain(app0.data.FEATURE_CONTROLS))) {
@@ -204,9 +192,8 @@ test('every gated control names a flag that exists', () => {
 });
 
 test('the routes agree with the roster on both hosts', () => {
-    // The path form only resolves where a route exists, and a route with no
-    // flag behind it serves the page at an address that does nothing. Either
-    // mismatch is silent, so both directions are checked.
+    // A missing route makes the path form 404; a spare one serves the page at
+    // an address that does nothing. Both mismatches are silent.
     const declared = plain(app0.data.FEATURE_NAMES);
 
     const routed = [...read('server.js').matchAll(/FEATURE_PATHS = \[([^\]]*)\]/g)]
@@ -223,8 +210,7 @@ test('the routes agree with the roster on both hosts', () => {
 const seatOf = (app, id) => app.el(id).style.right;
 
 test('the visible toggles sit in a row beside the play button', () => {
-    // Each toggle is positioned individually against the corner, so hiding one
-    // would otherwise leave a hole in the row.
+    // Positioned individually against the corner, so hiding one leaves a hole
     const app = createApp();
     const { TOGGLE_ROW_START_PX, TOGGLE_ROW_STEP_PX } = app.data;
     app.g.applyFeatureGating();
@@ -245,9 +231,8 @@ test('a hidden toggle leaves no hole in the row', () => {
 });
 
 test('the row geometry agrees with the CSS it mirrors', () => {
-    // Layout.css positions the full row; the JS reseats it when a flag hides
-    // one. The two have to start from the same numbers, or an ungated visit
-    // would shift its buttons the moment the page loaded.
+    // Layout.css positions the full row and the JS reseats it; starting from
+    // different numbers would shift the buttons the moment the page loaded
     const css = read('Style/Layout.css');
     const app = createApp();
 

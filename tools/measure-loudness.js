@@ -399,11 +399,9 @@ function labelFor(rooms, dir) {
 /**
  * Which receiver a file stem belongs to, e.g. "MIC_IN_R3" -> "R3".
  *
- * Both spellings the library uses: the usual prefix_receiver, and the ones
- * filed under their own name where a position broke the pattern ("St
- * Francis_IN_balcony R8"). Returns "" for a stem that names no receiver, which
- * is what keeps a stray file out of the trim table rather than in it under a
- * key nothing reads.
+ * Both spellings the library uses: prefix_receiver, and the positions filed
+ * under their own name ("St Francis_IN_balcony R8"). "" keeps a stray file out
+ * of the trim table.
  */
 function receiverOf(stem) {
     const match = /_(R\d+)$|\b(R\d+)$/.exec(stem);
@@ -445,8 +443,7 @@ function writeTrims(rooms, suggested) {
 
     const hasLevels = (t) => t && t.ambisonic && Object.keys(t.ambisonic).length;
 
-    // Only the recovered sets carry a trim, because only they are rendered
-    // through anything but stereo. A church without one has no line to write.
+    // Only the recovered sets carry a trim; a church without one has no line
     const sets = Object.entries(rooms)
         .filter(([, config]) => config.unnormalized)
         .map(([key, config]) => ({ key: key + '.unnormalized', source: config.unnormalized }));
@@ -544,14 +541,12 @@ function main() {
 
     const rooms = loadRooms();
 
-    // The recovered sets and only those: they are the only files rendered
-    // through anything but stereo, so they are the only ones with a trim to
-    // derive. Each is still measured against its church's published stereo,
-    // which loadPosition() reaches through publishedDir below.
+    // The recovered sets only: nothing else is rendered through anything but
+    // stereo, so nothing else has a trim to derive. Each is still measured
+    // against its church's published stereo, via publishedDir below.
     //
-    // Taken from ROOMS rather than by walking IR/, because what this tool writes
-    // back is one trim line per set ROOMS names. A folder on disk that no church
-    // points at has nothing to calibrate and nowhere to put the answer.
+    // From ROOMS rather than by walking IR/, since a folder no church points at
+    // has nowhere to put the answer.
     const dirs = options.dirs.length ? options.dirs
         : Object.values(rooms)
             .filter(c => c.unnormalized)
@@ -605,14 +600,6 @@ function main() {
     }
 }
 
-/** Mean of a set of dB figures, in the energy domain where they belong */
-function meanDb(values) {
-    const usable = values.filter(Number.isFinite);
-    if (!usable.length) return null;
-    const mean = usable.reduce((a, v) => a + Math.pow(10, v / 10), 0) / usable.length;
-    return 10 * Math.log10(mean);
-}
-
 const MODES = ['stereo', 'ambisonic'];
 
 /** The trim one position wants: what it takes to sit where its stereo sits */
@@ -622,12 +609,9 @@ function trimOf(row, mode = 'ambisonic') {
 }
 
 /**
- * Peak of the stage once its trim is applied, in dBFS.
- *
- * Worth printing because loudness and peak are different questions and this
- * stage can fail the second while passing the first: matching a decode to
- * stereo's loudness says nothing about its crest factor, and anything landing
- * above 0 dBFS is clipped at the destination rather than merely loud.
+ * Peak of the stage once its trim is applied, in dBFS. Matching loudness says
+ * nothing about crest factor, and anything above 0 dBFS is clipped at the
+ * destination rather than merely loud.
  */
 function trimmedPeakDb(row, mode = 'ambisonic') {
     const trim = trimOf(row, mode);
@@ -660,11 +644,9 @@ function summarize(perChurch, options) {
 
     const suggested = {};
     for (const { dir, label, rows } of perChurch) {
-        // Per receiver, not per church. The two sets disagree about what
-        // distance does to level — stereo was normalized per position and the
-        // recovered set was scaled as a whole — so the correction is a
-        // different number at every seat. Averaging leaves the front rows
-        // clipping and the back rows inaudible. See `trim` in Rooms.js.
+        // Per receiver, not per church: stereo was normalized per position
+        // and the recovered set scaled as a whole, so the correction differs at
+        // every seat. See `trim` in Rooms.js.
         const byReceiver = {};
         for (const row of rows) {
             const trim = trimOf(row);
@@ -703,4 +685,4 @@ not a model of them — so no part of this is an estimate.`);
 
 if (require.main === module) main();
 
-module.exports = { integratedLufs, biquad, renderModes, meanDb, K_SHELF, K_HIGHPASS };
+module.exports = { integratedLufs, biquad, renderModes, K_SHELF, K_HIGHPASS };

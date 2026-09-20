@@ -233,25 +233,26 @@ async function compile() {
     if (!receiver) return;
 
     // Which way the recording faces, so head tracking turns against the view
-    // rather than with it. Read off the recovered set, whose orientation is not
-    // the church's: the wrong one puts the source behind the listener, where
-    // its lateral motion runs backwards.
+    // rather than with it. The wrong value puts the source behind the listener,
+    // where its lateral motion runs backwards.
     setSoundfieldOrientation(soundfieldYawOf(config));
 
-    // Output level for this church's headphone render at this position; absent
-    // until calibrated, and empty for a church with no recovered set to render.
-    // Per position because the published library's stereo was normalized per
-    // position and the recovered set was not — see `trim` in Rooms.js.
+    // Per position, not per church; see `trim` in Rooms.js
     setStageTrims(stageTrimsOf(config, receiverId));
 
-    // Two bases: the impulse response pair stereo convolves, and the B-format
-    // the headphone render decodes. The second is "" at a church whose
-    // originals were never recovered, which is what leaves its button dead.
+    // Two bases: the pair stereo convolves, and the B-format the headphone
+    // render decodes. The second is "" where the button is dead.
     setImpulseResponse(
         impulseResponseBase(config, receiverId),
         receiver.gainDb || 0,
         decodedResponseBase(config, receiverId)
     );
+
+    // The headphone render exists at three churches of twelve, so a selection
+    // changes whether it is offered at all. Without this the button keeps the
+    // last church's state until playback next starts, reading "on" at a church
+    // that cannot play it.
+    refreshModeButtons();
 
     const ticket = ++compileSequence;
     const available = await impulseResponseExists(currentIr.base);
@@ -359,11 +360,8 @@ function closeChurchInfo() {
 // ── Feature gating ────────────────────────────────────────────────────────
 
 /**
- * Which controls each URL feature reveals. See Features.js for the flags.
- *
- * Empty: nothing is gated today, so every control ships to every visit. A
- * feature added later names its element ids here — "<name>: ['id', …]" — and
- * applyFeatureGating() hides them for a visit that did not ask.
+ * Which controls each URL feature reveals — "<flag>: ['id', …]". Empty today,
+ * so every control ships to every visit. See Features.js.
  */
 const FEATURE_CONTROLS = {};
 
@@ -380,11 +378,9 @@ const TOGGLE_ROW_STEP_PX = 68;
 const MODE_TOGGLE_IDS = ['headphones'];
 
 /**
- * Hides the controls this visit has not been given, and closes the gaps.
- *
- * The toggles are positioned individually against the corner, so hiding one
- * would otherwise leave a hole in the row. Re-seating the survivors keeps every
- * combination of flags looking deliberate rather than broken.
+ * Hides the controls this visit has not been given, and closes the gaps: the
+ * toggles are positioned individually against the corner, so hiding one would
+ * otherwise leave a hole in the row.
  */
 function applyFeatureGating() {
     for (const [feature, ids] of Object.entries(FEATURE_CONTROLS)) {

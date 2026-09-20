@@ -20,14 +20,12 @@ app.get(/^\/index\.html(\/.*)?$/, (req, res) => {
 app.use(express.static(path.join(__dirname)));
 
 /**
- * Feature-gated entry points. Each serves the same page; Features.js reads the
- * path and decides which optional renders are reachable. Listed explicitly
- * rather than matched by pattern so that an unknown path still 404s — which is
- * why an empty list has to register nothing rather than register a catch-all.
+ * Feature-gated entry points, each serving the same page for Features.js to
+ * read the path of. Listed explicitly rather than matched by pattern so an
+ * unknown path still 404s — hence registering nothing when the list is empty.
  *
- * Empty today: nothing is gated, so / is the whole experience. A flag added to
- * FEATURE_NAMES in Features.js wants its path here and a matching redirect in
- * netlify.toml.
+ * Empty today. A flag added to FEATURE_NAMES wants its path here and a
+ * matching redirect in netlify.toml.
  */
 const FEATURE_PATHS = [];
 

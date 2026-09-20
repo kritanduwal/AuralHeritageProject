@@ -234,7 +234,7 @@
                     <span class="material-icons">info</span> Church Info
                 </button>
 
-                <!-- Head tracking, for the headphone render only. -->
+                <!-- Head tracking, for the headphone render only -->
                 <label id="tracking-control" for="tracking" class="unavailable"
                        title="Head tracking: available with the headphone render">
                     <input type="checkbox" id="tracking" disabled
@@ -242,13 +242,10 @@
                     Head tracking
                 </label>
 
-                <!-- Headphones: the live ambisonic decode, replacing plain
-                     stereo as the output stage. Safe to press while playing.
-
-                     aria-disabled rather than disabled at a church whose
-                     originals were never recovered: a disabled button receives
-                     no mouse events, and the tooltip explaining why it is dead
-                     would never appear. The engine refuses the press instead. -->
+                <!-- The live ambisonic decode, replacing stereo as the output
+                     stage. Safe to press while playing. aria-disabled rather
+                     than disabled: a disabled button receives no mouse events,
+                     so its tooltip would never appear. -->
                 <button id="headphones" class="mode-toggle material-icons" onclick="toggleAmbisonic()"
                         aria-pressed="false" aria-disabled="true"
                         title="Headphones: unavailable — this church has no impulse response files this render can decode">headset</button>
@@ -445,14 +442,19 @@
                     <li>
                         <strong>Headphones</strong> - Press the headphone button to the left of play to switch between
                         ordinary stereo and a render made for headphones. It decodes the ambisonic measurement live in
-                        your browser, so the church opens up around you instead of sitting inside your head, and the
-                        soundfield can be turned as you look around. Safe to press while audio is playing.
+                        your browser, so the church opens up around you instead of sitting inside your head. Safe to
+                        press while audio is playing.
                         <br><br>
                         The button is only available at churches whose un-normalized original measurements have been
                         recovered. A decode needs the levels between the microphone's four capsules intact, and most of
                         the library was peak-normalized capsule by capsule long ago, which destroys exactly that. A
                         render built from those files would sound convincing while placing sound in directions nobody
                         measured, so it is not offered at all.
+                    </li>
+                    <li>
+                        <strong>Head Tracking</strong> - With the headphone render on, tick <em>Head tracking</em> above
+                        the buttons and the room turns as you drag the view, the way it would if you turned your head
+                        inside it. Off by default, so that the render can be judged on its own first.
                     </li>
                     <li>
                         <strong>Church Info</strong> - Once a church is selected, click the <em>Church Info</em> button in

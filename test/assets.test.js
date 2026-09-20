@@ -144,9 +144,7 @@ test('every render mode has a button wired to the engine', () => {
 });
 
 test('the headphone toggle starts unavailable, and says so on hover', () => {
-    // Most churches have no B-format to decode. A button that looks live until
-    // it is pressed is worse than one that says so up front — and a grey circle
-    // that says nothing at all is worse still, so the reason is in the title.
+    // A grey circle that says nothing reads as broken rather than absent
     assert.match(html, /id="headphones"[^>]*aria-disabled="true"/,
         'the engine marks it available once a church with originals is selected');
     assert.match(html, /id="headphones"[^>]*title="Headphones: unavailable[^"]*impulse response/,
@@ -154,10 +152,9 @@ test('the headphone toggle starts unavailable, and says so on hover', () => {
 });
 
 test('the unavailable toggle is not disabled outright, or its tooltip would be unreachable', () => {
-    // A disabled control receives no mouse events in any browser, which takes
-    // the title with it. aria-disabled greys the button and tells assistive
-    // technology the same thing while leaving it hoverable;
-    // setAmbisonicEnabled() is what refuses the press.
+    // A disabled control receives no mouse events, which takes the title with
+    // it. aria-disabled reads the same to assistive technology but stays
+    // hoverable; setAmbisonicEnabled() refuses the press.
     assert.doesNotMatch(html, /id="headphones"[^>]*\sdisabled[\s>]/,
         'the disabled attribute would silence the explanation');
     assert.match(read('Javascript/AudioEngine.js'),
@@ -402,10 +399,8 @@ test('no application source references a file that no longer exists', () => {
     assert.deepEqual(missing, []);
 });
 test('a church carries a trim only where it has a stage to trim', () => {
-    // Stereo is the reference and is never trimmed, so a church with no
-    // recovered set has nothing to calibrate. A stray church-level `trim` would
-    // be a number nothing reads — the kind that goes stale and then gets
-    // believed.
+    // A stray church-level trim is a number nothing reads — the kind that goes
+    // stale and then gets believed
     const stray = roomKeys.filter(key => ROOMS[key].trim);
     assert.deepEqual(stray, [], 'trims belong to a recovered set, not to a church');
 });
@@ -414,8 +409,8 @@ test('a church carries a trim only where it has a stage to trim', () => {
 const withOriginals = roomKeys.filter(key => ROOMS[key].unnormalized);
 
 test('a recovered church has the B-format the headphone render decodes', () => {
-    // Without it the button arms and then falls back to stereo on the first
-    // play, which looks like the render simply sounding no different.
+    // Without it the button arms, then falls back to stereo on the first play —
+    // which looks like the render simply sounding no different
     assert.ok(withOriginals.length, 'no church has originals; this suite would prove nothing');
 
     const missing = [];
@@ -429,8 +424,7 @@ test('a recovered church has the B-format the headphone render decodes', () => {
 });
 
 test('a church without originals offers no decoded base at all', () => {
-    // Empty rather than a path into the published library: those capsules were
-    // each peak-normalized, so a decode of them would be confidently wrong.
+    // Those capsules were each peak-normalized, so a decode would be wrong
     for (const key of roomKeys.filter(k => !ROOMS[k].unnormalized)) {
         for (const rid of receiversOf(key)) {
             assert.equal(decodedResponseBase(ROOMS[key], rid), '',
@@ -440,9 +434,8 @@ test('a church without originals offers no decoded base at all', () => {
 });
 
 test('the headphone render never moves the impulse response pair', () => {
-    // Stereo is the reference the render is trimmed against, so it stays on the
-    // published library at every church, recovered or not. A test rather than a
-    // comment because the two bases are one keystroke apart at the call site.
+    // Stereo is the reference, so it stays on the published library everywhere.
+    // A test because the two bases are one keystroke apart at the call site.
     for (const key of roomKeys) {
         for (const rid of receiversOf(key)) {
             assert.match(impulseResponseBase(ROOMS[key], rid), /\/Normalized\//,
@@ -482,10 +475,8 @@ test('a recovered set states the one trim the render reads, and nothing else', (
 });
 
 test('no originals trim is left at a level the engine would refuse', () => {
-    // The engine ignores a value outside its bounds and falls back silently, so
-    // a position left there would play unmatched with nothing to show for it.
-    // Read the bounds off the engine rather than restating them, or the two can
-    // drift apart and this stops guarding anything.
+    // The engine falls back silently on an out-of-bounds value, so a position
+    // left there plays unmatched. Bounds read off the engine, not restated.
     const { STAGE_TRIM_MIN_DB, STAGE_TRIM_MAX_DB } = app.data;
 
     const bad = [];
@@ -502,10 +493,8 @@ test('no originals trim is left at a level the engine would refuse', () => {
 });
 
 test('every position of a recovered set carries its own trim', () => {
-    // One figure per church cannot work: the published stereo was normalized
-    // per position and the recovered set was not, so the correction differs by
-    // more than 14 dB between the front and back of the same room. A position
-    // with no entry falls back to 0 dB, which at the front rows clips.
+    // The correction differs by more than 14 dB across one room, and a position
+    // with no entry falls back to 0 dB — which at the front rows clips
     const missing = [];
     for (const key of withOriginals) {
         const levels = ROOMS[key].unnormalized.trim.ambisonic;
@@ -517,8 +506,7 @@ test('every position of a recovered set carries its own trim', () => {
 });
 
 test('a trim table names only receivers the church actually has', () => {
-    // A key for a position that does not exist is a measurement of nothing,
-    // and would hide a receiver being renamed rather than report it.
+    // A key for a position that does not exist would hide a rename, not report it
     const stray = [];
     for (const key of withOriginals) {
         const receivers = receiversOf(key);
@@ -530,11 +518,9 @@ test('a trim table names only receivers the church actually has', () => {
 });
 
 test('the headphone render is part of the published experience', () => {
-    // It used to sit behind /ambisonic. Nothing gates it now, so a plain visit
-    // has to reach it: a stale entry in FEATURE_CONTROLS would hide the button
-    // from everybody, and a style attribute in the markup would do the same
-    // before any script ran. features.test.js holds the other half of this —
-    // that the roster, the routes and the markup all agree with each other.
+    // It used to sit behind /ambisonic. A stale FEATURE_CONTROLS entry would
+    // hide the button from everybody; a style attribute would do it before any
+    // script ran. features.test.js checks the roster and routes agree.
     assert.deepEqual(Object.keys(app.data.FEATURE_CONTROLS), [],
         'a control listed here would be hidden from every visitor');
     assert.doesNotMatch(html, /id="headphones"[^>]*style=/,

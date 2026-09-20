@@ -27,14 +27,12 @@ let isPlaying = false;
  * The files the next play will use. Set by compile() whenever the room or
  * receiver selection changes.
  *   base         – path prefix; "1.wav" and "2.wav" complete the left/right pair
- *   decodedBase  – path prefix for the B-format the ambisonic stage convolves,
- *                  or "" where this church has no originals to decode
+ *   decodedBase  – path prefix for the B-format, or "" where this church has no
+ *                  originals to decode
  *   gainDb       – level reduction for this position, in dB (0 = play as recorded)
  *
- * Two bases rather than one because the two stages read different sets of files.
- * Stereo plays the published library everywhere; the ambisonic decode plays the
- * un-normalized originals and nothing else, so it is built only for the churches
- * that have them — see decodedSourceOf() in Rooms.js.
+ * Two bases because the stages read different sets: stereo the published
+ * library everywhere, the decode the originals only. See decodedSourceOf().
  */
 let currentIr = { base: "", decodedBase: "", gainDb: 0 };
 
@@ -133,11 +131,8 @@ function setConvolutionMix(mix) {
  * The second output stage, and the one the Headphones button engages: the
  * B-format impulse response decoded to binaural in the browser.
  *
- * Decoding live costs four convolvers and a renderer, and keeps the soundfield
- * in ambisonic form right up to the ears — which is the only arrangement that
- * can be *rotated*, and so the only one head tracking can be built on.
- *
- * Seconds spent crossfading to and from it are STAGE_CROSSFADE below.
+ * Decoding live rather than offline keeps the soundfield in ambisonic form up
+ * to the ears, which is the only arrangement head tracking can rotate.
  *
  *   splitter ─┬─ convAmbi W ─┐
  *             ├─ convAmbi Y  ├─► ambiMerger (4ch) ─► FOARenderer ─► ambisonicOut
@@ -167,32 +162,23 @@ const AMBIX_CHANNEL_MAP = [0, 1, 2, 3];
 const AMBISONIC_CHANNELS = 4;
 
 /**
- * Output level of the ambisonic stage, in dB, for an uncalibrated church.
+ * Output level of the ambisonic stage, in dB, for an uncalibrated position.
  *
- * Zero, so an uncalibrated stage plays at whatever level its own processing
- * produces with nothing taken off. That is deliberately not a good listening
- * level: it is a starting point with an unambiguous direction to move in. A
- * fallback already close to right is the harder thing to calibrate against,
- * because the ear has nothing to push away from and every value sounds nearly
- * as plausible as the last.
+ * Zero, so an uncalibrated stage plays raw. Deliberately not a good listening
+ * level: a fallback already close to right is the harder thing to calibrate
+ * against, because the ear has nothing to push away from.
  *
- * Set trim.ambisonic per recovered set in ROOMS; tools/measure-loudness.js
- * derives it.
+ * Set trim.ambisonic per position in ROOMS; measure-loudness.js derives it.
  */
 const AMBISONIC_TRIM_DB = 0;
 
 /**
  * Seconds spent crossfading between stereo and the headphone render.
  *
- * Squeezed between two limits rather than chosen for feel. It cannot go to
- * zero: a gain that steps in a single sample is a click, which is what
- * rampGain() exists to avoid. It also should not go below the delay the decode
- * adds — a few milliseconds the stereo stage does not pay — because a fade
- * shorter than that offset would duck both stages at once and punch a hole in
- * the sound.
- *
- * 20 ms clears both and is well under the ~50 ms where a switch stops reading
- * as immediate.
+ * Bounded from both sides rather than chosen for feel: a gain that steps in one
+ * sample clicks, and a fade shorter than the decode's own latency would duck
+ * both stages at once and punch a hole. 20 ms clears both and stays under the
+ * ~50 ms where a switch stops reading as immediate.
  */
 const STAGE_CROSSFADE = 0.02;
 
@@ -200,16 +186,10 @@ const HEADPHONES_TITLE_ON = "Headphones: on";
 const HEADPHONES_TITLE_OFF = "Headphones: off";
 
 /**
- * Why the button is dead, rather than merely that it is.
- *
- * Most of the library cannot be decoded for headphones at all, so an unlabelled
- * grey circle is the state a visitor meets first and has no way to interpret —
- * it reads as broken rather than as absent. The tooltip is the only place that
- * can say which, so it names the missing files.
- *
- * It reaches the pointer because the button is marked aria-disabled rather than
- * disabled; see updateAmbisonicButton(). A genuinely disabled control receives
- * no mouse events, and so shows no tooltip at all.
+ * Why the button is dead, rather than merely that it is: a grey circle at two
+ * thirds of the churches reads as broken unless something says otherwise.
+ * Reaches the pointer only because the button is aria-disabled rather than
+ * disabled — see updateAmbisonicButton().
  */
 const HEADPHONES_TITLE_UNAVAILABLE =
     "Headphones: unavailable — this church has no impulse response files this render can decode";
@@ -218,12 +198,9 @@ const HEADPHONES_TITLE_UNAVAILABLE =
 let ambisonicEnabled = false;
 
 /**
- * Whether the soundfield turns with the panorama.
- *
- * Off by default and deliberately so: a render that moved with the view would
- * be answering two questions at once for a listener trying to judge the room.
- * Turn it on to hear what head tracking buys; leave it off to hear the decode
- * on its own.
+ * Whether the soundfield turns with the panorama. Off by default: a render
+ * that moved with the view would answer two questions at once for a listener
+ * trying to judge the room.
  */
 let soundfieldTracking = false;
 
@@ -321,8 +298,7 @@ async function loadBformatChannels(audioCtx, base) {
 
 function setAmbisonicEnabled(enabled) {
     // The button stays clickable so it can explain itself on hover, so the
-    // refusal has to live here rather than in the DOM. Engaging a stage that
-    // was never built would leave the toggle lit over unchanged audio.
+    // refusal lives here rather than in the DOM
     if (enabled && !ambisonicAvailable()) return;
 
     if (enabled) engageMode('ambisonic');
@@ -340,14 +316,11 @@ function toggleAmbisonic() {
 /**
  * Whether the headphone render can be engaged.
  *
- * A running graph is authoritative: the stage was either built or it was not.
- * Stopped, the most that can be said is that the church has files to decode and
- * nothing has ruled this position out yet — which is enough to let the mode be
- * armed before playback starts. Disabling it until the first play made a
- * freshly loaded page look permanently broken.
+ * A running graph is authoritative. Stopped, nothing has ruled the position out
+ * yet, which is enough to arm the mode before the first play — gating on the
+ * graph alone left a freshly loaded page looking permanently broken.
  *
- * An empty decodedBase is the churches without originals: no B-format exists to
- * decode, so there is nothing to arm. See decodedSourceOf() in Rooms.js.
+ * An empty decodedBase is a church with no originals: nothing to arm.
  */
 function ambisonicAvailable() {
     if (activeGraph) return Boolean(activeGraph.ambisonicOut);
@@ -358,12 +331,9 @@ function ambisonicAvailable() {
 /**
  * Reflects the mode on the button, and whether the mode exists here at all.
  *
- * Marked aria-disabled rather than disabled, deliberately. A disabled button
- * receives no mouse events in any browser, which takes its tooltip with it —
- * and the tooltip is the only thing that can explain why two thirds of the
- * collection cannot offer this render. Assistive technology reads aria-disabled
- * the same way; what changes is that the control stays hoverable, so
- * setAmbisonicEnabled() is what actually refuses the press.
+ * aria-disabled rather than disabled: a disabled button receives no mouse
+ * events in any browser, which takes its tooltip with it. Assistive technology
+ * reads the two the same way; setAmbisonicEnabled() refuses the press.
  */
 function updateAmbisonicButton() {
     const btn = document.getElementById('headphones');
@@ -535,20 +505,13 @@ function rotationMatrix4(yawDegrees, pitchDegrees) {
 // ── Per-church stage calibration ──────────────────────────────────────────
 
 /**
- * Output level of the headphone render for the church being listened to, in dB,
- * keyed by stage name. Set by compile() from that church's recovered set in
- * ROOMS, and empty for a church that has none.
+ * Output level of the headphone render at the position being listened to, in
+ * dB, keyed by stage name. Set by compile(); empty where there is no such stage.
  *
- * Decibels rather than linear gain because these are found by ear, and the ear
- * hears ratios: a step of 3 dB is the same size wherever it is taken, while a
- * step of 0.05 in linear gain is enormous near silence and inaudible near
- * unity. It also makes zero mean exactly what it looks like — no change — so a
- * church waiting to be listened to reads as calibrated to nothing rather than
- * needing a sentinel value.
- *
- * The entry replaces that stage's constant outright rather than nudging it, so
- * a church's trim is the level its stage runs at and can be read against any
- * other church's directly.
+ * Decibels because the ear hears ratios: 3 dB is the same step wherever it is
+ * taken, and zero means exactly no change rather than standing in as a
+ * sentinel. The entry replaces the stage's constant outright, so two positions
+ * can be read against each other directly.
  *
  * Stereo has no entry because it is the reference the render is matched to.
  */
@@ -562,21 +525,16 @@ function setStageTrims(trims) {
 /**
  * A stage's level in dB: this church's calibration, or the shared default.
  *
- * Bounded in both directions rather than one-sided. The render's convolvers
- * deliberately do not normalize, so it carries whatever level the offline decode
- * arrived at — which can land either side of stereo depending on how the set was
- * scaled. A small boost is a real answer, not a dropped minus sign.
- *
- * The range is wide enough for every measured value and narrow enough that a
- * typo cannot be catastrophic: past +12 dB a stage is heading for clipping, and
- * below -40 dB it is inaudible, which is a misplaced decimal point rather than
- * a calibration.
+ * Bounded in both directions: the render's convolvers do not normalize, so it
+ * can land either side of stereo and a small boost is a real answer. Past
+ * +12 dB a stage heads for clipping and below -40 dB it is inaudible, which is
+ * a misplaced decimal point rather than a calibration.
  *
  * Type is checked before value, or null would coerce to 0 and read as a
- * deliberate "no change" from a church that has none.
+ * deliberate "no change".
  *
  * @param stage      'ambisonic'
- * @param fallbackDb That stage's constant, used until the church is calibrated
+ * @param fallbackDb That stage's constant, used until the position is calibrated
  */
 const STAGE_TRIM_MAX_DB = 12;
 const STAGE_TRIM_MIN_DB = -40;
@@ -591,10 +549,7 @@ function stageTrimDb(stage, fallbackDb) {
 
 // ── Output stage selection ────────────────────────────────────────────────
 
-/**
- * Which stage carries the signal. Two modes, one flag, resolved in one place so
- * that adding a third later has somewhere obvious to go.
- */
+/** Which stage carries the signal; the one place the modes are resolved */
 function outputStage() {
     return ambisonicEnabled ? 'ambisonic' : 'stereo';
 }
@@ -623,10 +578,8 @@ function stageGainsFor(stage) {
 }
 
 /**
- * The stage that will actually be heard: the selected one, or stereo where the
- * selection was never built. Falling back matters because the headphone render
- * depends on files most churches do not carry, and fading to a stage that is
- * not there would fade to silence.
+ * The stage that will actually be heard: the selected one, or stereo where it
+ * was never built. Fading to a stage that is not there would fade to silence.
  */
 function builtStage(graph) {
     const stage = outputStage();
@@ -664,15 +617,13 @@ function applyOutputStage() {
  *   splitter ─► 4 convolvers ─► ambiMerger            │
  *                    └─► ambiWet ─► FOA ─► ambiOut ───┘
  *
- * The headphone stage is built only where the church has un-normalized
- * originals to decode, and it taps the same splitter rather than the same
- * convolvers: the same mono wet signal through four B-format responses instead
- * of an L/R pair. Its output goes straight to the headphone channels, because
- * the decode has already put it through a head.
+ * The headphone stage taps the same splitter rather than the same convolvers:
+ * the same mono wet signal through four B-format responses instead of an L/R
+ * pair. Its output goes straight to the headphone channels, the decode having
+ * already put it through a head.
  *
  * Both stages are built every time the files allow and the unused one silenced:
- * tearing the graph down to change stage would restart the source and lose its
- * place in the loop.
+ * tearing the graph down to change stage would restart the source.
  *
  * @returns the gain nodes the mix slider and the mode toggle retune, plus the
  *          output node to unhook on stop
@@ -738,10 +689,9 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
 
         for (let ch = 0; ch < AMBISONIC_CHANNELS; ch++) {
             const convolver = audioCtx.createConvolver();
-            // The offline decode set the absolute level of these channels, and
-            // their level *relative to each other* is the soundfield itself.
-            // Normalizing each one would flatten the directions out.
-            // AMBISONIC_TRIM_DB is where this stage's level is set instead.
+            // Their level relative to each other is the soundfield itself, so
+            // normalizing would flatten the directions out. The stage's level
+            // is set by AMBISONIC_TRIM_DB instead.
             convolver.normalize = false;
             convolver.buffer = bformatChannels[ch];
             splitter.connect(convolver, 0);
@@ -901,9 +851,8 @@ async function startPlayback() {
         return;
     }
 
-    // Optional, and absent for most of the library. Loaded before the graph is
-    // built rather than on demand so the mode can be toggled mid-playback
-    // without a rebuild that would restart the loop.
+    // Loaded before the graph is built, not on demand, so the mode can be
+    // toggled mid-playback without a rebuild that would restart the loop
     const [bformatChannels, ambisonicRenderer] = await Promise.all([
         loadBformatChannels(ctx, currentIr.decodedBase),
         ensureAmbisonicRenderer(),

@@ -202,7 +202,7 @@ input, button, select, textarea {
 /* ── Render mode toggles ── */
 /* Alternatives to plain stereo, in a row to the left of play — one today.
    Appearance is shared; each button's own rule carries only its geometry, which
-   is what assets.test.js checks for overlap and for a common centre line. */
+   assets.test.js checks for overlap and a common centre line. */
 .mode-toggle {
     position: fixed;
     z-index: 4;
@@ -251,13 +251,9 @@ input, button, select, textarea {
     background-color: var(--activecolor-hover);
 }
 
-/* The render needs files most churches do not carry. A greyed button says the
-   mode does not exist here, which is different from off.
-
-   Keyed to aria-disabled rather than :disabled because the button is not
-   actually disabled: a disabled control receives no mouse events, so the
-   tooltip that explains the greying would never be reachable. The cursor still
-   says the press will not be answered. */
+/* A greyed button says the mode does not exist here, which is different from
+   off. Keyed to aria-disabled, not :disabled: a disabled control receives no
+   mouse events, so the tooltip explaining the greying would be unreachable. */
 .mode-toggle[aria-disabled="true"] {
     opacity: 0.4;
     cursor: not-allowed;
@@ -292,8 +288,7 @@ input, button, select, textarea {
     transition: opacity 0.08s ease;
 }
 
-/* Only the live ambisonic decode can be rotated — the other three renders are
-   fixed-head, and a BRIR has already chosen which way the head was facing. */
+/* Only the decode can be rotated; stereo bakes its orientation in. */
 #tracking-control.unavailable {
     opacity: 0.4;
     cursor: not-allowed;

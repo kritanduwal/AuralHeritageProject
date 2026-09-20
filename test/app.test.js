@@ -29,9 +29,7 @@ test('compile defaults the trim to zero where a position has none', async () => 
 });
 
 test('compile hands the engine the B-format only where there is one to decode', async () => {
-    // The headphone render reads this base and nothing else, so a church whose
-    // originals were never recovered has to arrive with it empty rather than
-    // with a path that would 404 on the first play.
+    // Empty rather than a path that would 404 on the first play
     const recovered = select(createApp(), 'StAugustineIsleta', 'R5');
     await recovered.g.compile();
     assert.equal(recovered.state.currentIr.decodedBase,
@@ -448,9 +446,7 @@ test('compile points the engine at the selected church’s calibration', () => {
 });
 
 test('compile takes the level of the position, not of the church', () => {
-    // The two sets disagree about what distance does to level, by up to 14 dB
-    // across one room, so a church-wide figure clips at the front and vanishes
-    // at the back. Two positions of one church must arrive with two levels.
+    // A church-wide figure clips at the front and vanishes at the back
     const app = createApp();
     const levels = app.data.ROOMS.StAugustineIsleta.unnormalized.trim.ambisonic;
 
@@ -466,9 +462,33 @@ test('compile takes the level of the position, not of the church', () => {
     assert.notEqual(levels.R1, levels.R4, 'the case this guards');
 });
 
+test('selecting a church without originals disarms the headphone button', () => {
+    // It exists at three churches of twelve, so a selection changes whether it
+    // is offered. Left unrefreshed the button kept the last church's state and
+    // read "on" at a church that cannot play it.
+    const app = createApp();
+    const select = (room) => {
+        app.state.room = room;
+        app.state.rcvpos = 'rpR1_' + room;
+        app.g.compile();
+    };
+
+    select('MonasteryImmaculateConception');
+    app.g.setAmbisonicEnabled(true);
+    assert.equal(app.el('headphones').classList.contains('active'), true);
+
+    select('CaneRidgeMeetingHouse');
+    assert.equal(app.el('headphones')['aria-disabled'], 'true');
+    assert.equal(app.el('headphones').classList.contains('active'), false,
+        'the button must not report a mode this church cannot play');
+
+    select('MonasteryImmaculateConception');
+    assert.equal(app.el('headphones').classList.contains('active'), true,
+        'and the choice is remembered on the way back');
+});
+
 test('a church with no recovered set arrives with no calibration at all', () => {
-    // It has no headphone render to calibrate. Empty rather than the last
-    // church's numbers, which would be a level nothing measured.
+    // Empty rather than the last church's numbers, which measured nothing here
     const app = createApp();
 
     app.state.room = 'MonasteryImmaculateConception';
@@ -483,9 +503,8 @@ test('a church with no recovered set arrives with no calibration at all', () => 
 });
 
 test('an uncalibrated set does not inherit the last one', () => {
-    // Every recovered set is measured now, so the fallback has to be provoked
-    // rather than found in the data: a set recovered later arrives with no
-    // trim, and must land on the default instead of its predecessor's level.
+    // Every set is measured, so the fallback has to be provoked rather than
+    // found in the data
     const app = createApp();
     const originals = app.data.ROOMS.MonasteryImmaculateConception.unnormalized;
     const measured = originals.trim;
@@ -506,9 +525,7 @@ test('an uncalibrated set does not inherit the last one', () => {
 });
 
 test('every recovered set has been measured, so none falls back in practice', () => {
-    // The fallback exists for a set recovered between calibration passes. If a
-    // position is sitting at 0 dB, it is playing its raw level rather than a
-    // matched one — which for this stage can be many decibels out.
+    // A position sitting at 0 dB is playing raw, which here can be many dB out
     const app = createApp();
     const uncalibrated = [];
     for (const [key, config] of Object.entries(app.data.ROOMS)) {

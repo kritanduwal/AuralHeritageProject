@@ -570,18 +570,12 @@ function findPositions(dir) {
 /**
  * Every folder of impulse responses in the library.
  *
- * A church's audio sits one level below its own folder, in `Normalized` and —
- * where the originals were recovered — `Not Normalized`, so the church folders
- * themselves hold nothing and reading them finds no positions at all. Descending
- * that one level is what "all of IR/" means, and it takes in both sets of a
- * recovered church without naming either.
+ * A church's audio sits one level down, in `Normalized` and — where recovered —
+ * `Not Normalized`, so the church folders themselves hold nothing.
  */
 /**
- * A set folder as it is worth printing: "<Church> / <Set>".
- *
- * The basename alone stopped identifying anything once the sets moved under the
- * churches — every church's folder is called `Normalized`, so a report of the
- * whole library would print that word twelve times over.
+ * A set folder as it is worth printing: "<Church> / <Set>". The basename alone
+ * would print "Normalized" twelve times over.
  */
 function setLabel(dir) {
     const full = path.resolve(dir);
@@ -960,7 +954,7 @@ Before trusting any of this:
 if (require.main === module) main();
 
 module.exports = {
-    readWav, writeWav, matrixAtoB, designCorrection, convolve,
-    resample, rms, peak, db, fmtDb, fft, findPositions, ambisonicBlock, irSetDirs, setLabel,
+    readWav, matrixAtoB, designCorrection, convolve,
+    resample, peak, db, fft, findPositions, ambisonicBlock,
     CAPSULE_ORDER, CAPSULE_AXES, CAPSULE_RADIUS_M,
 };
