@@ -1,15 +1,25 @@
 /**
  * Which optional playback features this visit has access to.
  *
- *   /                     stereo only — the published experience
- *   /ambisonic            adds the Headphones render and the head-tracking
- *                         control that belongs to it
+ * NOTHING IS GATED TODAY. Every render the app can produce is part of the
+ * published experience, so a plain visit to / is the whole of it and this file
+ * currently answers "no" to everything.
  *
- * A query string works everywhere the path form does — "?ambisonic" — and needs
- * no server routing, which makes it the reliable spelling on a host that serves
- * this directory statically. The path form needs the route in server.js and the
- * redirect in netlify.toml, both of which hand back index.html without changing
- * the URL the browser shows.
+ * It is kept because the next research build will want exactly this again, and
+ * because the shape is easy to get subtly wrong: whole-segment matching, the
+ * query spelling, and transitive implication are all here and all tested. To
+ * put a feature behind an address again:
+ *
+ *   1. add its name to FEATURE_NAMES below
+ *   2. list the controls it reveals in FEATURE_CONTROLS (App.js), and mark any
+ *      help text with data-feature="<name>"
+ *   3. add "/<name>" to FEATURE_PATHS (server.js) and a redirect to
+ *      netlify.toml, so the path form resolves on both hosts
+ *
+ * A query string works everywhere the path form does — "?<name>" — and needs no
+ * server routing, which makes it the reliable spelling on a host that serves
+ * this directory statically. Step 3 is only for the path form, which hands back
+ * index.html without changing the URL the browser shows.
  *
  * Gating is presentation only. Nothing here disables engine code: a hidden mode
  * is one nobody can reach, not one that has been removed, so the audio graph
@@ -18,13 +28,13 @@
  * @author Kritan Duwal
  */
 
-/** Feature names that can be switched on, and what each reveals */
-const FEATURE_NAMES = ['ambisonic'];
+/** Feature names that can be switched on, and what each reveals. None today. */
+const FEATURE_NAMES = [];
 
 /**
  * Features that carry others with them, e.g. { full: ['basic'] }.
  *
- * Empty today — the one flag stands alone — and kept because implication is the
+ * Empty today — nothing is gated at all — and kept because implication is the
  * part of this that is awkward to add later: resolveImplied() below is written
  * transitively so that a chain can be declared one link at a time rather than
  * every flag having to name everything beneath it.

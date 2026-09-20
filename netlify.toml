@@ -2,11 +2,14 @@
   publish = "."
   command = ""
 
-# Feature-gated entry point. It serves the same page without changing the
-# address, so Features.js can read the path and decide which optional renders
-# are reachable. status = 200 rewrites rather than redirects, which is what
-# keeps the URL — and therefore the flag — intact.
-[[redirects]]
-  from = "/ambisonic"
-  to = "/index.html"
-  status = 200
+# Feature-gated entry points would go here, one block per flag in FEATURE_NAMES
+# (Javascript/Features.js), alongside its path in FEATURE_PATHS (server.js):
+#
+#   [[redirects]]
+#     from = "/<flag>"
+#     to = "/index.html"
+#     status = 200
+#
+# status = 200 rewrites rather than redirects, which is what keeps the URL — and
+# therefore the flag — intact for Features.js to read. Nothing is gated today,
+# so there are none: / is the whole experience.

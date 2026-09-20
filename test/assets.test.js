@@ -529,11 +529,16 @@ test('a trim table names only receivers the church actually has', () => {
     assert.deepEqual(stray, []);
 });
 
-test('the headphone render is reachable by the flag that serves it', () => {
-    // The path form needs a route on both hosts; without them /ambisonic 404s
-    // and the query form is the only spelling that works.
-    assert.match(read('server.js'), /FEATURE_PATHS = \[[^\]]*'\/ambisonic'/);
-    assert.match(read('netlify.toml'), /from = "\/ambisonic"/);
+test('the headphone render is part of the published experience', () => {
+    // It used to sit behind /ambisonic. Nothing gates it now, so a plain visit
+    // has to reach it: a stale entry in FEATURE_CONTROLS would hide the button
+    // from everybody, and a style attribute in the markup would do the same
+    // before any script ran. features.test.js holds the other half of this —
+    // that the roster, the routes and the markup all agree with each other.
+    assert.deepEqual(Object.keys(app.data.FEATURE_CONTROLS), [],
+        'a control listed here would be hidden from every visitor');
+    assert.doesNotMatch(html, /id="headphones"[^>]*style=/,
+        'the button must not ship pre-hidden');
 });
 
 test('every church declares which way its recording faces', () => {

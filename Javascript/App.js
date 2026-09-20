@@ -361,12 +361,11 @@ function closeChurchInfo() {
 /**
  * Which controls each URL feature reveals. See Features.js for the flags.
  *
- * One entry today. The loop rather than a single lookup is what lets the next
- * flag be a line of data instead of a change of shape here.
+ * Empty: nothing is gated today, so every control ships to every visit. A
+ * feature added later names its element ids here — "<name>: ['id', …]" — and
+ * applyFeatureGating() hides them for a visit that did not ask.
  */
-const FEATURE_CONTROLS = {
-    ambisonic: ['headphones', 'tracking-control'],
-};
+const FEATURE_CONTROLS = {};
 
 /**
  * Left edge of the first render toggle and the step between them, in px from

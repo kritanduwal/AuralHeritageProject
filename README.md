@@ -600,22 +600,45 @@ second unknown into the output.
 
 ## Feature flags
 
-Optional renders are gated by the address, so the published experience stays plain
-stereo while the research builds remain reachable without a separate deployment.
+**Nothing is gated today.** Every render the app can produce ships to every
+visitor, so `/` is the whole experience and `FEATURE_NAMES` is empty.
 
-| Flag | Adds |
-| --- | --- |
-| *(none)* | Stereo only — the published experience |
-| `/ambisonic` | The [Headphones](#headphones) render and its head tracking |
+The mechanism is kept, because the next research build will want it and because
+the shape is easy to get subtly wrong. It reads optional features out of the
+address, so a build can be shared without a separate deployment. To put one
+behind a flag again, three declarations:
 
-A query string works identically — `?ambisonic` — and needs no server routing,
-which makes it the reliable spelling on a static host. The path form needs its
-route in both `server.js` and `netlify.toml`, which hand back `index.html`
-without changing the address the browser shows.
+```js
+// Javascript/Features.js
+const FEATURE_NAMES = ['demo'];          // 1. declare the flag
 
-One flag today. `FEATURE_IMPLIES` in `Features.js` is empty and
-`resolveImplied()` still resolves transitively, so a later chain can be declared
-one link at a time rather than every flag having to name everything beneath it.
+// Javascript/App.js
+const FEATURE_CONTROLS = {
+    demo: ['some-button'],               // 2. name what it reveals
+};
+
+// server.js
+const FEATURE_PATHS = ['/demo'];         // 3. route the path form
+```
+
+Step 2 also covers prose: any element marked `data-feature="demo"` is hidden from
+a visit that did not ask, so instructions never describe a control that is not
+there. Step 3 needs a matching `[[redirects]]` block in `netlify.toml`, and is
+only for the path form — a query string works with no routing at all (`?demo`),
+which makes it the reliable spelling on a static host. Both hand back
+`index.html` without changing the address the browser shows.
+
+Three properties are worth knowing before relying on it, all of them held by
+`test/features.test.js`, which declares flags of its own so the mechanism stays
+covered while the roster is empty:
+
+- **Whole segments only.** A church folder or query value that happens to contain
+  a flag's name never switches it on.
+- **Implication is transitive.** `FEATURE_IMPLIES` lets a wider flag name only the
+  one below it and still reach the whole chain. Resolved one step deep, the far
+  end of a chain simply would not appear, and the symptom is a missing button.
+- **A mutual implication resolves rather than hanging.** Nothing declares one; the
+  guard is so that adding one is a design decision rather than a frozen tab.
 
 Gating is presentation only. Nothing in `Features.js` disables engine code: a
 hidden mode is one nobody can reach, not one that has been removed, so the audio
