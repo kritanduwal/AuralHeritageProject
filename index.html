@@ -234,29 +234,24 @@
                     <span class="material-icons">info</span> Church Info
                 </button>
 
-                <!-- Head tracking, for the live ambisonic decode only. -->
+                <!-- Head tracking, for the headphone render only. -->
                 <label id="tracking-control" for="tracking" class="unavailable"
-                       title="Head tracking: available with the live ambisonic decode">
+                       title="Head tracking: available with the headphone render">
                     <input type="checkbox" id="tracking" disabled
                            onchange="setSoundfieldTracking(this.checked)">
                     Head tracking
                 </label>
 
-                <!-- The three render modes, left of the play button. Each replaces
-                     plain stereo as the output stage; they are alternatives, so
-                     engaging one releases the others. All safe to press while
-                     playing. The two that need offline-built files are disabled
-                     where the position does not have them. -->
-                <button id="binaural" class="mode-toggle material-icons" onclick="toggleBinaural()"
-                        aria-pressed="false" title="Binaural rendering: off">headset</button>
+                <!-- Headphones: the live ambisonic decode, replacing plain
+                     stereo as the output stage. Safe to press while playing.
 
-                <button id="brir" class="mode-toggle material-icons" onclick="toggleBrir()"
-                        aria-pressed="false" disabled
-                        title="Measured binaural (BRIR): not recorded for this position">hearing</button>
-
-                <button id="ambisonic" class="mode-toggle material-icons" onclick="toggleAmbisonic()"
-                        aria-pressed="false" disabled
-                        title="Live ambisonic decode: not available for this position">surround_sound</button>
+                     aria-disabled rather than disabled at a church whose
+                     originals were never recovered: a disabled button receives
+                     no mouse events, and the tooltip explaining why it is dead
+                     would never appear. The engine refuses the press instead. -->
+                <button id="headphones" class="mode-toggle material-icons" onclick="toggleAmbisonic()"
+                        aria-pressed="false" aria-disabled="true"
+                        title="Headphones: unavailable — this church has no impulse response files this render can decode">headset</button>
 
                 <button id="play" class="material-icons" onclick="playpause()">play_circle_filled</button>
             </div>
@@ -447,22 +442,17 @@
                         <strong>Play / Pause</strong> - Press the circular button in the bottom-right corner to start
                         playback. The button switches to a pause icon while audio is playing. Press it again to stop.
                     </li>
-                    <li data-feature="binaural">
-                        <strong>Binaural Rendering</strong> - Press the headphone button to the left of play to switch between
-                        ordinary stereo and a binaural render made for headphones. Binaural plays the same auralization
-                        through a pair of virtual loudspeakers 30&deg; to either side of you, filtered the way your head and
-                        ears would filter real speakers there, so the church opens up around you instead of sitting inside
-                        your head. Safe to press while audio is playing.
-                    </li>
-                    <li data-feature="unnormalized">
-                        <strong>Original Captures</strong> - This visit plays the un-normalized original measurements
-                        wherever they have been recovered. There is no button for it: the files change, not the controls.
-                        It applies to the two measured renders only &mdash; <em>Measured binaural</em> and
-                        <em>Live ambisonic</em> &mdash; whose directions are only the ones that were recorded when the
-                        levels between the microphone's capsules survive intact. Stereo and the binaural render are
-                        deliberately left alone, so that switching this on changes only the renders it can improve and
-                        leaves you the same reference to compare them against. Churches whose originals have not been
-                        recovered play their published library as usual.
+                    <li data-feature="ambisonic">
+                        <strong>Headphones</strong> - Press the headphone button to the left of play to switch between
+                        ordinary stereo and a render made for headphones. It decodes the ambisonic measurement live in
+                        your browser, so the church opens up around you instead of sitting inside your head, and the
+                        soundfield can be turned as you look around. Safe to press while audio is playing.
+                        <br><br>
+                        The button is only available at churches whose un-normalized original measurements have been
+                        recovered. A decode needs the levels between the microphone's four capsules intact, and most of
+                        the library was peak-normalized capsule by capsule long ago, which destroys exactly that. A
+                        render built from those files would sound convincing while placing sound in directions nobody
+                        measured, so it is not offered at all.
                     </li>
                     <li>
                         <strong>Church Info</strong> - Once a church is selected, click the <em>Church Info</em> button in
@@ -477,7 +467,7 @@
                 <ul>
                     <li>Try the "Sermon" source file with a large church and a wet mix to hear how speech carries in the space.</li>
                     <li>Switching receiver positions while audio is playing takes effect straight away, so you can step around a church and hear the room change from where you stand.</li>
-                    <li data-feature="binaural">Toggle binaural rendering mid-playback to hear what it does. Both modes carry the same auralization; only the way it reaches your ears changes. Use headphones — over speakers the effect is lost, because your own room filters the sound a second time.</li>
+                    <li data-feature="ambisonic">Toggle the headphone render mid-playback to hear what it does. Both modes carry the same auralization; only the way it reaches your ears changes. Use headphones — over speakers the effect is lost, because your own room filters the sound a second time.</li>
                     <li>The collection spans twelve churches across Tennessee, Kentucky, Indiana, and New Mexico. Play the same source file through several of them to hear how size, shape, and building materials shape the sound, from the intimate Cane Ridge Meeting House and its 27.59 ft ceiling to Monastery Immaculate Conception beneath an 87.61 ft dome.</li>
                 </ul>
             </div>

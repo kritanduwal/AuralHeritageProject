@@ -33,37 +33,40 @@ test('the plain address gives the published experience and nothing else', () => 
 
 test('a path segment switches on the feature it names', () => {
     const app = createApp();
-    assert.deepEqual(flagsFor(app, '/binaural'), only(app, 'binaural'));
     assert.deepEqual(flagsFor(app, '/ambisonic'), only(app, 'ambisonic'));
-    assert.deepEqual(flagsFor(app, '/unnormalized'), only(app, 'unnormalized'));
-    assert.deepEqual(flagsFor(app, '/binaural/ambisonic'), only(app, 'binaural', 'ambisonic'));
 });
 
 test('a query string does the same, for hosts that cannot route paths', () => {
     const app = createApp();
-    assert.deepEqual(flagsFor(app, '/', '?binaural'), only(app, 'binaural'));
-    assert.deepEqual(flagsFor(app, '/', '?binaural=1&ambisonic'), only(app, 'binaural', 'ambisonic'));
-    assert.deepEqual(flagsFor(app, '/', '?unnormalized'), only(app, 'unnormalized'));
+    assert.deepEqual(flagsFor(app, '/', '?ambisonic'), only(app, 'ambisonic'));
+    assert.deepEqual(flagsFor(app, '/', '?ambisonic=1'), only(app, 'ambisonic'));
 });
 
 test('flags match whole segments, never a word inside one', () => {
     // A church folder or query value that happened to contain one of these
     // words must not quietly hand out a research feature.
     const app = createApp();
-    assert.equal(flagsFor(app, '/not-binaural').binaural, false);
-    assert.equal(flagsFor(app, '/binauralism').binaural, false);
-    assert.equal(flagsFor(app, '/', '?church=binaurally').binaural, false);
+    assert.equal(flagsFor(app, '/not-ambisonic').ambisonic, false);
+    assert.equal(flagsFor(app, '/ambisonics').ambisonic, false);
+    assert.equal(flagsFor(app, '/', '?church=ambisonically').ambisonic, false);
 });
 
 test('the flags are read case-insensitively', () => {
     const app = createApp();
-    assert.equal(flagsFor(app, '/Binaural').binaural, true);
+    assert.equal(flagsFor(app, '/Ambisonic').ambisonic, true);
     assert.equal(flagsFor(app, '/', '?AMBISONIC').ambisonic, true);
 });
 
 test('the app reads its own address on load', () => {
     assert.equal(createApp({ path: '/ambisonic' }).state.FEATURES.ambisonic, true);
-    assert.equal(createApp({ query: '?binaural' }).state.FEATURES.binaural, true);
+    assert.equal(createApp({ query: '?ambisonic' }).state.FEATURES.ambisonic, true);
+});
+
+test('a flag nobody declared is never switched on', () => {
+    // readFeatures() answers for FEATURE_NAMES and only those, so an address
+    // naming something else must not manufacture a flag out of it.
+    const app = createApp({ path: '/binaural' });
+    assert.deepEqual(plain(app.state.FEATURES), only(app));
 });
 
 // ── what each flag reveals ────────────────────────────────────────────────
@@ -74,80 +77,74 @@ test('a plain visit is shown no render toggles at all', () => {
     const app = createApp();
     app.g.applyFeatureGating();
 
-    for (const id of ['binaural', 'brir', 'ambisonic', 'tracking-control']) {
+    for (const id of ['headphones', 'tracking-control']) {
         assert.ok(hidden(app, id), `${id} should not be reachable without a flag`);
     }
 });
 
-test('the binaural flag reveals only the modelled render', () => {
-    const app = createApp({ path: '/binaural' });
-    app.g.applyFeatureGating();
-
-    assert.ok(!hidden(app, 'binaural'));
-    for (const id of ['brir', 'ambisonic', 'tracking-control']) {
-        assert.ok(hidden(app, id), `${id} belongs to the other flag`);
-    }
-});
-
-test('the ambisonic flag is the full build and carries the modelled render too', () => {
-    // The measured renders are only worth reaching if they can be compared
-    // against the modelled one, so asking for them asks for that as well.
+test('the ambisonic flag reveals the headphone render and its head tracking', () => {
+    // Tracking belongs to this render and to no other, so it arrives with it
+    // rather than needing a flag of its own.
     const app = createApp({ path: '/ambisonic' });
     app.g.applyFeatureGating();
 
-    for (const id of ['binaural', 'brir', 'ambisonic', 'tracking-control']) {
+    for (const id of ['headphones', 'tracking-control']) {
         assert.ok(!hidden(app, id), id + ' should come with the ambisonic flag');
     }
-    assert.equal(app.g.featureEnabled('binaural'), true, 'implied, though never named');
-    assert.equal(app.state.FEATURES.binaural, false, 'the flag itself was not set');
 });
 
-test('the implication runs one way only', () => {
-    const app = createApp({ path: '/binaural' });
-    assert.equal(app.g.featureEnabled('binaural'), true);
-    assert.equal(app.g.featureEnabled('ambisonic'), false,
-        'the modelled render must not unlock the measured ones');
-    assert.equal(app.g.featureEnabled('unnormalized'), false,
-        'nor must it swap the files out from under the visit');
+test('every gated control names a flag that exists', () => {
+    // A control keyed to a flag nobody declares would be hidden forever, with
+    // nothing in the address able to bring it back.
+    const app = createApp();
+    const declared = plain(app.data.FEATURE_NAMES);
+
+    for (const feature of Object.keys(plain(app.data.FEATURE_CONTROLS))) {
+        assert.ok(declared.includes(feature), `${feature} gates controls but is not a flag`);
+    }
 });
 
 test('implication is transitive, so a chain can be declared one link at a time', () => {
-    // /unnormalized names only /ambisonic, which names only /binaural. Resolved
-    // one step deep, the originals would arrive with the measured renders but
-    // without the modelled one they exist to be compared against.
-    const app = createApp({ path: '/unnormalized' });
-    app.g.applyFeatureGating();
+    // Nothing declares one today. The mechanism is what is being checked, since
+    // the failure it prevents is silent: resolved one step deep, the far end of
+    // a chain simply does not appear.
+    const app = createApp({ path: '/ambisonic' });
+    const implies = plain(app.data.FEATURE_IMPLIES);
+    assert.deepEqual(implies, {}, 'no chain is declared yet, so this test builds its own');
 
-    for (const id of ['binaural', 'brir', 'ambisonic', 'tracking-control']) {
-        assert.ok(!hidden(app, id), id + ' should come with the unnormalized flag');
-    }
-    assert.equal(app.g.featureEnabled('binaural'), true, 'reached through /ambisonic');
-    assert.equal(app.state.FEATURES.binaural, false, 'though neither flag was set');
-});
-
-test('an implication chain resolves the same whichever way it is reached', () => {
-    // Spelling out every link must add nothing, or the two forms of the same
-    // request would hand out different builds.
-    const chained = createApp({ path: '/unnormalized' });
-    const spelled = createApp({ query: '?unnormalized&ambisonic&binaural' });
-
-    for (const name of ['binaural', 'ambisonic', 'unnormalized']) {
-        assert.equal(chained.g.featureEnabled(name), spelled.g.featureEnabled(name), name);
+    // featureEnabled() reads the live FEATURE_IMPLIES, so declaring a chain
+    // here exercises the resolver rather than a copy of it.
+    app.data.FEATURE_NAMES.push('middle', 'far');
+    Object.assign(app.data.FEATURE_IMPLIES, { ambisonic: ['middle'], middle: ['far'] });
+    try {
+        assert.equal(app.g.featureEnabled('middle'), true, 'named directly');
+        assert.equal(app.g.featureEnabled('far'), true, 'reached through the middle link');
+        assert.ok(!app.state.FEATURES.far, 'though the flag itself was never named');
+    } finally {
+        app.data.FEATURE_NAMES.length = 1;
+        delete app.data.FEATURE_IMPLIES.ambisonic;
+        delete app.data.FEATURE_IMPLIES.middle;
     }
 });
 
-test('naming both flags is the same as naming the wider one', () => {
-    const app = createApp({ query: '?binaural&ambisonic' });
-    app.g.applyFeatureGating();
-
-    for (const id of ['binaural', 'brir', 'ambisonic', 'tracking-control']) {
-        assert.ok(!hidden(app, id));
+test('a mutual implication resolves rather than hanging', () => {
+    // Nothing declares one; the guard exists so that adding one is a design
+    // decision rather than a frozen tab.
+    const app = createApp({ path: '/ambisonic' });
+    app.data.FEATURE_NAMES.push('other');
+    Object.assign(app.data.FEATURE_IMPLIES, { ambisonic: ['other'], other: ['ambisonic'] });
+    try {
+        assert.equal(app.g.featureEnabled('other'), true);
+    } finally {
+        app.data.FEATURE_NAMES.length = 1;
+        delete app.data.FEATURE_IMPLIES.ambisonic;
+        delete app.data.FEATURE_IMPLIES.other;
     }
 });
 
 test('help text describing a hidden feature is hidden with it', () => {
     const entries = [
-        { feature: 'binaural', style: {}, getAttribute() { return this.feature; } },
+        { feature: 'ambisonic', style: {}, getAttribute() { return this.feature; } },
     ];
     const app = createApp({ querySelectorAll: () => entries });
     app.g.applyFeatureGating();
@@ -160,23 +157,14 @@ test('help text describing a hidden feature is hidden with it', () => {
 
 const seatOf = (app, id) => app.el(id).style.right;
 
-test('the visible toggles sit in a row with no gap where a hidden one was', () => {
+test('the visible toggles sit in a row beside the play button', () => {
     // Each toggle is positioned individually against the corner, so hiding one
-    // would otherwise leave a hole in the middle of the row.
-    const app = createApp({ path: '/binaural' });
-    const { TOGGLE_ROW_START_PX } = app.data;
-    app.g.applyFeatureGating();
-
-    assert.equal(seatOf(app, 'binaural'), TOGGLE_ROW_START_PX + 'px',
-        'the only visible toggle takes the first seat, beside play');
-});
-
-test('with every toggle shown the row matches the stylesheet', () => {
+    // would otherwise leave a hole in the row.
     const app = createApp({ path: '/ambisonic' });
     const { TOGGLE_ROW_START_PX, TOGGLE_ROW_STEP_PX } = app.data;
     app.g.applyFeatureGating();
 
-    ['binaural', 'brir', 'ambisonic'].forEach((id, slot) => {
+    app.data.MODE_TOGGLE_IDS.forEach((id, slot) => {
         assert.equal(seatOf(app, id), (TOGGLE_ROW_START_PX + slot * TOGGLE_ROW_STEP_PX) + 'px');
     });
 });
@@ -194,7 +182,10 @@ test('the row geometry agrees with the CSS it mirrors', () => {
         Number(css.match(new RegExp('^' + selector + '\\s*\\{([^}]*)\\}', 'm'))[1]
             .match(/right:\s*(\d+)px/)[1]);
 
-    assert.equal(rightOf('#binaural'), app.data.TOGGLE_ROW_START_PX);
-    assert.equal(rightOf('#brir') - rightOf('#binaural'), app.data.TOGGLE_ROW_STEP_PX);
-    assert.equal(rightOf('#ambisonic') - rightOf('#brir'), app.data.TOGGLE_ROW_STEP_PX);
+    const ids = plain(app.data.MODE_TOGGLE_IDS);
+    assert.equal(rightOf('#' + ids[0]), app.data.TOGGLE_ROW_START_PX);
+    for (let i = 1; i < ids.length; i++) {
+        assert.equal(rightOf('#' + ids[i]) - rightOf('#' + ids[i - 1]),
+            app.data.TOGGLE_ROW_STEP_PX);
+    }
 });

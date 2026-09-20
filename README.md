@@ -55,7 +55,7 @@ them.
 | File | Covers |
 | --- | --- |
 | `test/rooms.test.js` | The `ROOMS` table, its path builders, and the receiver distances |
-| `test/audio.test.js` | Mix law, graph wiring, binaural output stage, IR caching, playback lifecycle, WAV encoding |
+| `test/audio.test.js` | Mix law, graph wiring, output stage selection, soundfield rotation, IR caching, playback lifecycle, WAV encoding |
 | `test/app.test.js` | `compile()`, the stale-selection guard, viewer lifetime, error banner |
 | `test/settings.test.js` | Church switching and the source file picker |
 | `test/assets.test.js` | Every path in `ROOMS`, the markup and the CSS resolve to real files; the playback controls do not overlap |
@@ -113,9 +113,9 @@ has started. A slow response can never overwrite a later choice.
 | `index.html` | Markup: controls, the three tabs, floorplan overlays, modals |
 | `Javascript/Features.js` | Which optional renders this visit can reach, read from the address |
 | `Javascript/Rooms.js` | **Data.** Per-church IR/panorama paths, camera angles, gain trims |
-| `Javascript/ChurchData.js` | **Data.** History, dimensions and distances for the Church Info modal, plus `receiverDistanceFeet()`, which the binaural render places its speakers by |
+| `Javascript/ChurchData.js` | **Data.** History, dimensions and distances for the Church Info modal. Reference only — nothing here reaches playback |
 | `Javascript/App.js` | Page state, panorama viewer, `compile()`, error banner, modals |
-| `Javascript/AudioEngine.js` | Web Audio graph, IR loading and caching, playback, binaural output stage |
+| `Javascript/AudioEngine.js` | Web Audio graph, IR loading and caching, playback, the headphone output stage and its soundfield rotation |
 | `Javascript/SettingsMenu.js` | Church dropdown, source file picker |
 | `Style/Root.css` | Colour variables, marker button styles |
 | `Style/Layout.css` | Page layout, overlay sizes, diagram background images |
@@ -164,7 +164,7 @@ the trailing `-`.
 
 Two things about the archived channels are worth recording, because they are not
 apparent from the file names and they are what rules out an ambisonic render
-(see [Binaural rendering](#binaural-rendering)): the 4-channel ambisonic block is
+(see [Why not an ambisonic decode](#why-not-an-ambisonic-decode)): the 4-channel ambisonic block is
 the **raw A-format** output of the NT-SF1 rather than B-format, and **every file
 in `Normalized/` is peak-normalized on its own**, so relationships between
 channels are gone. The stereo pair tolerates that because the two front omnis are
@@ -173,8 +173,8 @@ not.
 
 That is what the second folder is for. Where the un-normalized originals have
 been recovered they sit in `IR/<Church>/Not Normalized/` alongside the published
-set, reachable by the [`/unnormalized` flag](#feature-flags). See
-[The originals](#the-originals-where-they-have-been-recovered).
+set, and are the only files the [Headphones](#headphones) render will decode.
+See [The originals](#the-originals-where-they-have-been-recovered).
 
 Prefixes rarely match the folder name (`Cane Ridge Meeting House, KY` holds files
 named `Cane Ridge KY_…`), which is why `ir.dir` and `ir.prefix` are separate fields.
@@ -212,7 +212,7 @@ reverb arrives in stereo — which is what creates the sense of a room around a
 source in front of you.
 
 Those three signals are what the *output stage* renders, and there are two to
-choose from — see [Binaural rendering](#binaural-rendering).
+choose from — see [Headphones](#headphones).
 
 The `splitter` is a one-output `ChannelSplitter`, which keeps channel 0 only. A
 stereo source file is therefore convolved as mono, rather than folding both of its
@@ -310,7 +310,7 @@ The slider is a listener control and applies everywhere. The trim is a per-posit
 calibration constant and never changes while you listen.
 
 ---
-## Binaural rendering
+## Headphones
 
 The headphone button beside play switches the **output stage**: what becomes of
 the dry and wet signals once the mix law has finished with them. Nothing upstream
@@ -318,27 +318,35 @@ changes, so the two modes are the same auralization heard two ways.
 
 ```
    dryGain ──────► merger L + R ─┐
-   wetGainLeft ──► merger L      ├─► stereoOut ────┐
-   wetGainRight ─► merger R      ┘                 │
-                                                   ├──► output ──► destination
-   dryGain ──────► both speakers ┐                 │
-   wetGainLeft ──► speaker -30°  ├─► binauralOut ──┘
-   wetGainRight ─► speaker +30°  ┘
+   wetGainLeft ──► merger L      ├─► stereoOut ──────────────────┐
+   wetGainRight ─► merger R      ┘                               │
+                                                                 ├──► output ──► out
+   dryGain ──────► ambiMerger W + X ─┐                           │
+   splitter ─► 4 convolvers ─────────┴─ ambiWet ─► FOA ─► ambiOut┘
 ```
 
 **Stereo** sends each side to its own headphone channel. Everything in the left
 signal reaches the left ear and none of it reaches the right, which no real room
 can do, so the image collapses to a line drawn between your ears.
 
-**Binaural** plays the same signals through two virtual loudspeakers at ±30°,
-each a `PannerNode` with `panningModel: 'HRTF'`. Every speaker reaches *both*
-ears with the delay, level difference and spectral shaping a head introduces —
-the cue stereo cannot supply, and what puts the church around you rather than
-inside your head. The dry signal is centred between the pair exactly as it is
-centred between the headphone channels.
+**Headphones** convolves the same mono wet signal against the four channels of
+that position's B-format impulse response, reassembles them into a first-order
+soundfield, and hands it to Omnitone to decode to binaural in the browser. Every
+direction in the recorded soundfield reaches *both* ears with the delay, level
+difference and spectral shaping a head introduces — the cue stereo cannot supply,
+and what puts the church around you rather than inside your head. The dry signal
+is encoded as a plane wave from straight ahead, landing on `W` and `X`, which is
+where a source in front belongs.
 
-The listener is never reoriented; that is the "without head tracking" part, and
-it keeps the image steady however the panorama is dragged.
+Decoding live rather than baking the result offline costs four convolvers and a
+renderer. What it buys is that the soundfield stays *rotatable* right up to the
+ears — see [Head tracking](#head-tracking) — which nothing precomputed can offer.
+
+**It is only available where a church's un-normalized originals were recovered,**
+which today is three of the twelve. See
+[Why not an ambisonic decode](#why-not-an-ambisonic-decode): a decode of the
+published library would be confidently wrong, and offering it would be worse than
+offering nothing, because nothing about it sounds broken.
 
 Both stages are built on every play and one is faded to silence, because
 rebuilding would restart the source and lose its place in the loop. Toggling
@@ -347,8 +355,8 @@ receiver change performs.
 
 That 20 ms is a floor, not a taste: it cannot be zero, because a gain that steps
 in a single sample is a click, and it should not fall below the few milliseconds
-of convolution latency the HRTF panners add over the stereo stage, or the fade
-would duck both stages at once and punch a hole in the sound. The button's CSS
+of convolution latency the decode adds over the stereo stage, or the fade would
+duck both stages at once and punch a hole in the sound. The button's CSS
 `transition` is held to the same standard — the fill is the only report the
 toggle makes, so a slow colour settle is heard as a slow switch.
 
@@ -361,36 +369,78 @@ gain jump nearly the whole way in one sample and then creep out the remainder,
 which is heard as a click on every toggle after the first. The mix slider is
 automated through the same helper for the same reason.
 
-### Level
-
-Every virtual speaker is heard by both ears where a headphone channel reaches
-only one, so the binaural stage comes back louder — most of all on the dry
-signal, which is identical in both speakers and so sums coherently.
-`BINAURAL_TRIM` takes a fixed amount back out. It is a listening control rather
-than a derived constant: adjust it until the toggle changes the rendering and not
-the loudness.
-
-### Where the speakers stand
-
-| Setting | Value |
-| --- | --- |
-| Azimuth | ±30°, the standard stereo listening triangle |
-| Elevation | 0°, ear height |
-| Distance | The measured receiver-to-source distance, 8.7–90.17 ft |
-| `rolloffFactor` | `0` |
-
-Distance comes from `receiverDistanceFeet()` in `ChurchData.js`, parsed from the
-same figures the Church Info modal shows, and `compile()` passes it to the engine
-with the impulse response. It deliberately does not attenuate: the impulse
-response already carries this position's direct-to-reverberant ratio and its
-[`gainDb` trim](#layer-2--per-position-gain-trims-gaindb) already corrects for
-distance, so a rolloff would charge for it a third time — and would pull the
-reverb down with the direct sound, which barely falls off with distance at all.
-Since a `PannerNode` picks its HRIR by angle alone, distance here is geometry
-only, kept truthful for whatever is built on it later.
-
 Use headphones. Over loudspeakers the effect is lost, because the room you are
 sitting in filters the sound a second time.
+
+### Level
+
+The four B-format convolvers deliberately do **not** normalize: the offline
+decode set their absolute level, and their level *relative to each other* is the
+soundfield itself, so equal-power normalization would flatten the directions out.
+The stereo stage's convolvers do normalize. The two therefore arrive at quite
+different levels, and by an amount that depends on how the recovered set was
+scaled rather than on anything about the room.
+
+`trim.ambisonic` on the recovered set is what closes the gap. It replaces
+`AMBISONIC_TRIM_DB` outright — it is the level the stage runs at, not an
+adjustment to one — and it is bounded at −40 and +12 dB so that a typo cannot
+deafen anybody.
+
+**It is stated per receiver, not per church**, and the spread inside one room is
+large:
+
+| Church | Front row | Back row | Spread |
+| --- | --- | --- | --- |
+| Basilica St. Francis | −17.6 dB (R1) | −3.5 dB (R8) | 14.3 dB |
+| St Augustine Isleta | −14.1 dB (R1) | −2.3 dB (R4) | 11.8 dB |
+| Monastery Immaculate Conception | −4.0 dB (R1) | +4.2 dB (R4) | 8.2 dB |
+
+That is not noise in the measurement. It is the two sets disagreeing about what
+distance does. Every published capsule was peak-normalized on its own, so a
+position's stereo IR sits at full scale however far back it was recorded —
+**stereo does not get quieter as you move away from the source.** The recovered
+set was scaled by a single factor for the whole church, so it keeps the real
+level relationships between seats and does get quieter. The gap between the two
+therefore grows with distance.
+
+One figure per church cannot close a gap that changes by 14 dB across the room.
+Averaging leaves the front rows loud enough to clip and the back rows nearly
+inaudible — which is exactly what it did before these were measured per position.
+
+Correcting it here rather than in the files is deliberate. Rescaling each
+position's B-format would destroy the between-seat relationships that make the
+recovered set worth having in the first place. The files stay a faithful
+measurement; this is a listening calibration against a reference that was itself
+normalized per position.
+
+Measured, not guessed: `tools/measure-loudness.js` renders both stages through
+the same chain the engine builds — Omnitone's own filters for the decode — and
+matches their ITU-R BS.1770 integrated loudness to stereo's, position by
+position. Run it with `--write` to refresh the table. It also reports each
+position's peak once trimmed and flags anything still above 0 dBFS, because
+matching loudness bounds neither peak nor crest factor.
+
+Stereo has no trim. It is the reference the render is matched against, which is
+what makes the comparison mean anything.
+
+### Head tracking
+
+The checkbox above the button turns the soundfield with the panorama. It is off
+by default, and deliberately: a render that moved with the view would be
+answering two questions at once for a listener trying to judge a room.
+
+What the decoder is handed is the *inverse* of the camera's orientation. Turning
+your head left does not move the room left; it leaves the room where it is, which
+is the same as moving every source right relative to you. Sending the orientation
+itself drags the soundfield along with the view, so a source stays glued to
+whichever ear it started in — the symptom that a turn to the left keeps the sound
+on the left instead of handing it to the right. `rotationMatrix4()` returns
+`Rᵀ` rather than `R`, and transposes rather than negating both angles, which
+is only the same thing when one of them is zero.
+
+The bearing it turns by is the camera's *relative to the recording's own front*,
+which is what `soundfieldYaw` records. See
+[Why the originals need their own `soundfieldYaw`](#why-the-originals-need-their-own-soundfieldyaw).
 
 ### Why not an ambisonic decode
 
@@ -408,65 +458,68 @@ direct route to binaural. Two properties of the published files rule it out:
   `W/X/Y/Z` are wrong and the decoded directions are not the measured ones.
 
 A decode from these files would sound spatial while pointing sound in directions
-nobody recorded. Should un-normalized originals ever be recovered, an ambisonic
-stage could be added alongside these two rather than replacing them.
+nobody recorded — and nothing about it would sound wrong, which is what makes it
+worth refusing rather than shipping with a caveat. The [Headphones](#headphones)
+render is therefore offered only at churches whose un-normalized originals have
+been recovered, and is simply unavailable at the rest.
 
 ### The originals, where they have been recovered
 
-For **Monastery Immaculate Conception** they have been. `IR/Monastery Immaculate
-Conception, IN/Not Normalized/` holds the raw captures for all six
-positions, and the second objection above does not hold against them: no channel
-peaks at full scale, and `aformat-to-bformat.js` says so rather than printing its
-`STOP`. The arithmetic agrees. Decoded, the directional channels sit at −6 to −9 dB
-against `W`, near the −4.8 dB a diffuse tail should give, where the same positions
-decoded from the published library scatter to −11, −15, −20 dB — the signature of
-four capsules each rescaled by its own unknown factor.
+For three churches they have been — **Monastery Immaculate Conception**,
+**Basilica St. Francis** and **St Augustine Isleta**. Each keeps its raw captures
+in `IR/<Church>/Not Normalized/`, and the second objection above does not hold
+against them: no channel peaks at full scale, and `aformat-to-bformat.js` says so
+rather than printing its `STOP`.
 
-Reach them with the [`/unnormalized` flag](#feature-flags).
+The arithmetic agrees. Decoded, the directional channels sit at −5 to −8 dB
+against `W`, near the −4.8 dB a diffuse tail should give, where the same
+positions decoded from the published library scatter to −11, −15, −20 dB — the
+signature of four capsules each rescaled by its own unknown factor.
 
-### Which stages the originals reach
+These three are the churches whose headphone button works. The other nine play
+stereo only.
 
-**The two decoded stages, and only those.** The flag swaps the files behind the
-measured binaural (BRIR) and live ambisonic renders. Stereo and the
-virtual-loudspeaker binaural render keep the published library under every flag.
+### Which files each stage reads
 
-| Stage | Files it convolves | Under `/unnormalized` |
+| Stage | Files it convolves | Where they live |
 | --- | --- | --- |
-| Stereo | IR channels 1 and 2 | unchanged |
-| Binaural (virtual loudspeakers) | IR channels 1 and 2 | unchanged |
-| Measured binaural (BRIR) | `-BRIR-L/R.wav` | **originals** |
-| Live ambisonic | `-Bformat.wav` | **originals** |
+| Stereo | IR channels 1 and 2 | `Normalized/`, at every church |
+| Headphones | `-Bformat.wav` | `Not Normalized/`, where recovered |
 
-Those first two stages convolve channels 1 and 2 through `ConvolverNode`s that
-equal-power normalize, which scales the recovered level relationships straight
-back out. Swapping them would change how they sound without improving them: all
-that survives the swap is the incidental difference between two takes of one
-measurement — a different length, a different L/R balance — and that difference
-would land on the very reference the other stages are trimmed against.
+Stereo convolves channels 1 and 2 through `ConvolverNode`s that equal-power
+normalize, which would scale the recovered level relationships straight back out.
+All that would survive swapping its files is the incidental difference between
+two takes of one measurement — a different length, a different L/R balance — and
+that difference would land on the very reference the other stage is trimmed
+against. So stereo stays on the published library everywhere, and the comparison
+between the two stages means something.
 
-Holding stereo still is what makes the comparison mean something. Set the flag and
-the only thing that moves is the pair of stages whose directions the originals
-actually repair. `AudioEngine.js` therefore carries two path prefixes,
-`currentIr.base` and `currentIr.decodedBase`, identical everywhere except here.
+`AudioEngine.js` therefore carries two path prefixes, `currentIr.base` and
+`currentIr.decodedBase`. The second is the empty string at a church with no
+recovered set, which is what leaves its button dead rather than arming it for a
+file that is not there.
+
+The published library keeps only its capsules now. The `-Bformat.wav` and
+`-BRIR-*.wav` files once derived from it are gone: nothing reads them, and what
+they encoded was never the soundfield that was measured.
 
 Two more things are worth knowing before reading much into what you hear:
 
-- **The set is scaled, as a set.** The originals arrive some 45 dB below the
+- **The set is scaled, as a set.** The originals arrive some 35–45 dB below the
   published library — a deconvolved IR lands wherever the sweep level put it — far
-  enough down that the two decoded stages, whose convolvers deliberately do not
-  normalize, come back quieter than the dry path and are inaudible under it. So
+  enough down that the decode, whose convolvers deliberately do not normalize,
+  comes back quieter than the dry path and is inaudible under it. So
   `aformat-to-bformat.js --gain auto` applies **one scalar to all four channels of
   every position**, bringing the loudest sample in the church to 0 dBFS. This is
   the opposite of the per-channel normalization above: every ratio inside the set,
   between capsules and between positions alike, comes out exactly as it went in.
   The only thing it changes is where the set as a whole sits.
 - **Which leaves one judgment call.** That absolute level sets how loud the
-  measured reverb is against the direct sound on the two decoded stages, and 0 dBFS
-  is a convention rather than a measurement — recovering the true ratio would need
-  the source level at the microphone, which was not recorded. It lands the set
-  about 11 dB below the published library, which is why its trims are a couple of
-  dB where the library's are fifteen to twenty. Playback loudness is matched
-  either way: both sets are measured against the same unchanged stereo.
+  measured reverb is against the direct sound, and 0 dBFS is a convention rather
+  than a measurement — recovering the true ratio would need the source level at
+  the microphone, which was not recorded. It is why the three trims land as far
+  apart as +2.5, −5.6 and −6.4 dB. Playback loudness is matched either way: every
+  set is measured against the same unchanged stereo.
 
 The receivers, panoramas and `gainDb` trims are shared, because those describe the
 room rather than the files. The `unnormalized` block carries only what describes
@@ -475,15 +528,12 @@ the files:
 ```js
 unnormalized: {
     ir:            { dir: "…/Not Normalized", prefix: "MIC_IN" },
-    trim:          { brir: 2.6, ambisonic: 2.5 },   // the two stages that read it
-    soundfieldYaw: 0,                               // see below
+    trim:          { ambisonic: { R1: -4, R2: 3.8, … } },   // per receiver
+    soundfieldYaw: 0,                    // see below
 },
 ```
 
-`trim` has no `binaural` key, because that stage plays the published library along
-with the stereo it is matched to — its figure belongs to the church's own `trim`.
-`stageTrimsOf()` assembles the two. **`soundfieldYaw` is the one non-obvious part**
-of the entry.
+**`soundfieldYaw` is the one non-obvious part** of the entry.
 
 ### Why the originals need their own `soundfieldYaw`
 
@@ -513,8 +563,21 @@ motion runs backwards — drag the view left and the source moves further left
 instead of handing over to the right ear. Hence `soundfieldYaw: 0` on the
 originals, stated rather than omitted.
 
+The other two recovered sets measure the same way, which is what one would hope
+from the same microphone on the same wiring:
+
+| Set | Direct-sound azimuth, by position |
+| --- | --- |
+| Monastery Immaculate Conception | −40°, −39°, −39°, −39°, −39°, −39° |
+| Basilica St. Francis | −43°, −42°, −40°, −41°, −40°, −41°, −41°, −39° |
+| St Augustine Isleta | −40°, −41°, −41°, −41°, −41° |
+
+All three therefore carry `soundfieldYaw: 0`, confirmed by ear.
+
 `soundfieldYawOf()` in `Rooms.js` resolves it, falling back to the church where a
-recovered set agrees. Check this by ear for each set you add.
+recovered set agrees. The measurement narrows the answer to one of two; only
+listening settles it, so check by ear for each set you add — turn the view and
+confirm a source crosses to the *opposite* ear rather than following you.
 
 ### One thing the originals do not settle
 
@@ -543,23 +606,16 @@ stereo while the research builds remain reachable without a separate deployment.
 | Flag | Adds |
 | --- | --- |
 | *(none)* | Stereo only — the published experience |
-| `/binaural` | The virtual-loudspeaker render and its toggle |
-| `/ambisonic` | The measured BRIR and live ambisonic renders, and head tracking |
-| `/unnormalized` | The [un-normalized originals](#the-originals-where-they-have-been-recovered) behind the two decoded stages, where a church has them |
+| `/ambisonic` | The [Headphones](#headphones) render and its head tracking |
 
-Each flag implies the one above it, transitively: `/unnormalized` is the full
-research build. A query string works identically — `?binaural&ambisonic` — and
-needs no server routing, which makes it the reliable spelling on a static host.
-The path form needs its route in both `server.js` and `netlify.toml`, which hand
-back `index.html` without changing the address the browser shows.
+A query string works identically — `?ambisonic` — and needs no server routing,
+which makes it the reliable spelling on a static host. The path form needs its
+route in both `server.js` and `netlify.toml`, which hand back `index.html`
+without changing the address the browser shows.
 
-`/unnormalized` is the one flag that reveals no control. It changes which files
-every stage convolves, not what the page offers, and a church whose originals have
-not been recovered plays its published library under it exactly as it does
-without. It implies `/ambisonic` because the stages it can actually be heard on
-are the decoded ones — stereo and the virtual-loudspeaker render pass their
-impulse responses through convolvers that normalize, which scales most of the
-difference back out.
+One flag today. `FEATURE_IMPLIES` in `Features.js` is empty and
+`resolveImplied()` still resolves transitively, so a later chain can be declared
+one link at a time rather than every flag having to name everything beneath it.
 
 Gating is presentation only. Nothing in `Features.js` disables engine code: a
 hidden mode is one nobody can reach, not one that has been removed, so the audio
@@ -586,9 +642,8 @@ graph and its tests are identical either way.
    and `left`. `position: absolute` is already inherited from `Root.css`.
 7. **`Javascript/ChurchData.js`** — add the history, dimensions and receiver
    distances for the Church Info modal, plus a `cover` photo (see below). Spell
-   each receiver distance as `"<number> ft"`: the binaural render parses these
-   to place its virtual loudspeakers, and `rooms.test.js` fails on any that do
-   not parse rather than letting the position fall back to a default.
+   each receiver distance as `"<number> ft"`, which is the form the modal shows
+   and the one `rooms.test.js` checks.
 
 No JavaScript logic changes: `switchRoom()`, `compile()` and the audio engine all
 derive their behaviour from the ids and the `ROOMS` entry.
@@ -606,21 +661,22 @@ Where the un-normalized originals of a church already in the table are recovered
    ```bash
    node tools/aformat-to-bformat.js --dry-run "IR/<Church Name>/Not Normalized"
    ```
-2. **Derive** the B-format and the BRIR pairs beside them. The set gain belongs on
-   the first step only — the BRIRs inherit it.
+2. **Derive** the B-format beside them. `--gain auto` is not optional here: the
+   originals sit far too low to be heard without it.
 
    ```bash
    node tools/aformat-to-bformat.js --gain auto "IR/<Church Name>/Not Normalized"
-   node tools/bformat-to-brir.js --hrir <sadie dir> "IR/<Church Name>/Not Normalized"
    ```
 3. **`Javascript/Rooms.js`** — add an `unnormalized: { ir, trim }` block to that
-   church. `trim` carries `brir` and `ambisonic` only — the two stages that read
-   the set — and no `binaural`. Start both at `0`; step 5 measures them.
+   church. `trim` carries `ambisonic` and nothing else — it is the one stage that
+   reads the set — and within it one entry per receiver. Start it as
+   `{ ambisonic: {} }`; step 5 fills it in. Adding the block is what makes that
+   church's Headphones button live.
 4. **Check which way it faces.** Do not inherit the church's `soundfieldYaw` —
    [it is not a measurement](#why-the-originals-need-their-own-soundfieldyaw).
-   Turn the view with the live ambisonic render on and confirm a source crosses
-   to the *opposite* ear rather than following you; if it follows, the set is
-   half a turn out and wants its own `soundfieldYaw` in the block.
+   Turn the view with the headphone render on and confirm a source crosses to the
+   *opposite* ear rather than following you; if it follows, the set is half a turn
+   out and wants its own `soundfieldYaw` in the block.
 5. **Calibrate.** With no arguments this now measures both sets of every church and
    writes all of them, so the two calibrations cannot drift apart.
 

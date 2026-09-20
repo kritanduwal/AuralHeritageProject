@@ -28,16 +28,21 @@ test('compile defaults the trim to zero where a position has none', async () => 
     assert.equal(app.state.currentIr.gainDb, 0);
 });
 
-test('compile hands the engine the measured distance to the source', async () => {
-    // It places the binaural render's virtual loudspeakers, so a selection that
-    // forgot to pass it would stand every church's speakers in the same spot.
-    const app = select(createApp(), 'StAugustineIsleta', 'R5');
-    await app.g.compile();
-    assert.equal(app.state.currentIr.distanceFeet, 90.17);
+test('compile hands the engine the B-format only where there is one to decode', async () => {
+    // The headphone render reads this base and nothing else, so a church whose
+    // originals were never recovered has to arrive with it empty rather than
+    // with a path that would 404 on the first play.
+    const recovered = select(createApp(), 'StAugustineIsleta', 'R5');
+    await recovered.g.compile();
+    assert.equal(recovered.state.currentIr.decodedBase,
+        'IR/St Augustine Isleta, NM/Not Normalized/St Augustine_Isleta_R5-');
 
-    const near = select(createApp(), 'CaneRidgeMeetingHouse', 'R1');
-    await near.g.compile();
-    assert.equal(near.state.currentIr.distanceFeet, 8.7);
+    const published = select(createApp(), 'CaneRidgeMeetingHouse', 'R1');
+    await published.g.compile();
+    assert.equal(published.state.currentIr.decodedBase, '');
+    assert.equal(published.state.currentIr.base,
+        'IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-',
+        'stereo still plays the published library');
 });
 
 test('compile shows the panorama for the selected position', async () => {
@@ -431,50 +436,88 @@ test('the info modal follows the page into and out of fullscreen', () => {
 });
 
 test('compile points the engine at the selected church’s calibration', () => {
-    // The levels live in ROOMS beside the paths, so they arrive with the room
+    // The level lives in ROOMS beside the paths, so it arrives with the room
     const app = createApp();
-    app.data.ROOMS.CaneRidgeMeetingHouse.trim = { binaural: 0.6, ambisonic: 0.12 };
+
+    app.state.room = 'MonasteryImmaculateConception';
+    app.state.rcvpos = 'rpR1_MonasteryImmaculateConception';
+    app.g.compile();
+
+    assert.deepEqual(JSON.parse(JSON.stringify(app.state.stageTrims)),
+        { ambisonic: app.data.ROOMS.MonasteryImmaculateConception.unnormalized.trim.ambisonic.R1 });
+});
+
+test('compile takes the level of the position, not of the church', () => {
+    // The two sets disagree about what distance does to level, by up to 14 dB
+    // across one room, so a church-wide figure clips at the front and vanishes
+    // at the back. Two positions of one church must arrive with two levels.
+    const app = createApp();
+    const levels = app.data.ROOMS.StAugustineIsleta.unnormalized.trim.ambisonic;
+
+    const at = (rid) => {
+        app.state.room = 'StAugustineIsleta';
+        app.state.rcvpos = `rp${rid}_StAugustineIsleta`;
+        app.g.compile();
+        return app.state.stageTrims.ambisonic;
+    };
+
+    assert.equal(at('R1'), levels.R1);
+    assert.equal(at('R4'), levels.R4);
+    assert.notEqual(levels.R1, levels.R4, 'the case this guards');
+});
+
+test('a church with no recovered set arrives with no calibration at all', () => {
+    // It has no headphone render to calibrate. Empty rather than the last
+    // church's numbers, which would be a level nothing measured.
+    const app = createApp();
+
+    app.state.room = 'MonasteryImmaculateConception';
+    app.state.rcvpos = 'rpR1_MonasteryImmaculateConception';
+    app.g.compile();
 
     app.state.room = 'CaneRidgeMeetingHouse';
     app.state.rcvpos = 'rpR1_CaneRidgeMeetingHouse';
     app.g.compile();
 
-    assert.deepEqual(JSON.parse(JSON.stringify(app.state.stageTrims)),
-        { binaural: 0.6, ambisonic: 0.12 });
-    delete app.data.ROOMS.CaneRidgeMeetingHouse.trim;
+    assert.deepEqual(JSON.parse(JSON.stringify(app.state.stageTrims)), {});
 });
 
-test('an uncalibrated church does not inherit the last one', () => {
-    // Every church is measured now, so the fallback has to be provoked rather
-    // than found in the data: a church added later arrives with no trim, and
-    // must land on the defaults instead of carrying its predecessor's levels.
+test('an uncalibrated set does not inherit the last one', () => {
+    // Every recovered set is measured now, so the fallback has to be provoked
+    // rather than found in the data: a set recovered later arrives with no
+    // trim, and must land on the default instead of its predecessor's level.
     const app = createApp();
-    const config = app.data.ROOMS.CaneRidgeMeetingHouse;
-    const measured = config.trim;
-    delete config.trim;
+    const originals = app.data.ROOMS.MonasteryImmaculateConception.unnormalized;
+    const measured = originals.trim;
+    originals.trim = { ambisonic: {} };
 
     try {
-        app.g.setStageTrims({ binaural: -9 });
+        app.g.setStageTrims({ ambisonic: -9 });
 
-        app.state.room = 'CaneRidgeMeetingHouse';
-        app.state.rcvpos = 'rpR1_CaneRidgeMeetingHouse';
+        app.state.room = 'MonasteryImmaculateConception';
+        app.state.rcvpos = 'rpR1_MonasteryImmaculateConception';
         app.g.compile();
 
-        assert.equal(app.g.stageTrimDb('binaural', app.data.BINAURAL_TRIM_DB),
-            app.data.BINAURAL_TRIM_DB, 'a church with no trim must fall back, not keep -9');
+        assert.equal(app.g.stageTrimDb('ambisonic', app.data.AMBISONIC_TRIM_DB),
+            app.data.AMBISONIC_TRIM_DB, 'a set with no trim must fall back, not keep -9');
     } finally {
-        config.trim = measured;
+        originals.trim = measured;
     }
 });
 
-test('every church has been measured, so none falls back in practice', () => {
-    // The fallback exists for a church added between calibration passes. If one
-    // is sitting at 0 dB, it is playing its raw level rather than a matched one.
+test('every recovered set has been measured, so none falls back in practice', () => {
+    // The fallback exists for a set recovered between calibration passes. If a
+    // position is sitting at 0 dB, it is playing its raw level rather than a
+    // matched one — which for this stage can be many decibels out.
     const app = createApp();
-    const uncalibrated = Object.entries(app.data.ROOMS)
-        .filter(([, config]) => !config.trim ||
-            ['binaural', 'brir', 'ambisonic'].every(s => config.trim[s] === 0))
-        .map(([key]) => key);
+    const uncalibrated = [];
+    for (const [key, config] of Object.entries(app.data.ROOMS)) {
+        if (!config.unnormalized) continue;
+        const levels = config.unnormalized.trim.ambisonic || {};
+        for (const rid of Object.keys(config.receivers)) {
+            if (!Number.isFinite(levels[rid])) uncalibrated.push(`${key}.${rid}`);
+        }
+    }
 
-    assert.deepEqual(uncalibrated, [], 'these churches still need a loudness pass');
+    assert.deepEqual(uncalibrated, [], 'these positions still need a loudness pass');
 });

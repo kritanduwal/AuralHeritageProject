@@ -40,54 +40,70 @@
  *     toward as you look around. Found by ear: turn the view and check that a
  *     source crosses to the opposite ear rather than following you.
  *
- *     It only affects the live ambisonic render, the one mode whose soundfield
- *     is still steerable at playback. The other three bake their orientation in.
- * trim
- *     per-church output levels for the render modes that are not plain stereo,
- *     in dB. Negative is quieter; zero leaves the stage at whatever level its
- *     own processing produced, which is where every church starts. Each key
- *     replaces that stage's constant in AudioEngine.js outright — it is the
- *     level the stage runs at, not an adjustment to one — so two churches can
- *     be read against each other directly:
- *
- *         trim: { binaural: 0, brir: 0, ambisonic: 0 }              uncalibrated
- *         trim: { binaural: 1, brir: -17.8, ambisonic: -20 }        calibrated
- *
- *     Decibels because the ear hears ratios: 3 dB is the same size step
- *     wherever it is taken. Most values take level off, but the binaural render
- *     lands slightly under stereo and wants a small boost, so the range runs
- *     both ways and is bounded at -40 and +12 dB.
- *
- *     The three land far apart because the stages are not built the same way:
- *     the impulse-response convolvers normalize and the HRIR ones deliberately
- *     do not, so the BRIR and ambisonic stages carry the whole gain of the
- *     offline decode. Expect about +1 dB for binaural against -15 to -22 dB for
- *     the others. tools/measure-loudness.js derives all three.
- *
- *     Measured rather than guessed: tools/measure-loudness.js renders every
- *     mode through the same chain the engine builds and matches their ITU-R
- *     BS.1770 loudness to stereo's. Run it with --write to refresh these.
+ *     It only affects the headphone render, whose soundfield is still steerable
+ *     at playback. Stereo bakes its orientation in.
  * unnormalized
  *     this church's un-normalized original captures — the `Not Normalized`
  *     folder beside the published one — present only where those have been
- *     recovered, and reached through /unnormalized (see Features.js).
+ *     recovered.
  *
- *     THE TWO DECODED STAGES ONLY. The measured binaural render and the live
- *     ambisonic one read from here; stereo and the virtual-loudspeaker render
- *     stay on the published library under every flag. See decodedSourceOf() for
- *     why — briefly, those two convolve impulse-response channels 1 and 2
- *     through ConvolverNodes that equal-power normalize, which scales the
- *     recovered level relationships back out, so the swap would change how they
- *     sound without improving them and would move the reference the other
- *     stages are matched against.
+ *     THE HEADPHONE RENDER READS THIS AND NOTHING ELSE, which is why the button
+ *     is dead on a church that has no such key. A decode is a weighted sum
+ *     across the four capsules, so it needs their levels relative to each other
+ *     intact; the published library's capsules were each peak-normalized on
+ *     their own, which destroys exactly that. A render built from them sounds
+ *     spatial while pointing sound in directions nobody recorded, so it is not
+ *     offered at all rather than offered wrong. See "Why not an ambisonic
+ *     decode" in README.md.
+ *
+ *     Stereo is untouched by any of this: it convolves impulse-response
+ *     channels 1 and 2 through ConvolverNodes that equal-power normalize, so it
+ *     plays the published library at every church and stays the reference the
+ *     headphone render is trimmed against.
  *
  *     Carries the three things that describe the files and nothing else:
  *
  *         ir             where the recovered set lives
- *         trim           `brir` and `ambisonic` only, being the two stages that
- *                        read it. No `binaural`: that stage plays the published
- *                        library along with the stereo it is matched to, so its
- *                        figure belongs to the church's own trim.
+ *         trim           `ambisonic` only, being the one stage that reads it,
+ *                        and PER RECEIVER within it:
+ *
+ *                            trim: { ambisonic: { R1: -17.6, R2: -7.4, … } }
+ *
+ *                        In dB: negative is quieter, zero leaves the stage at
+ *                        whatever level its own processing produced, and the
+ *                        value replaces AMBISONIC_TRIM_DB outright rather than
+ *                        nudging it. Bounded at -40 and +12 dB.
+ *
+ *                        PER RECEIVER RATHER THAN PER CHURCH, and the spread is
+ *                        not small: St Francis runs from -17.6 dB at R1 to -3.3
+ *                        at R4. That is not noise in the measurement, it is the
+ *                        two sets disagreeing about what distance does.
+ *
+ *                        The published capsules were each peak-normalized on
+ *                        their own, so every position's stereo IR sits at full
+ *                        scale however far back it was recorded — stereo does
+ *                        not get quieter as you move away from the source. The
+ *                        recovered set was scaled by one factor for the whole
+ *                        church, so it keeps the real level relationships
+ *                        between seats and does. The gap between them therefore
+ *                        grows with distance, and one number per church cannot
+ *                        close it: the front rows come back loud enough to clip
+ *                        and the back rows nearly inaudible.
+ *
+ *                        Correcting it here rather than in the files is
+ *                        deliberate. Rescaling each position's B-format would
+ *                        destroy exactly the between-seat relationships that
+ *                        make the recovered set worth having — see
+ *                        SET_GAIN_TARGET_PEAK_DB in aformat-to-bformat.js. The
+ *                        files stay a faithful measurement; this is a listening
+ *                        calibration against a reference that was itself
+ *                        normalized per position.
+ *
+ *                        Measured rather than guessed: tools/measure-loudness.js
+ *                        renders the stage through the same chain the engine
+ *                        builds and matches its ITU-R BS.1770 loudness to
+ *                        stereo's, position by position. Run it with --write to
+ *                        refresh these.
  *         soundfieldYaw  optional. Belongs to the files rather than the room
  *                        only because the church's own value is not the
  *                        measurement it resembles; see soundfieldYawOf(). Omit
@@ -95,18 +111,6 @@
  *
  *     The receivers and the panoramas are not repeated: those describe the
  *     room, which the recovery did not change.
- *
- *     Its trims are not comparable with the church's own and are not meant to
- *     be. The published capsules were each peak-normalized to 1.0 while the
- *     originals were scaled as a set by aformat-to-bformat.js --gain auto, so
- *     the decoded stages land some 11 dB apart depending on which they were
- *     built from — fifteen to twenty dB of attenuation against a few. Both are
- *     measured the same way, by tools/measure-loudness.js, and against the same
- *     stereo, which is the whole point of leaving stereo where it is.
- *
- *     Every church without the key plays its published library under the flag
- *     exactly as it does without it, so the flag means "the originals where
- *     they exist" rather than "only churches that have originals".
  * receivers[id].pitch / .yaw
  *     camera angles handed to pannellum's lookAt(), in degrees. Every position
  *     spells both out, including the zeroes, so that a straight-ahead view
@@ -120,7 +124,6 @@ const ROOMS = {
     BridgeCommunityChurch: {
         ir:       { dir: "IR/Bridge Community Church/Normalized", prefix: "Bridge Church" },
         panorama: { dir: "Images/Bridge Community Church", prefix: "Bridge Community Church", ext: ".jpg" },
-        trim:     { binaural: 0.7, brir: -17.8, ambisonic: -20 },
         receivers: {
             R1: { pitch: 0, yaw: 180 },
             R2: { pitch: 0, yaw: 180 },
@@ -132,7 +135,6 @@ const ROOMS = {
     ChristChurchCathedral: {
         ir:       { dir: "IR/Christ Church Cathedral/Normalized", prefix: "Christ Church Cathedral" },
         panorama: { dir: "Images/Christ Church Cathedral", prefix: "Christ Church Cathedral", ext: ".jpg" },
-        trim:     { binaural: 0.8, brir: -16.5, ambisonic: -18.7 },
         receivers: {
             R1: { pitch: 0, yaw: 180 },
             R2: { pitch: 0, yaw: 180 },
@@ -149,7 +151,6 @@ const ROOMS = {
         ir:       { dir: "IR/Downtown Presbyterian Church/Normalized", prefix: "Downtown Presbyterian" },
         panorama: { dir: "Images/Downtown Presbyterian Church", prefix: "Downtown Presbyterian Church", ext: ".jpg" },
         soundfieldYaw: 180,
-        trim:     { binaural: 0.6, brir: -17.4, ambisonic: -19.5 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0 },
@@ -162,7 +163,6 @@ const ROOMS = {
     FirstBaptistChurchCapitolHill: {
         ir:       { dir: "IR/First Baptist Church Capitol Hill/Normalized", prefix: "First Baptist Church" },
         panorama: { dir: "Images/First Baptist Church Capitol Hill", prefix: "First Baptist Church Capitol Hill", ext: ".jpg" },
-        trim:     { binaural: 1, brir: -19.4, ambisonic: -21.7 },
         receivers: {
             R1: { pitch: 0, yaw: 180 },
             R2: { pitch: 0, yaw: 180 },
@@ -175,7 +175,6 @@ const ROOMS = {
     HolyTrinityEpiscopalChurch: {
         ir:       { dir: "IR/Holy Trinity Episcopal Church/Normalized", prefix: "Holy Trinity Church" },
         panorama: { dir: "Images/Holy Trinity Episcopal Church", prefix: "Holy Trinity Episcopal Church", ext: ".jpg" },
-        trim:     { binaural: 0.7, brir: -20.2, ambisonic: -22.6 },
         receivers: {
             R1: { pitch: 0, yaw: 180 },
             R2: { pitch: 0, yaw: 180 },
@@ -188,7 +187,6 @@ const ROOMS = {
         ir:       { dir: "IR/Church Street United Methodist Church, Knoxville/Normalized", prefix: "Church Street United" },
         panorama: { dir: "Images/Church Street United Methodist Church, Knoxville", prefix: "Church Street United Methodist Church", ext: ".jpg" },
         soundfieldYaw: 180,
-        trim:     { binaural: 0.9, brir: -18.7, ambisonic: -21 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0 },
@@ -201,7 +199,6 @@ const ROOMS = {
         ir:       { dir: "IR/Cane Ridge Meeting House, KY/Normalized", prefix: "Cane Ridge KY" },
         panorama: { dir: "Images/Cane Ridge Meeting House, KY", prefix: "Cane Ridge Meeting House, KY", ext: ".jpg" },
         soundfieldYaw: 180,
-        trim:     { binaural: 1, brir: -18.5, ambisonic: -20.9 },
         receivers: {
             R1: { pitch:   0, yaw: 4 },
             R2: { pitch:   0, yaw: 0 },
@@ -219,7 +216,6 @@ const ROOMS = {
         ir:       { dir: "IR/First Presbyterian Church, KY/Normalized", prefix: "FPC KY" },
         panorama: { dir: "Images/First Presbyterian Church, KY", prefix: "First Presbyterian Church, KY", ext: ".jpg" },
         soundfieldYaw: 180,
-        trim:     { binaural: 0.3, brir: -16.3, ambisonic: -18.7 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0, gainDb: 1.5 },
@@ -237,7 +233,16 @@ const ROOMS = {
         ir:       { dir: "IR/Basilica St. Francis, IN/Normalized", prefix: "St Francis_IN" },
         panorama: { dir: "Images/Basilica St. Francis, IN", prefix: "St Francis_IN", ext: ".JPG" },
         soundfieldYaw: 180,
-        trim:     { binaural: 0.4, brir: -18.6, ambisonic: -21.3 },
+        unnormalized: {
+            ir:   { dir: "IR/Basilica St. Francis, IN/Not Normalized", prefix: "St Francis_IN" },
+            trim: { ambisonic: { R1: -17.6, R2: -7.4, R3: -6.1, R4: -3.3, R5: -4.7, R6: -6.7, R7: -5.4, R8: -3.5 } },
+            // Zero, not the 180 above, for the reason given at Monastery
+            // Immaculate Conception: these originals put the direct sound at
+            // azimuth -39 to -43 deg — front, and within four degrees of it at
+            // all eight positions — so the array's front and the panorama's
+            // already agree. Confirmed by ear.
+            soundfieldYaw: 0,
+        },
         receivers: {
             R1: { pitch:   0, yaw: 1 },
             R2: { pitch:  -2, yaw: 4, gainDb: 1.5 },
@@ -256,11 +261,10 @@ const ROOMS = {
         ir:       { dir: "IR/Monastery Immaculate Conception, IN/Normalized", prefix: "MIC_IN" },
         panorama: { dir: "Images/Monastery Immaculate Conception, IN", prefix: "MIC_IN", ext: ".JPG" },
         soundfieldYaw: 180,
-        trim:     { binaural: 0.1, brir: -15.4, ambisonic: -17.9 },
         // The first church whose original captures were recovered.
         unnormalized: {
             ir:   { dir: "IR/Monastery Immaculate Conception, IN/Not Normalized", prefix: "MIC_IN" },
-            trim: { brir: 2.6, ambisonic: 2.5 },
+            trim: { ambisonic: { R1: -4, R2: 3.8, R3: 2.7, R4: 4.2, R5: 1.9, R6: 2.4 } },
             // Zero, not the 180 above, and stated rather than omitted. The
             // originals put the direct sound at azimuth -39 deg — front, and
             // within a degree of it at all six positions — so the array's front
@@ -284,7 +288,6 @@ const ROOMS = {
         ir:       { dir: "IR/Our Lady of Guadalupe, NM/Normalized", prefix: "Guadalupe_SantaFe" },
         panorama: { dir: "Images/Our Lady of Guadalupe, NM", prefix: "Guadalupe_SantaFe", ext: ".JPG" },
         soundfieldYaw: 180,
-        trim:     { binaural: 1.3, brir: -16.3, ambisonic: -18.5 },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0, gainDb: 1.5 },
@@ -299,7 +302,15 @@ const ROOMS = {
         ir:       { dir: "IR/St Augustine Isleta, NM/Normalized", prefix: "St Augustine_Isleta" },
         panorama: { dir: "Images/St Augustine Isleta, NM", prefix: "St Augustine_Isleta", ext: ".JPG" },
         soundfieldYaw: 180,
-        trim:     { binaural: 0.9, brir: -21.4, ambisonic: -23.7 },
+        unnormalized: {
+            ir:   { dir: "IR/St Augustine Isleta, NM/Not Normalized", prefix: "St Augustine_Isleta" },
+            trim: { ambisonic: { R1: -14.1, R2: -9.8, R3: -9.3, R4: -2.3, R5: -5.4 } },
+            // Zero for the same reason, and on the same evidence: the direct
+            // sound measures -40 to -41 deg across all five positions, so the
+            // church's half turn would render it behind the listener.
+            // Confirmed by ear, as above.
+            soundfieldYaw: 0,
+        },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0, gainDb: 1.5 },
@@ -320,65 +331,68 @@ function receiverIdOf(elementId) {
 }
 
 /**
- * Which set of files the two DECODED stages play from: a church's un-normalized
- * originals where the flag asks for them and the church has them, and its
- * published library otherwise.
+ * Which set of files the headphone render decodes: a church's un-normalized
+ * originals, or nothing at all where they were never recovered.
  *
- * The decoded stages only. Stereo and the virtual-loudspeaker render keep the
- * published library under every flag, because swapping it would change what
- * they sound like without improving them: both convolve impulse-response
- * channels 1 and 2 through ConvolverNodes that equal-power normalize, which
- * scales the recovered level relationships straight back out. All that would
- * survive the swap is the incidental difference between two takes of the same
- * measurement — a different length, a different L/R balance — moving the very
- * reference the other stages are matched to.
+ * Nothing rather than a fallback to the published library, and that is the
+ * whole design. A decode needs the four capsules' levels relative to each other
+ * intact, and the published capsules were each peak-normalized on their own, so
+ * a render built from them would sound spatial while pointing sound in
+ * directions nobody recorded. Offering a wrong answer is worse here than
+ * offering none: nothing about it sounds broken, so there is no way to hear
+ * that it is.
  *
- * Holding stereo still is what makes the comparison mean something: switch the
- * flag on and the only thing that changes is the two stages whose directions
- * the originals actually repair.
+ * Stereo does not consult this at all. It plays the published library at every
+ * church, which keeps it the fixed reference the headphone render is trimmed
+ * against.
  *
- * Returns something shaped like a church config either way — an `ir`, a `trim`
- * and optionally a `soundfieldYaw` — so callers read the same fields off it
- * without knowing which set answered.
+ * @returns the recovered set — `ir`, `trim` and optionally `soundfieldYaw` — or
+ *          null for a church that has none
  */
 function decodedSourceOf(config) {
-    const originals = config.unnormalized;
-    return originals && featureEnabled('unnormalized') ? originals : config;
+    return config.unnormalized || null;
 }
 
 /**
  * Which panorama yaw the soundfield calls forward.
  *
- * Follows the decoded set, since the live ambisonic render is the only stage a
- * rotation reaches. Overridable per set, unlike the receivers and the
- * panoramas, because the published library's value is not the measurement it
- * looks like: it was found by ear against a decode whose directions are invalid
- * — the capsules having each been normalized on their own — so it records
- * whatever offset made a broken soundfield sit least wrong, not where the array
- * was actually facing. A set that decodes correctly cannot inherit that.
+ * Read off the recovered set, since the headphone render is the only stage a
+ * rotation reaches and that set is the only thing it plays. Stated there rather
+ * than inherited from the church, because the church's own value is not the
+ * measurement it looks like: it was found by ear against a decode whose
+ * directions are invalid — the capsules having each been normalized on their
+ * own — so it records whatever offset made a broken soundfield sit least wrong,
+ * not where the array was actually facing.
  *
- * Falls back to the church's own value, so a recovered set that genuinely
- * agrees with it says nothing.
+ * Falls back to the church's value, so a recovered set that genuinely agrees
+ * with it says nothing.
  */
 function soundfieldYawOf(config) {
-    const yaw = decodedSourceOf(config).soundfieldYaw;
+    const decoded = decodedSourceOf(config);
+    const yaw = decoded && decoded.soundfieldYaw;
     return Number.isFinite(yaw) ? yaw : (config.soundfieldYaw || 0);
 }
 
 /**
- * Output levels for this church's stages, taking each from the set that stage
- * is actually playing.
+ * Output level for this church's headphone render at one receiver, keyed by
+ * stage name — the shape AudioEngine's stageTrims wants.
  *
- * A trim calibrates files, so it has to follow them. With the originals
- * engaged, the decoded stages are the only ones reading from them — binaural
- * stays on the published library along with the stereo it is matched against,
- * and so keeps the published library's figure.
+ * A trim calibrates files, so it comes from the set the stage plays. A church
+ * with no recovered set has no such stage, and so no trim to state.
+ *
+ * Resolved per receiver because the calibration is: see `trim` above for why a
+ * single figure per church leaves the front rows clipping and the back rows
+ * quiet. A position with no entry is left to the engine's own constant, which
+ * is audibly wrong in a known direction rather than quietly approximate —
+ * assets.test.js is what stops one going missing in the first place.
  */
-function stageTrimsOf(config) {
+function stageTrimsOf(config, receiverId) {
     const decoded = decodedSourceOf(config);
-    if (decoded === config) return config.trim;
+    if (!decoded) return {};
 
-    return { ...config.trim, brir: decoded.trim.brir, ambisonic: decoded.trim.ambisonic };
+    const perPosition = decoded.trim.ambisonic;
+    const db = perPosition && perPosition[receiverId];
+    return Number.isFinite(db) ? { ambisonic: db } : {};
 }
 
 /**
@@ -395,25 +409,23 @@ function responseBaseIn(source, config, receiverId) {
 
 /**
  * Base path of a receiver's impulse response pair — channels 1 and 2, which
- * stereo and the virtual-loudspeaker render convolve.
- *
- * Always the published library. See decodedSourceOf() for why the originals do
- * not reach these two stages.
+ * stereo convolves. Always the published library.
  */
 function impulseResponseBase(config, receiverId) {
     return responseBaseIn(config, config, receiverId);
 }
 
 /**
- * Base path of a receiver's decoded files — the BRIR pair and the B-format —
- * which the measured binaural and live ambisonic stages convolve.
+ * Base path of a receiver's B-format file, which the headphone render decodes,
+ * or "" where this church has no recovered set to decode.
  *
- * The originals where this visit asked for them and the church has them. The
- * two bases are usually the same string; they differ only under /unnormalized,
- * and only for a church that has been recovered.
+ * The empty string rather than a path that would 404: ambisonicAvailable()
+ * reads it to decide whether the button can be armed at all, and a church
+ * without originals should be answered before a fetch rather than after one.
  */
 function decodedResponseBase(config, receiverId) {
-    return responseBaseIn(decodedSourceOf(config), config, receiverId);
+    const decoded = decodedSourceOf(config);
+    return decoded ? responseBaseIn(decoded, config, receiverId) : "";
 }
 
 /**

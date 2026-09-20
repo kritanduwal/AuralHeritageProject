@@ -233,23 +233,23 @@ async function compile() {
     if (!receiver) return;
 
     // Which way the recording faces, so head tracking turns against the view
-    // rather than with it. Per set: the two decode to different orientations,
-    // and the wrong one puts the source behind the listener, where its lateral
-    // motion runs backwards.
+    // rather than with it. Read off the recovered set, whose orientation is not
+    // the church's: the wrong one puts the source behind the listener, where
+    // its lateral motion runs backwards.
     setSoundfieldOrientation(soundfieldYawOf(config));
 
-    // Output levels for this church's render stages; absent until calibrated.
-    // Taken per stage from the set that stage is playing, since a trim only
-    // calibrates the files it was measured against.
-    setStageTrims(stageTrimsOf(config));
+    // Output level for this church's headphone render at this position; absent
+    // until calibrated, and empty for a church with no recovered set to render.
+    // Per position because the published library's stereo was normalized per
+    // position and the recovered set was not — see `trim` in Rooms.js.
+    setStageTrims(stageTrimsOf(config, receiverId));
 
-    // Two bases: the impulse response pair stereo and the virtual-loudspeaker
-    // render convolve, and the decoded files behind the other two stages. They
-    // differ only where this visit asked for a church's recovered originals.
+    // Two bases: the impulse response pair stereo convolves, and the B-format
+    // the headphone render decodes. The second is "" at a church whose
+    // originals were never recovered, which is what leaves its button dead.
     setImpulseResponse(
         impulseResponseBase(config, receiverId),
         receiver.gainDb || 0,
-        receiverDistanceFeet(room, receiverId),
         decodedResponseBase(config, receiverId)
     );
 
@@ -361,13 +361,11 @@ function closeChurchInfo() {
 /**
  * Which controls each URL feature reveals. See Features.js for the flags.
  *
- * The BRIR and live-ambisonic renders share one flag because they share one
- * provenance — both are decoded from the ambisonic capsules — so a visit that
- * can reach one should be able to compare it against the other.
+ * One entry today. The loop rather than a single lookup is what lets the next
+ * flag be a line of data instead of a change of shape here.
  */
 const FEATURE_CONTROLS = {
-    binaural: ['binaural'],
-    ambisonic: ['brir', 'ambisonic', 'tracking-control'],
+    ambisonic: ['headphones', 'tracking-control'],
 };
 
 /**
@@ -378,6 +376,9 @@ const FEATURE_CONTROLS = {
  */
 const TOGGLE_ROW_START_PX = 116;
 const TOGGLE_ROW_STEP_PX = 68;
+
+/** The render toggles, left to right, as layoutModeToggles() seats them */
+const MODE_TOGGLE_IDS = ['headphones'];
 
 /**
  * Hides the controls this visit has not been given, and closes the gaps.
@@ -405,7 +406,7 @@ function applyFeatureGating() {
 /** Seats the visible render toggles in a row, left of the play button */
 function layoutModeToggles() {
     let slot = 0;
-    for (const id of ['binaural', 'brir', 'ambisonic']) {
+    for (const id of MODE_TOGGLE_IDS) {
         const button = document.getElementById(id);
         if (!button || button.style.display === 'none') continue;
         button.style.right = (TOGGLE_ROW_START_PX + slot * TOGGLE_ROW_STEP_PX) + 'px';

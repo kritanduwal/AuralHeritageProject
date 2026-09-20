@@ -45,62 +45,71 @@ test('impulseResponseBase honours an irName override', () => {
 
 // ── the un-normalized originals ───────────────────────────────────────────
 
-/** The same table, read by a visit that asked for the original captures */
-const raw = createApp({ path: '/unnormalized' });
-
 const PUBLISHED_BASE = 'IR/Monastery Immaculate Conception, IN/Normalized/MIC_IN_R3-';
 const ORIGINALS_BASE = 'IR/Monastery Immaculate Conception, IN/Not Normalized/MIC_IN_R3-';
 
-test('without the flag both bases are the published library', () => {
-    assert.ok(ROOMS.MonasteryImmaculateConception.unnormalized,
-        'this church is the one that has originals; the test means nothing if it stops');
-    assert.equal(impulseResponseBase(ROOMS.MonasteryImmaculateConception, 'R3'), PUBLISHED_BASE);
-    assert.equal(app.g.decodedResponseBase(ROOMS.MonasteryImmaculateConception, 'R3'), PUBLISHED_BASE);
+test('the two bases point at the two sets', () => {
+    // Stereo convolves channels 1 and 2 through normalizing convolvers, so it
+    // plays the published library everywhere and stays the reference the
+    // headphone render is trimmed against. The render reads the originals.
+    const church = ROOMS.MonasteryImmaculateConception;
+    assert.ok(church.unnormalized,
+        'this church is one of those that have originals; the test means nothing if it stops');
+    assert.equal(impulseResponseBase(church, 'R3'), PUBLISHED_BASE);
+    assert.equal(app.g.decodedResponseBase(church, 'R3'), ORIGINALS_BASE);
 });
 
-test('the flag moves the decoded files and leaves the stereo pair alone', () => {
-    // Stereo and the virtual-loudspeaker render convolve channels 1 and 2
-    // through normalizing convolvers, so the originals would change how they
-    // sound without improving them — and would move the very reference the
-    // other stages are matched against.
-    const church = raw.data.ROOMS.MonasteryImmaculateConception;
-    assert.equal(raw.g.impulseResponseBase(church, 'R3'), PUBLISHED_BASE,
-        'the stereo pair must not move');
-    assert.equal(raw.g.decodedResponseBase(church, 'R3'), ORIGINALS_BASE,
-        'the BRIR and B-format must');
-});
-
-test('a church without originals keeps both bases identical under the flag', () => {
-    // The flag means "the originals where they exist", so that it can be used
-    // across the library while they are recovered one church at a time.
-    for (const [key, cfg] of Object.entries(raw.data.ROOMS)) {
+test('a church without originals offers nothing to decode', () => {
+    // Empty rather than a fallback to the published library: those capsules
+    // were each peak-normalized, so a decode of them would place sound in
+    // directions nobody measured while sounding entirely convincing.
+    for (const [key, cfg] of Object.entries(ROOMS)) {
         if (cfg.unnormalized) continue;
-        const published = impulseResponseBase(ROOMS[key], 'R1');
-        assert.equal(raw.g.impulseResponseBase(cfg, 'R1'), published, key);
-        assert.equal(raw.g.decodedResponseBase(cfg, 'R1'), published,
-            `${key} has no originals, so nothing should have moved`);
+        assert.equal(app.g.decodedResponseBase(cfg, 'R1'), '', key);
+        assert.match(impulseResponseBase(cfg, 'R1'), /\/Normalized\//,
+            `${key}: stereo still plays the published library`);
     }
 });
 
-test('each stage is trimmed from the set it actually plays', () => {
+test('the trim comes from the set the stage actually plays, at that position', () => {
     const church = ROOMS.MonasteryImmaculateConception;
-    assert.deepEqual(app.g.stageTrimsOf(church), church.trim,
-        'one set playing, one trim');
-
-    const rawChurch = raw.data.ROOMS.MonasteryImmaculateConception;
-    const trims = raw.g.stageTrimsOf(rawChurch);
-    assert.equal(trims.binaural, rawChurch.trim.binaural,
-        'binaural plays the published library, so it keeps its figure');
-    assert.equal(trims.brir, rawChurch.unnormalized.trim.brir);
-    assert.equal(trims.ambisonic, rawChurch.unnormalized.trim.ambisonic);
+    assert.deepEqual(
+        JSON.parse(JSON.stringify(app.g.stageTrimsOf(church, 'R3'))),
+        { ambisonic: church.unnormalized.trim.ambisonic.R3 });
 });
 
-test('the originals calibrate the two stages that read them, and no others', () => {
+test('two positions of one church get two levels', () => {
+    // The whole reason the table is per receiver: stereo was normalized per
+    // position and the recovered set was not, so the gap between them grows
+    // with distance from the source.
+    const church = ROOMS.StAugustineIsleta;
+    const front = app.g.stageTrimsOf(church, 'R1').ambisonic;
+    const back = app.g.stageTrimsOf(church, 'R4').ambisonic;
+
+    assert.equal(front, church.unnormalized.trim.ambisonic.R1);
+    assert.equal(back, church.unnormalized.trim.ambisonic.R4);
+    assert.ok(Math.abs(front - back) > 6,
+        'a church-wide figure would be several dB out at both ends');
+});
+
+test('a church with no recovered set has no trim to state', () => {
+    // It has no stage but stereo, and stereo is the reference — never trimmed.
+    assert.deepEqual(Object.keys(app.g.stageTrimsOf(ROOMS.CaneRidgeMeetingHouse, 'R1')), []);
+});
+
+test('a position missing from the table is left to the engine constant', () => {
+    // Rather than silently borrowing a neighbour's level, which would be a
+    // plausible-sounding number that no measurement stands behind.
+    const church = ROOMS.MonasteryImmaculateConception;
+    assert.deepEqual(Object.keys(app.g.stageTrimsOf(church, 'R99')), []);
+});
+
+test('the originals calibrate the one stage that reads them, and no others', () => {
     // A figure nothing reads is one that goes stale and then gets believed.
     for (const [key, cfg] of rooms) {
         if (!cfg.unnormalized) continue;
-        assert.deepEqual(Object.keys(cfg.unnormalized.trim).sort(), ['ambisonic', 'brir'],
-            `${key}.unnormalized.trim should carry the decoded stages only`);
+        assert.deepEqual(Object.keys(cfg.unnormalized.trim), ['ambisonic'],
+            `${key}.unnormalized.trim should carry the headphone render only`);
     }
 });
 
@@ -124,28 +133,28 @@ test('an originals entry describes the files and never the room', () => {
     }
 });
 
-test('the soundfield orientation follows the set that is playing', () => {
-    // The published value was found by ear against a decode whose directions
+test('the soundfield orientation comes from the set that is playing', () => {
+    // The church's own value was found by ear against a decode whose directions
     // are invalid, so a correctly decoding set must be able to disagree with it.
-    const key = 'MonasteryImmaculateConception';
-    assert.equal(app.g.soundfieldYawOf(ROOMS[key]), ROOMS[key].soundfieldYaw);
-    assert.equal(raw.g.soundfieldYawOf(raw.data.ROOMS[key]),
-        raw.data.ROOMS[key].unnormalized.soundfieldYaw);
+    const church = ROOMS.MonasteryImmaculateConception;
+    assert.equal(app.g.soundfieldYawOf(church), church.unnormalized.soundfieldYaw);
+    assert.notEqual(church.unnormalized.soundfieldYaw, church.soundfieldYaw,
+        'the two disagree here, which is the case worth testing');
 });
 
 test('an explicit zero orientation is honoured rather than falling back', () => {
     // 0 is the value that matters here and the one a loose `||` would drop, so
     // a set that states it must not inherit the church's half turn instead.
-    const church = raw.data.ROOMS.MonasteryImmaculateConception;
+    const church = ROOMS.MonasteryImmaculateConception;
     assert.equal(church.unnormalized.soundfieldYaw, 0, 'the case this guards');
     assert.notEqual(church.soundfieldYaw, 0, 'and the value it must not inherit');
-    assert.equal(raw.g.soundfieldYawOf(church), 0);
+    assert.equal(app.g.soundfieldYawOf(church), 0);
 });
 
 test('a set that states no orientation inherits the church', () => {
-    const church = raw.data.ROOMS.MonasteryImmaculateConception;
+    const church = ROOMS.MonasteryImmaculateConception;
     const borrowed = { ...church, unnormalized: { ir: church.unnormalized.ir, trim: church.unnormalized.trim } };
-    assert.equal(raw.g.soundfieldYawOf(borrowed), church.soundfieldYaw);
+    assert.equal(app.g.soundfieldYawOf(borrowed), church.soundfieldYaw);
 });
 
 test('panoramaPath joins directory, prefix, receiver and extension', () => {
@@ -252,34 +261,15 @@ test('every room has matching reference data in ChurchData.js', () => {
 });
 
 // ── receiver distances ────────────────────────────────────────────────────
-// The binaural render stands its virtual loudspeakers at these, so they are
-// load-bearing for playback and no longer only modal text.
+// Reference text in the Church Info modal. Nothing in playback reads them any
+// more: they placed the virtual loudspeakers of the render that was removed.
 
-test('every receiver in the table yields a usable distance', () => {
-    const { receiverDistanceFeet } = app.g;
-    for (const [key] of rooms) {
-        for (const r of Object.keys(ROOMS[key].receivers)) {
-            const feet = receiverDistanceFeet(key, r);
-            assert.ok(feet > 0, `${key}.${r}: distance did not parse — the binaural render would fall back`);
-            assert.ok(feet < 500, `${key}.${r}: ${feet} ft is not a distance inside a church`);
+test('every receiver distance is stated in a form the modal can show', () => {
+    // A stray unit or a missing number would appear verbatim in the table
+    for (const [key, data] of Object.entries(app.data.churchData)) {
+        for (const [r, text] of Object.entries(data.receivers)) {
+            assert.match(text, /^\d+(\.\d+)? ft$/,
+                `${key}.${r}: "${text}" is not a distance in feet`);
         }
-    }
-});
-
-test('receiverDistanceFeet reads the figure the modal shows', () => {
-    const { receiverDistanceFeet } = app.g;
-    assert.equal(receiverDistanceFeet('StAugustineIsleta', 'R5'), 90.17);
-    assert.equal(receiverDistanceFeet('CaneRidgeMeetingHouse', 'R1'), 8.7);
-    assert.equal(
-        receiverDistanceFeet('StAugustineIsleta', 'R5') + ' ft',
-        app.data.churchData.StAugustineIsleta.receivers.R5,
-        'the parsed value must be the same number the visitor is shown'
-    );
-});
-
-test('receiverDistanceFeet reports nothing rather than guessing', () => {
-    const { receiverDistanceFeet } = app.g;
-    for (const [room, rcv] of [['StAugustineIsleta', 'R99'], ['NoSuchChurch', 'R1'], ['', '']]) {
-        assert.equal(receiverDistanceFeet(room, rcv), 0, `expected 0 for ${room}.${rcv}`);
     }
 });
