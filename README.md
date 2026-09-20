@@ -129,13 +129,24 @@ string literals and camera angles.
 
 ### The impulse response library
 
-`IR/<Church>/<Prefix>_<Receiver>-<Channel>.wav`
+`IR/<Church>/<Set>/<Prefix>_<Receiver>-<Channel>.wav`
 
 ```
-IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R7-1.wav
-                                └── prefix ──┘ │   └── channel
-                                               └── receiver position
+IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R7-1.wav
+                                └─ set ──┘ └── prefix ──┘ │   └── channel
+                                                          └── receiver position
 ```
+
+`<Set>` names how that copy of the measurement was levelled:
+
+```
+IR/<Church>/Normalized/
+IR/<Church>/Not Normalized/
+```
+
+Both hold the same positions under the same file names, which is why they are
+separate folders rather than one. A church that has only ever been published has
+the single `Normalized` folder; nothing outside it is optional.
 
 Each receiver position was captured on a multichannel array, so several channels
 exist per position:
@@ -155,14 +166,14 @@ Two things about the archived channels are worth recording, because they are not
 apparent from the file names and they are what rules out an ambisonic render
 (see [Binaural rendering](#binaural-rendering)): the 4-channel ambisonic block is
 the **raw A-format** output of the NT-SF1 rather than B-format, and **every file
-in the library is peak-normalized on its own**, so relationships between channels
-are gone. The stereo pair tolerates that because the two front omnis are near
-symmetric; a decode built from linear combinations of four capsules would not.
+in `Normalized/` is peak-normalized on its own**, so relationships between
+channels are gone. The stereo pair tolerates that because the two front omnis are
+near symmetric; a decode built from linear combinations of four capsules would
+not.
 
-One church is now the exception. The un-normalized originals for Monastery
-Immaculate Conception have been recovered and live outside `IR/`, under
-`Ambisonic Files/<Church>/Not Nomalized/`, reachable by the
-[`/unnormalized` flag](#feature-flags). See
+That is what the second folder is for. Where the un-normalized originals have
+been recovered they sit in `IR/<Church>/Not Normalized/` alongside the published
+set, reachable by the [`/unnormalized` flag](#feature-flags). See
 [The originals](#the-originals-where-they-have-been-recovered).
 
 Prefixes rarely match the folder name (`Cane Ridge Meeting House, KY` holds files
@@ -402,8 +413,8 @@ stage could be added alongside these two rather than replacing them.
 
 ### The originals, where they have been recovered
 
-For **Monastery Immaculate Conception** they have been. `Ambisonic Files/Monastery
-Immaculate Conception, IN/Not Nomalized/` holds the raw captures for all six
+For **Monastery Immaculate Conception** they have been. `IR/Monastery Immaculate
+Conception, IN/Not Normalized/` holds the raw captures for all six
 positions, and the second objection above does not hold against them: no channel
 peaks at full scale, and `aformat-to-bformat.js` says so rather than printing its
 `STOP`. The arithmetic agrees. Decoded, the directional channels sit at −6 to −9 dB
@@ -463,7 +474,7 @@ the files:
 
 ```js
 unnormalized: {
-    ir:            { dir: "…/Not Nomalized", prefix: "MIC_IN" },
+    ir:            { dir: "…/Not Normalized", prefix: "MIC_IN" },
     trim:          { brir: 2.6, ambisonic: 2.5 },   // the two stages that read it
     soundfieldYaw: 0,                               // see below
 },
@@ -558,7 +569,7 @@ graph and its tests are identical either way.
 
 ## Adding a church
 
-1. **Audio** — drop the IRs in `IR/<Church Name>/`, named
+1. **Audio** — drop the IRs in `IR/<Church Name>/Normalized/`, named
    `<Prefix>_R<n>-<channel>.wav`.
 2. **Images** — add the 360° panoramas as `Images/<Church Name>/<Prefix>_R<n>.jpg`
    and a floorplan diagram PNG in the same folder.
@@ -588,19 +599,19 @@ derive their behaviour from the ids and the `ROOMS` entry.
 
 Where the un-normalized originals of a church already in the table are recovered:
 
-1. **Audio** — drop them in `Ambisonic Files/<Church Name>/Not Nomalized/`, named
+1. **Audio** — drop them in `IR/<Church Name>/Not Normalized/`, named
    exactly as the published set is. Confirm the tool does not print its
    per-channel-normalization `STOP`; if it does, these are not originals.
 
    ```bash
-   node tools/aformat-to-bformat.js --dry-run "Ambisonic Files/<Church Name>/Not Nomalized"
+   node tools/aformat-to-bformat.js --dry-run "IR/<Church Name>/Not Normalized"
    ```
 2. **Derive** the B-format and the BRIR pairs beside them. The set gain belongs on
    the first step only — the BRIRs inherit it.
 
    ```bash
-   node tools/aformat-to-bformat.js --gain auto "Ambisonic Files/<Church Name>/Not Nomalized"
-   node tools/bformat-to-brir.js --hrir <sadie dir> "Ambisonic Files/<Church Name>/Not Nomalized"
+   node tools/aformat-to-bformat.js --gain auto "IR/<Church Name>/Not Normalized"
+   node tools/bformat-to-brir.js --hrir <sadie dir> "IR/<Church Name>/Not Normalized"
    ```
 3. **`Javascript/Rooms.js`** — add an `unnormalized: { ir, trim }` block to that
    church. `trim` carries `brir` and `ambisonic` only — the two stages that read

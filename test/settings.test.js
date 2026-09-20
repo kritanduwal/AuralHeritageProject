@@ -35,7 +35,7 @@ test('switchRoom selects the source and first receiver of the new church', async
     assert.equal(app.state.room, 'MonasteryImmaculateConception');
     assert.equal(app.state.srcpos, 'spS_MonasteryImmaculateConception');
     assert.equal(app.state.rcvpos, 'rpR1_MonasteryImmaculateConception');
-    assert.equal(app.state.currentIr.base, 'IR/Monastery Immaculate Conception, IN/MIC_IN_R1-');
+    assert.equal(app.state.currentIr.base, 'IR/Monastery Immaculate Conception, IN/Normalized/MIC_IN_R1-');
 });
 
 test('switchRoom reveals the church info button', async () => {
@@ -164,7 +164,7 @@ test('a file that fails to load does not relabel the control', async () => {
 test('choosing a new source stops playback first', async () => {
     const app = createApp();
     app.loadFakeSource();
-    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R1-', 0);
+    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-', 0);
     await app.g.playpause();
     assert.equal(app.state.isPlaying, true);
 

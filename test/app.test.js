@@ -18,7 +18,7 @@ test('compile points the audio engine at the selected position', async () => {
     const app = select(createApp(), 'CaneRidgeMeetingHouse', 'R7');
     await app.g.compile();
 
-    assert.equal(app.state.currentIr.base, 'IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R7-');
+    assert.equal(app.state.currentIr.base, 'IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R7-');
     assert.equal(app.state.currentIr.gainDb, 1.5, 'R7 carries a 1.5 dB trim');
 });
 

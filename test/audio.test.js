@@ -260,7 +260,7 @@ test('a larger trim attenuates more', () => {
 test('setConvolutionMix ramps the live graph instead of rebuilding it', async () => {
     const app = createApp();
     app.loadFakeSource();
-    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R1-', 0);
+    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-', 0);
     await app.g.startPlayback();
 
     const graph = app.state.activeGraph;
@@ -277,7 +277,7 @@ test('setConvolutionMix ramps the live graph instead of rebuilding it', async ()
 test('setConvolutionMix glides rather than jumping', async () => {
     const app = createApp();
     app.loadFakeSource();
-    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R1-', 0);
+    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-', 0);
     await app.g.startPlayback();
 
     app.g.setConvolutionMix(0.5);
@@ -289,7 +289,7 @@ test('setConvolutionMix glides rather than jumping', async () => {
 test('a later slider move glides from the present, not from the last one', async () => {
     const app = createApp();
     app.loadFakeSource();
-    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R1-', 0);
+    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-', 0);
     await app.g.startPlayback();
     const graph = app.state.activeGraph;
 
@@ -307,7 +307,7 @@ test('a later slider move glides from the present, not from the last one', async
 test('setConvolutionMix is remembered while stopped and applied on the next play', async () => {
     const app = createApp();
     app.loadFakeSource();
-    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R1-', 0);
+    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-', 0);
 
     app.g.setConvolutionMix(0.3);                    // nothing is playing yet
     assert.equal(app.state.activeGraph, null);
@@ -1376,7 +1376,7 @@ test('the fallbacks are 0 dB, so calibration starts from raw', () => {
 
 test('an impulse response is fetched once and then served from cache', async () => {
     const app = createApp();
-    const url = 'IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R1-1.wav';
+    const url = 'IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-1.wav';
 
     const a = await app.g.loadImpulseResponse(url);
     const b = await app.g.loadImpulseResponse(url);
@@ -1387,7 +1387,7 @@ test('an impulse response is fetched once and then served from cache', async () 
 
 test('two plays started at once share a single download', async () => {
     const app = createApp();
-    const url = 'IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R2-1.wav';
+    const url = 'IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R2-1.wav';
 
     const [a, b] = await Promise.all([app.g.loadImpulseResponse(url), app.g.loadImpulseResponse(url)]);
     assert.equal(a, b);
@@ -1419,7 +1419,7 @@ test('a failed load reports the URL and status it failed on', async () => {
 test('the cache is bounded, dropping the least recently used entry', async () => {
     const app = createApp();
     const limit = app.data.IR_CACHE_LIMIT;
-    const url = (n) => `IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R${n}-1.wav`;
+    const url = (n) => `IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R${n}-1.wav`;
 
     // Fill past the cap; R1 is the oldest and should fall out
     for (let n = 1; n <= limit + 1; n++) await app.g.loadImpulseResponse(url(n % 9 + 1));
@@ -1431,7 +1431,7 @@ test('the cache is bounded, dropping the least recently used entry', async () =>
 
 test('impulseResponseExists probes with HEAD rather than downloading audio', async () => {
     const app = createApp();
-    const base = 'IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R1-';
+    const base = 'IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-';
 
     assert.equal(await app.g.impulseResponseExists(base), true);
     assert.deepEqual(app.net.log, [{ url: base + '1.wav', method: 'HEAD' }]);
@@ -1455,7 +1455,7 @@ test('impulseResponseExists survives a network error', async () => {
 
 async function readyToPlay(app, gainDb = 0) {
     app.loadFakeSource();
-    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R1-', gainDb);
+    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-', gainDb);
     return app;
 }
 
@@ -1519,7 +1519,7 @@ test('the selected position’s trim is carried into the graph', async () => {
 
 test('play refuses to start before a source file has decoded', async () => {
     const app = createApp();
-    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R1-', 0);
+    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-', 0);
 
     await app.g.playpause();
 

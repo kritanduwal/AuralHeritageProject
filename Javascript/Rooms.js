@@ -13,6 +13,18 @@
 /**
  * ir.dir + "/" + (receiver.irName || ir.prefix + "_" + receiverId) + "-"
  *     gives the base path of an IR pair; AudioEngine appends "1.wav" / "2.wav".
+ *
+ *     A church's files sit one level below its own folder, in a folder named for
+ *     how its capsules were levelled:
+ *
+ *         IR/<Church>/Normalized/        the published library, always present
+ *         IR/<Church>/Not Normalized/    the original captures, where recovered
+ *
+ *     The split is the library's own, not a convention imposed on it: the two
+ *     sets hold the same measurement at two different levellings, so they carry
+ *     identical file names and could not share a folder. A church that has only
+ *     ever been published has the one folder, which is why `Normalized` is
+ *     spelled out for every church rather than appended where a sibling exists.
  * panorama.dir + "/" + panorama.prefix + "_" + receiverId + panorama.ext
  *     gives the 360 photo. Extensions are case-sensitive once deployed, so they
  *     are spelled here exactly as the files are named on disk.
@@ -56,8 +68,9 @@
  *     mode through the same chain the engine builds and matches their ITU-R
  *     BS.1770 loudness to stereo's. Run it with --write to refresh these.
  * unnormalized
- *     this church's un-normalized original captures, present only where those
- *     have been recovered, and reached through /unnormalized (see Features.js).
+ *     this church's un-normalized original captures — the `Not Normalized`
+ *     folder beside the published one — present only where those have been
+ *     recovered, and reached through /unnormalized (see Features.js).
  *
  *     THE TWO DECODED STAGES ONLY. The measured binaural render and the live
  *     ambisonic one read from here; stereo and the virtual-loudspeaker render
@@ -105,7 +118,7 @@
  */
 const ROOMS = {
     BridgeCommunityChurch: {
-        ir:       { dir: "IR/Bridge Community Church", prefix: "Bridge Church" },
+        ir:       { dir: "IR/Bridge Community Church/Normalized", prefix: "Bridge Church" },
         panorama: { dir: "Images/Bridge Community Church", prefix: "Bridge Community Church", ext: ".jpg" },
         trim:     { binaural: 0.7, brir: -17.8, ambisonic: -20 },
         receivers: {
@@ -117,7 +130,7 @@ const ROOMS = {
     },
 
     ChristChurchCathedral: {
-        ir:       { dir: "IR/Christ Church Cathedral", prefix: "Christ Church Cathedral" },
+        ir:       { dir: "IR/Christ Church Cathedral/Normalized", prefix: "Christ Church Cathedral" },
         panorama: { dir: "Images/Christ Church Cathedral", prefix: "Christ Church Cathedral", ext: ".jpg" },
         trim:     { binaural: 0.8, brir: -16.5, ambisonic: -18.7 },
         receivers: {
@@ -133,7 +146,7 @@ const ROOMS = {
     },
 
     DowntownPresbyterianChurch: {
-        ir:       { dir: "IR/Downtown Presbyterian Church", prefix: "Downtown Presbyterian" },
+        ir:       { dir: "IR/Downtown Presbyterian Church/Normalized", prefix: "Downtown Presbyterian" },
         panorama: { dir: "Images/Downtown Presbyterian Church", prefix: "Downtown Presbyterian Church", ext: ".jpg" },
         soundfieldYaw: 180,
         trim:     { binaural: 0.6, brir: -17.4, ambisonic: -19.5 },
@@ -147,7 +160,7 @@ const ROOMS = {
     },
 
     FirstBaptistChurchCapitolHill: {
-        ir:       { dir: "IR/First Baptist Church Capitol Hill", prefix: "First Baptist Church" },
+        ir:       { dir: "IR/First Baptist Church Capitol Hill/Normalized", prefix: "First Baptist Church" },
         panorama: { dir: "Images/First Baptist Church Capitol Hill", prefix: "First Baptist Church Capitol Hill", ext: ".jpg" },
         trim:     { binaural: 1, brir: -19.4, ambisonic: -21.7 },
         receivers: {
@@ -160,7 +173,7 @@ const ROOMS = {
     },
 
     HolyTrinityEpiscopalChurch: {
-        ir:       { dir: "IR/Holy Trinity Episcopal Church", prefix: "Holy Trinity Church" },
+        ir:       { dir: "IR/Holy Trinity Episcopal Church/Normalized", prefix: "Holy Trinity Church" },
         panorama: { dir: "Images/Holy Trinity Episcopal Church", prefix: "Holy Trinity Episcopal Church", ext: ".jpg" },
         trim:     { binaural: 0.7, brir: -20.2, ambisonic: -22.6 },
         receivers: {
@@ -172,7 +185,7 @@ const ROOMS = {
     },
 
     UnitedMethodistChurch: {
-        ir:       { dir: "IR/Church Street United Methodist Church, Knoxville", prefix: "Church Street United" },
+        ir:       { dir: "IR/Church Street United Methodist Church, Knoxville/Normalized", prefix: "Church Street United" },
         panorama: { dir: "Images/Church Street United Methodist Church, Knoxville", prefix: "Church Street United Methodist Church", ext: ".jpg" },
         soundfieldYaw: 180,
         trim:     { binaural: 0.9, brir: -18.7, ambisonic: -21 },
@@ -185,7 +198,7 @@ const ROOMS = {
     },
 
     CaneRidgeMeetingHouse: {
-        ir:       { dir: "IR/Cane Ridge Meeting House, KY", prefix: "Cane Ridge KY" },
+        ir:       { dir: "IR/Cane Ridge Meeting House, KY/Normalized", prefix: "Cane Ridge KY" },
         panorama: { dir: "Images/Cane Ridge Meeting House, KY", prefix: "Cane Ridge Meeting House, KY", ext: ".jpg" },
         soundfieldYaw: 180,
         trim:     { binaural: 1, brir: -18.5, ambisonic: -20.9 },
@@ -203,7 +216,7 @@ const ROOMS = {
     },
 
     FirstPresbyterianChurchKY: {
-        ir:       { dir: "IR/First Presbyterian Church, KY", prefix: "FPC KY" },
+        ir:       { dir: "IR/First Presbyterian Church, KY/Normalized", prefix: "FPC KY" },
         panorama: { dir: "Images/First Presbyterian Church, KY", prefix: "First Presbyterian Church, KY", ext: ".jpg" },
         soundfieldYaw: 180,
         trim:     { binaural: 0.3, brir: -16.3, ambisonic: -18.7 },
@@ -221,7 +234,7 @@ const ROOMS = {
     },
 
     BasilicaStFrancis: {
-        ir:       { dir: "IR/Basilica St. Francis, IN", prefix: "St Francis_IN" },
+        ir:       { dir: "IR/Basilica St. Francis, IN/Normalized", prefix: "St Francis_IN" },
         panorama: { dir: "Images/Basilica St. Francis, IN", prefix: "St Francis_IN", ext: ".JPG" },
         soundfieldYaw: 180,
         trim:     { binaural: 0.4, brir: -18.6, ambisonic: -21.3 },
@@ -240,14 +253,13 @@ const ROOMS = {
     },
 
     MonasteryImmaculateConception: {
-        ir:       { dir: "IR/Monastery Immaculate Conception, IN", prefix: "MIC_IN" },
+        ir:       { dir: "IR/Monastery Immaculate Conception, IN/Normalized", prefix: "MIC_IN" },
         panorama: { dir: "Images/Monastery Immaculate Conception, IN", prefix: "MIC_IN", ext: ".JPG" },
         soundfieldYaw: 180,
         trim:     { binaural: 0.1, brir: -15.4, ambisonic: -17.9 },
-        // The first church whose original captures were recovered. Folder name
-        // is the one on disk, misspelling and all.
+        // The first church whose original captures were recovered.
         unnormalized: {
-            ir:   { dir: "Ambisonic Files/Monastery Immaculate Conception, IN/Not Nomalized", prefix: "MIC_IN" },
+            ir:   { dir: "IR/Monastery Immaculate Conception, IN/Not Normalized", prefix: "MIC_IN" },
             trim: { brir: 2.6, ambisonic: 2.5 },
             // Zero, not the 180 above, and stated rather than omitted. The
             // originals put the direct sound at azimuth -39 deg — front, and
@@ -269,7 +281,7 @@ const ROOMS = {
     },
 
     OurLadyOfGuadalupe: {
-        ir:       { dir: "IR/Our Lady of Guadalupe, NM", prefix: "Guadalupe_SantaFe" },
+        ir:       { dir: "IR/Our Lady of Guadalupe, NM/Normalized", prefix: "Guadalupe_SantaFe" },
         panorama: { dir: "Images/Our Lady of Guadalupe, NM", prefix: "Guadalupe_SantaFe", ext: ".JPG" },
         soundfieldYaw: 180,
         trim:     { binaural: 1.3, brir: -16.3, ambisonic: -18.5 },
@@ -284,7 +296,7 @@ const ROOMS = {
     },
 
     StAugustineIsleta: {
-        ir:       { dir: "IR/St Augustine Isleta, NM", prefix: "St Augustine_Isleta" },
+        ir:       { dir: "IR/St Augustine Isleta, NM/Normalized", prefix: "St Augustine_Isleta" },
         panorama: { dir: "Images/St Augustine Isleta, NM", prefix: "St Augustine_Isleta", ext: ".JPG" },
         soundfieldYaw: 180,
         trim:     { binaural: 0.9, brir: -21.4, ambisonic: -23.7 },

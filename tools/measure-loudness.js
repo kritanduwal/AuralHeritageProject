@@ -400,7 +400,7 @@ function loadPosition(base, decodedBase = base) {
  * A directory as ROOMS spells it: relative to the repository, forward slashes.
  *
  * Callers reach this tool with either form — a path typed on the command line
- * or an absolute one built when it defaults to all of IR/ — and both have to
+ * or an absolute one built from ROOMS when it defaults to the whole library —
  * land on the same key. Matching on the basename alone used to be enough and no
  * longer is: every church keeps its originals in a folder of the same name, so
  * the tail is the one part of the path that does not identify a church.
@@ -431,11 +431,18 @@ function setFor(rooms, dir) {
     return null;
 }
 
-/** How a measured directory is named in the report */
+/**
+ * How a measured directory is named in the report: the church, plus a marker
+ * where the row is its originals rather than its published library.
+ *
+ * The church comes from the folder above the set, since the set folders are all
+ * called the same two things — naming the set instead would print `Normalized`
+ * down the whole summary column.
+ */
 function labelFor(rooms, dir) {
     const found = setFor(rooms, dir);
-    if (!found) return path.basename(dir);
-    return path.basename(found.config.ir.dir) +
+    if (!found) return path.basename(path.dirname(path.resolve(dir)));
+    return path.basename(path.dirname(found.config.ir.dir)) +
         (found.set === 'unnormalized' ? '  (originals)' : '');
 }
 
@@ -599,16 +606,14 @@ function main() {
     // Defaulting to the whole library means both sets of it: a church whose
     // originals were recovered has two calibrations, and refreshing one while
     // leaving the other on last month's numbers is the failure this avoids.
-    const root = path.join(__dirname, '..', 'IR');
+    // Taken from ROOMS rather than by walking IR/, because what this tool writes
+    // back is one trim line per set ROOMS names. A folder on disk that no church
+    // points at has nothing to calibrate and nowhere to put the answer.
     const dirs = options.dirs.length ? options.dirs
-        : [
-            ...fs.readdirSync(root).map(d => path.join(root, d))
-                .filter(d => fs.statSync(d).isDirectory()),
-            ...Object.values(rooms)
-                .filter(c => c.unnormalized)
-                .map(c => path.join(REPO_ROOT, c.unnormalized.ir.dir))
-                .filter(d => fs.existsSync(d)),
-        ];
+        : Object.values(rooms)
+            .flatMap(c => [c.ir.dir, ...(c.unnormalized ? [c.unnormalized.ir.dir] : [])])
+            .map(d => path.join(REPO_ROOT, d))
+            .filter(d => fs.existsSync(d));
 
     const perChurch = [];
     for (const dir of dirs) {

@@ -24,7 +24,7 @@ test('receiverIdOf rejects anything that is not a receiver button', () => {
 test('impulseResponseBase joins directory, prefix and receiver, ending at the channel', () => {
     assert.equal(
         impulseResponseBase(ROOMS.CaneRidgeMeetingHouse, 'R7'),
-        'IR/Cane Ridge Meeting House, KY/Cane Ridge KY_R7-'
+        'IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R7-'
     );
     // The trailing "-" matters: AudioEngine appends "1.wav" / "2.wav" to it
     assert.ok(impulseResponseBase(ROOMS.FirstPresbyterianChurchKY, 'R3').endsWith('-'));
@@ -34,12 +34,12 @@ test('impulseResponseBase honours an irName override', () => {
     // Basilica R8 was filed under a "balcony" name instead of prefix_receiver
     assert.equal(
         impulseResponseBase(ROOMS.BasilicaStFrancis, 'R8'),
-        'IR/Basilica St. Francis, IN/St Francis_IN_balcony R8-'
+        'IR/Basilica St. Francis, IN/Normalized/St Francis_IN_balcony R8-'
     );
     // …and its neighbours still follow the standard pattern
     assert.equal(
         impulseResponseBase(ROOMS.BasilicaStFrancis, 'R7'),
-        'IR/Basilica St. Francis, IN/St Francis_IN_R7-'
+        'IR/Basilica St. Francis, IN/Normalized/St Francis_IN_R7-'
     );
 });
 
@@ -48,8 +48,8 @@ test('impulseResponseBase honours an irName override', () => {
 /** The same table, read by a visit that asked for the original captures */
 const raw = createApp({ path: '/unnormalized' });
 
-const PUBLISHED_BASE = 'IR/Monastery Immaculate Conception, IN/MIC_IN_R3-';
-const ORIGINALS_BASE = 'Ambisonic Files/Monastery Immaculate Conception, IN/Not Nomalized/MIC_IN_R3-';
+const PUBLISHED_BASE = 'IR/Monastery Immaculate Conception, IN/Normalized/MIC_IN_R3-';
+const ORIGINALS_BASE = 'IR/Monastery Immaculate Conception, IN/Not Normalized/MIC_IN_R3-';
 
 test('without the flag both bases are the published library', () => {
     assert.ok(ROOMS.MonasteryImmaculateConception.unnormalized,

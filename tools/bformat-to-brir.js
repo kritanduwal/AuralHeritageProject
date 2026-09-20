@@ -9,7 +9,7 @@
  * step, in place of the raw IR pair.
  *
  *   node tools/bformat-to-brir.js --hrir <sadie dir> --dry-run
- *   node tools/bformat-to-brir.js --hrir <sadie dir> "IR/Cane Ridge Meeting House, KY"
+ *   node tools/bformat-to-brir.js --hrir <sadie dir> "IR/Cane Ridge Meeting House, KY/Normalized"
  *
  * Offline tool. It does not touch the app.
  *
@@ -59,7 +59,7 @@ const fs = require('fs');
 const path = require('path');
 
 const {
-    readWav, writeWav, resample, rms, peak, db, fmtDb, fft,
+    readWav, writeWav, resample, rms, peak, db, fmtDb, fft, irSetDirs, setLabel,
 } = require('./aformat-to-bformat.js');
 
 // ── Configuration ─────────────────────────────────────────────────────────
@@ -475,7 +475,8 @@ B-format (AmbiX) → binaural room impulse response, via a SADIE II HRIR set
   node tools/bformat-to-brir.js --hrir <dir> [options] [<dir> ...]
 
   --hrir <dir>        the HRIR set (required; not shipped with this repo)
-  <dir>               church folder(s) holding *-Bformat.wav; default: all of IR/
+  <dir>               set folder(s) holding *-Bformat.wav; default: every set
+                      folder in IR/
   --out <dir>         write here instead of beside the sources
   --rate <hz>         output sample rate (default ${DEFAULT_OUTPUT_RATE})
   --pattern <regex>   how to read azimuth then elevation from HRIR filenames
@@ -544,11 +545,7 @@ function main() {
         return;
     }
 
-    const root = path.join(__dirname, '..', 'IR');
-    const dirs = options.dirs.length
-        ? options.dirs
-        : fs.readdirSync(root).map(d => path.join(root, d))
-            .filter(d => fs.statSync(d).isDirectory());
+    const dirs = options.dirs.length ? options.dirs : irSetDirs();
 
     const results = [];
     for (const dir of dirs) {
@@ -557,7 +554,7 @@ function main() {
             .sort()
             .map(f => path.join(dir, f));
 
-        console.log(`\n${path.basename(dir)}`);
+        console.log(`\n${setLabel(dir)}`);
         if (!files.length) {
             console.log('  no *-Bformat.wav found — run tools/aformat-to-bformat.js first');
             continue;
