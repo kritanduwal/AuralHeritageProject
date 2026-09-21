@@ -386,14 +386,46 @@ scaled rather than on anything about the room.
 adjustment to one — and it is bounded at −40 and +12 dB so that a typo cannot
 deafen anybody.
 
+**It scales the decoded room and nothing else.** The dry path is the identical
+signal in both stages — it skips the decoder entirely and goes straight to the
+stage output, centred, exactly as the stereo stage sends it. So the mix slider
+means one thing on either side of the button: the same proportion of dry to
+wet, by the same law, and at 0% the two stages are bit-for-bit the same signal.
+
+Two things had to change for that. The trim used to scale the whole stage, dry
+included, so calibrating a church pulled its centre image down by however much
+the trim took off — as much as 17.6 dB at Basilica St. Francis's front row,
+whose render read as hollow in the middle as a result. And the dry used to be
+encoded as a plane wave from the front, which is the textbook thing to do and
+bought nothing: `W` and `X` reach both ears alike, so the decode handed back a
+signal that was still exactly mono, 5.7 dB down and smeared over 253 samples of
+HRTF colouring. That colouring was the whole audible difference between the two
+stages with the room dialled out.
+
+Measured as interaural cross-correlation over the first 80 ms, the standard
+proxy for how solid a centre image is:
+
+| Church | Stereo | Trim on the whole stage | Trim on the wet | …and the dry undecoded |
+| --- | --- | --- | --- | --- |
+| Basilica St. Francis | 0.653 | 0.572 | 0.756 | **0.810** |
+| Monastery Immaculate Conception | 0.510 | 0.746 | 0.791 | **0.778** |
+| St Augustine Isleta | 0.757 | 0.663 | 0.868 | **0.846** |
+
+All three now hold the centre more firmly than their own stereo does.
+
+One consequence worth knowing: the dry no longer rotates with head tracking,
+because it is no longer part of the soundfield. That is the right reading of
+what it is — a dry/wet bypass rather than the room's direct sound, which the
+impulse response carries already — but it does mean the room turns around it.
+
 **It is stated per receiver, not per church**, and the spread inside one room is
 large:
 
 | Church | Front row | Back row | Spread |
 | --- | --- | --- | --- |
-| Basilica St. Francis | −17.6 dB (R1) | −3.5 dB (R8) | 14.3 dB |
-| St Augustine Isleta | −14.1 dB (R1) | −2.3 dB (R4) | 11.8 dB |
-| Monastery Immaculate Conception | −4.0 dB (R1) | +4.2 dB (R4) | 8.2 dB |
+| Basilica St. Francis | −18.7 dB (R1) | −4.0 dB (R4) | 14.7 dB |
+| St Augustine Isleta | −16.6 dB (R1) | −5.2 dB (R4) | 11.5 dB |
+| Monastery Immaculate Conception | −5.1 dB (R1) | +4.4 dB (R4) | 9.5 dB |
 
 That is not noise in the measurement. It is the two sets disagreeing about what
 distance does. Every published capsule was peak-normalized on its own, so a
@@ -415,10 +447,17 @@ normalized per position.
 
 Measured, not guessed: `tools/measure-loudness.js` renders both stages through
 the same chain the engine builds — Omnitone's own filters for the decode — and
-matches their ITU-R BS.1770 integrated loudness to stereo's, position by
-position. Run it with `--write` to refresh the table. It also reports each
-position's peak once trimmed and flags anything still above 0 dBFS, because
-matching loudness bounds neither peak nor crest factor.
+matches their ITU-R BS.1770 integrated loudness, position by position. It
+renders each position twice: once with the dry muted, to measure the two rooms
+against each other and derive the trim, and once as the app plays it. Run it
+with `--write` to refresh the table. It also reports each position's peak and
+flags anything above 0 dBFS, because matching loudness bounds neither peak nor
+crest factor.
+
+Matching the rooms rather than the totals leaves the two stages within 0.6 dB
+of each other on average and 1.2 dB at worst, since they sum dry against wet
+with slightly different coherence. That residual is the price of the slider
+meaning the same thing in both, which is the trade worth making.
 
 Stereo has no trim. It is the reference the render is matched against, which is
 what makes the comparison mean anything.

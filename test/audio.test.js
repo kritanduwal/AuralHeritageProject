@@ -326,7 +326,8 @@ test('building for the headphone render swaps which stage carries the signal', (
     const { graph } = buildGraph(app, { ambisonic: true });
 
     assert.equal(graph.stereoOut.gain.value, 0);
-    assert.equal(graph.ambisonicOut.gain.value, app.data.gainFromDb(app.data.AMBISONIC_TRIM_DB));
+    assert.equal(graph.ambisonicOut.gain.value, 1,
+        'a fader now; the trim rides on the wet path');
 });
 
 test('the headphone stage takes its level from the church, not the fallback', () => {
@@ -334,11 +335,11 @@ test('the headphone stage takes its level from the church, not the fallback', ()
     const app = createApp();
     app.g.setStageTrims({ ambisonic: -2.5 });
 
-    close(buildGraph(app, { ambisonic: true }).graph.ambisonicOut.gain.value,
+    close(buildGraph(app, { ambisonic: true }).graph.ambiWet.gain.value,
         app.data.gainFromDb(-2.5), 1e-12);
 
     app.g.setStageTrims({});
-    assert.equal(buildGraph(app, { ambisonic: true }).graph.ambisonicOut.gain.value, 1);
+    assert.equal(buildGraph(app, { ambisonic: true }).graph.ambiWet.gain.value, 1);
 });
 
 test('a church with nothing to decode falls back to stereo rather than to silence', async () => {
@@ -373,7 +374,8 @@ test('toggling crossfades the live graph instead of rebuilding it', async () => 
 
     assert.equal(app.state.ambisonicEnabled, true);
     assert.equal(graph.stereoOut.gain.value, 0);
-    assert.equal(graph.ambisonicOut.gain.value, app.data.gainFromDb(app.data.AMBISONIC_TRIM_DB));
+    assert.equal(graph.ambisonicOut.gain.value, 1,
+        'a fader now; the trim rides on the wet path');
     assert.equal(app.state.activeGraph, graph, 'the graph should be retuned, not replaced');
     assert.equal(app.state.source, source, 'the source must keep its place in the loop');
     assert.equal(app.nodes.length, nodesBefore, 'no new nodes should be created');
@@ -525,11 +527,13 @@ const plain = (arrayLike) => Array.from(arrayLike, (v) => (Object.is(v, -0) ? 0 
 
 test('one convolver per AmbiX channel, all fed the same mono signal', () => {
     const app = createApp();
-    const { splitter, ambiConvolvers, ambiMerger } = buildGraph(app, { withBformat: true });
+    const { splitter, ambiConvolvers, ambiMerger, graph } = buildGraph(app, { withBformat: true });
 
+    assert.ok(app.edgesTo(graph.ambiWet).some(e => e.from === splitter),
+        'the wet gain taps the same mono signal the IR pair does');
     assert.equal(ambiConvolvers.length, app.data.AMBISONIC_CHANNELS);
     ambiConvolvers.forEach((convolver, ch) => {
-        assert.ok(app.edgesTo(convolver).some(e => e.from === splitter),
+        assert.ok(app.edgesTo(convolver).some(e => e.from === graph.ambiWet),
             `channel ${ch} must convolve the same mono source as the rest`);
         const toMerger = app.edgesFrom(convolver).find(e => e.to === ambiMerger);
         assert.ok(toMerger, `channel ${ch} never reaches the merger`);
@@ -550,7 +554,7 @@ test('the merger reassembles all four channels for the decoder', () => {
     const { ambiMerger, graph } = buildGraph(app, { withBformat: true });
 
     assert.equal(ambiMerger.inputs, app.data.AMBISONIC_CHANNELS);
-    assert.ok(app.edgesFrom(ambiMerger).some(e => e.to === graph.ambiWet));
+    assert.ok(app.edgesFrom(ambiMerger).some(e => e.to === graph.ambiBus));
 });
 
 test('the ambisonic stream is carried as discrete channels, not as speaker feeds', () => {
@@ -559,20 +563,21 @@ test('the ambisonic stream is carried as discrete channels, not as speaker feeds
     const app = createApp();
     const { graph } = buildGraph(app, { withBformat: true });
 
-    assert.equal(graph.ambiWet.channelInterpretation, 'discrete');
-    assert.equal(graph.ambiWet.channelCountMode, 'explicit');
-    assert.equal(graph.ambiWet.channelCount, app.data.AMBISONIC_CHANNELS);
+    assert.equal(graph.ambiBus.channelInterpretation, 'discrete');
+    assert.equal(graph.ambiBus.channelCountMode, 'explicit');
+    assert.equal(graph.ambiBus.channelCount, app.data.AMBISONIC_CHANNELS);
 });
 
 test('the chain runs merger → renderer → its own output gain → destination', () => {
     const app = createApp();
     const { graph, renderer } = buildGraph(app, { ambisonic: true });
 
-    assert.ok(app.edgesFrom(graph.ambiWet).some(e => e.to === renderer.input),
+    assert.ok(app.edgesFrom(graph.ambiBus).some(e => e.to === renderer.input),
         'the 4-channel stream must reach the decoder');
     assert.ok(app.edgesFrom(renderer.output).some(e => e.to === graph.ambisonicOut),
         'the decoded pair must land on this mode’s own output gain');
-    assert.equal(graph.ambisonicOut.gain.value, app.data.gainFromDb(app.data.AMBISONIC_TRIM_DB));
+    assert.equal(graph.ambisonicOut.gain.value, 1,
+        'a fader now; the trim rides on the wet path');
     assert.ok(app.edgesFrom(graph.ambisonicOut).some(e => e.to === graph.output));
     assert.ok(app.edgesFrom(graph.output).some(e => e.to === app.ctx.destination));
 });
@@ -587,15 +592,88 @@ test('the decoder is told the stream is already AmbiX', () => {
     assert.deepEqual(plain(renderer.config.channelMap), plain(app.data.AMBIX_CHANNEL_MAP));
 });
 
-test('dry enters the soundfield as a plane wave from straight ahead', () => {
-    // A soundfield has no centre channel to put the dry signal in. Encoded from
-    // the front it lands on W and X, which is where a source in front belongs.
+test('dry skips the decoder and goes straight out, centred', () => {
+    // Encoding it as a plane wave bought nothing — W and X reach both ears
+    // alike, so it came back mono anyway, 5.7 dB down and HRTF-coloured. At 0%
+    // mix that colouring was the whole difference between the two stages.
     const app = createApp();
     const { graph, ambiMerger } = buildGraph(app, { withBformat: true });
 
-    const inputs = app.edgesFrom(graph.dryGain)
-        .filter(e => e.to === ambiMerger).map(e => e.input).sort();
-    assert.deepEqual(inputs, [0, 3], 'dry belongs on ACN 0 (W) and ACN 3 (X), nowhere else');
+    assert.ok(!app.edgesFrom(graph.dryGain).some(e => e.to === ambiMerger),
+        'the dry must not enter the soundfield');
+    const ears = app.edgesFrom(graph.dryGain)
+        .filter(e => e.to === graph.ambiDryMerger).map(e => e.input).sort();
+    assert.deepEqual(ears, [0, 1], 'it is centred the way the stereo stage centres it');
+    assert.ok(app.edgesFrom(graph.ambiDryMerger).some(e => e.to === graph.ambisonicOut));
+});
+
+// ── the two stages mix dry against wet the same way ───────────────────────
+
+test('the dry path never passes through a wet gain', () => {
+    // It used to reach the decoder through ambiWet, so the mix slider attenuated
+    // it twice and 0% silenced the whole stage while stereo played the bare
+    // source. Dry and wet are gained separately now, as they are in stereo.
+    const app = createApp();
+    const { graph } = buildGraph(app, { withBformat: true });
+
+    assert.ok(!app.edgesFrom(graph.dryGain).some(e => e.to === graph.ambiWet),
+        'dry must not be scaled by the wet gain');
+    assert.ok(!app.edgesFrom(graph.ambiDry).some(e => e.to === graph.ambiWet));
+});
+
+test('the mix slider moves the room by the same amount in both stages', async () => {
+    // The slider sets the proportion of dry to wet, so it has to mean the same
+    // thing on either side of the button.
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    app.g.setStageTrims({});
+    await app.g.startPlayback();
+    const g = app.state.activeGraph;
+
+    for (const mix of [1, 0.5, 0]) {
+        app.g.setConvolutionMix(mix);
+        assert.equal(g.wetGainLeft.gain.value, mix, 'stereo wet at mix ' + mix);
+        assert.equal(g.ambiWet.gain.value, mix, 'headphone wet at mix ' + mix);
+    }
+});
+
+test('at 0% mix the two stages carry the very same signal', async () => {
+    // No room means nothing left but the dry, and the dry is one signal: the
+    // stages must be indistinguishable, not merely equally loud.
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    const g = app.state.activeGraph;
+
+    app.g.setConvolutionMix(0);
+
+    assert.equal(g.dryGain.gain.value, 1, 'the taper reaches unity with no reverb asked for');
+    assert.equal(g.wetGainLeft.gain.value, 0);
+    assert.equal(g.ambiWet.gain.value, 0, 'both rooms are muted');
+
+    // Same node, same gain, into both stages — nothing filters one and not the other
+    assert.ok(app.edgesFrom(g.dryGain).some(e => e.to === g.ambiDryMerger));
+    assert.ok(app.edgesFrom(g.dryGain).some(e => e.to === g.merger ||
+        app.edgesFrom(g.dryGain).length >= 2), 'stereo takes the same dry');
+});
+
+test('a trim scales the room and leaves the dry alone', () => {
+    // The whole point: calibrating the stage used to drag its centre down with
+    // it, which emptied the middle of the image at the churches needing most.
+    const app = createApp();
+    app.g.setStageTrims({});
+    const flat = buildGraph(app, { ambisonic: true });
+    const dry = flat.graph.dryGain.gain.value;
+    const wet = flat.graph.ambiWet.gain.value;
+
+    app.g.setStageTrims({ ambisonic: -12 });
+    const trimmed = buildGraph(app, { ambisonic: true });
+
+    assert.equal(trimmed.graph.dryGain.gain.value, dry, 'the dry must not move');
+    close(trimmed.graph.ambiWet.gain.value, wet * app.data.gainFromDb(-12), 1e-12);
+
+    // and nothing sits between the dry and the stage output to move it later
+    assert.ok(app.edgesFrom(trimmed.graph.ambiDryMerger)
+        .every(e => e.to === trimmed.graph.ambisonicOut),
+        'the dry reaches the fader directly, with no gain of its own');
 });
 
 test('the upstream trim and taper are untouched by the ambisonic stage', () => {
@@ -624,7 +702,8 @@ test('the two modes are alternatives, not layers', async () => {
     const graph = app.state.activeGraph;
     assert.equal(app.state.ambisonicEnabled, true);
     assert.equal(graph.stereoOut.gain.value, 0);
-    assert.equal(graph.ambisonicOut.gain.value, app.data.gainFromDb(app.data.AMBISONIC_TRIM_DB));
+    assert.equal(graph.ambisonicOut.gain.value, 1,
+        'a fader now; the trim rides on the wet path');
 
     app.g.setAmbisonicEnabled(false);
     assert.equal(app.state.ambisonicEnabled, false);
@@ -646,11 +725,11 @@ test('stopping cuts the edges that cross into the shared renderer', async () => 
     // The renderer outlives the graph, so nothing else will release them.
     const app = await readyToPlay(withAmbisonic(createApp()));
     await app.g.startPlayback();
-    const { ambiWet, ambisonicRenderer } = app.state.activeGraph;
+    const { ambiBus, ambisonicRenderer } = app.state.activeGraph;
 
     app.g.stopPlayback();
 
-    assert.ok(app.edges.some(e => e.from === ambiWet && e.disconnected),
+    assert.ok(app.edges.some(e => e.from === ambiBus && e.disconnected),
         'the graph would stay hanging off the decoder input');
     assert.ok(app.edges.some(e => e.from === ambisonicRenderer.output && e.disconnected));
 });
@@ -1010,7 +1089,7 @@ test('a church trim sets the stage level in dB', () => {
     const app = createApp();
     app.g.setStageTrims({ ambisonic: -6 });
 
-    close(buildGraph(app, { ambisonic: true }).graph.ambisonicOut.gain.value,
+    close(buildGraph(app, { ambisonic: true }).graph.ambiWet.gain.value,
         Math.pow(10, -6 / 20), 1e-12);
     close(gainAt(app, -6), 0.5011872336, 1e-9, '-6 dB is about half the amplitude');
 });
@@ -1028,7 +1107,7 @@ test('a trim keyed to no stage changes nothing', () => {
     const app = createApp();
     app.g.setStageTrims({ binaural: -12, brir: -12 });
 
-    assert.equal(buildGraph(app, { ambisonic: true }).graph.ambisonicOut.gain.value, 1);
+    assert.equal(buildGraph(app, { ambisonic: true }).graph.ambiWet.gain.value, 1);
 });
 
 test('stereo carries no trim, being the reference the rest are matched to', () => {
@@ -1048,7 +1127,7 @@ test('a trim that is not a usable level falls back to the constant', () => {
     for (const bad of ['loud', null, undefined, NaN, Infinity, -Infinity,
                        STAGE_TRIM_MAX_DB + 1, STAGE_TRIM_MIN_DB - 1]) {
         app.g.setStageTrims({ ambisonic: bad });
-        assert.equal(buildGraph(app, { ambisonic: true }).graph.ambisonicOut.gain.value, 1,
+        assert.equal(buildGraph(app, { ambisonic: true }).graph.ambiWet.gain.value, 1,
             `a trim of ${String(bad)} should be ignored`);
     }
 });
@@ -1059,7 +1138,7 @@ test('a modest boost is a real answer, not a dropped minus sign', () => {
     const app = createApp();
 
     app.g.setStageTrims({ ambisonic: 1 });
-    close(buildGraph(app, { ambisonic: true }).graph.ambisonicOut.gain.value,
+    close(buildGraph(app, { ambisonic: true }).graph.ambiWet.gain.value,
         app.data.gainFromDb(1), 1e-12);
 
     app.g.setStageTrims({ ambisonic: app.data.STAGE_TRIM_MAX_DB });
@@ -1072,18 +1151,18 @@ test('a church trim reaches a live crossfade, not just a fresh graph', async () 
     await app.g.startPlayback();
     app.g.setStageTrims({ ambisonic: -16.5 });
 
-    app.g.setAmbisonicEnabled(true);
-    close(app.state.activeGraph.ambisonicOut.gain.value, gainAt(app, -16.5), 1e-12);
+    app.g.setConvolutionMix(1);
+    close(app.state.activeGraph.ambiWet.gain.value, gainAt(app, -16.5), 1e-12);
 });
 
 test('switching churches switches levels', () => {
     const app = createApp();
 
     app.g.setStageTrims({ ambisonic: -1 });
-    close(buildGraph(app, { ambisonic: true }).graph.ambisonicOut.gain.value, gainAt(app, -1), 1e-12);
+    close(buildGraph(app, { ambisonic: true }).graph.ambiWet.gain.value, gainAt(app, -1), 1e-12);
 
     app.g.setStageTrims({ ambisonic: -9 });
-    close(buildGraph(app, { ambisonic: true }).graph.ambisonicOut.gain.value, gainAt(app, -9), 1e-12);
+    close(buildGraph(app, { ambisonic: true }).graph.ambiWet.gain.value, gainAt(app, -9), 1e-12);
 });
 
 test('the fallback is 0 dB, so calibration starts from raw', () => {

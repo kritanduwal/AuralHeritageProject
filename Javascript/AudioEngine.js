@@ -119,9 +119,9 @@ function setConvolutionMix(mix) {
     rampGain(activeGraph.wetGainLeft.gain, mix, MIX_GLIDE);
     rampGain(activeGraph.wetGainRight.gain, mix, MIX_GLIDE);
 
-    // The ambisonic stage the same, on all four channels at once
+    // The headphone stage's wet path, which carries its trim as well
     if (activeGraph.ambiWet) {
-        rampGain(activeGraph.ambiWet.gain, mix, MIX_GLIDE);
+        rampGain(activeGraph.ambiWet.gain, ambisonicWetGain(mix), MIX_GLIDE);
     }
 }
 
@@ -171,6 +171,7 @@ const AMBISONIC_CHANNELS = 4;
  * Set trim.ambisonic per position in ROOMS; measure-loudness.js derives it.
  */
 const AMBISONIC_TRIM_DB = 0;
+
 
 /**
  * Seconds spent crossfading between stereo and the headphone render.
@@ -568,13 +569,29 @@ function refreshModeButtons() {
     updateTrackingControl();
 }
 
-/** The gain each stage's output should rest at for a given mode */
+/**
+ * The gain each stage's output should rest at for a given mode.
+ *
+ * Both are plain faders: the headphone stage's calibration lives on its wet
+ * path — see ambisonicWetGain() — because a trim calibrates the decoded room
+ * and the dry signal is not part of what was decoded.
+ */
 function stageGainsFor(stage) {
     return {
         stereo: stage === 'stereo' ? 1 : 0,
-        ambisonic: stage === 'ambisonic'
-            ? gainFromDb(stageTrimDb('ambisonic', AMBISONIC_TRIM_DB)) : 0,
+        ambisonic: stage === 'ambisonic' ? 1 : 0,
     };
+}
+
+/**
+ * Gain of the headphone stage's wet path: the mix, times this position's trim.
+ *
+ * The same mix the stereo stage applies to its own wet gains, so the slider
+ * moves the room by the same amount in both. The trim rides along because the
+ * room is the only thing it calibrates.
+ */
+function ambisonicWetGain(mix) {
+    return mix * gainFromDb(stageTrimDb('ambisonic', AMBISONIC_TRIM_DB));
 }
 
 /**
@@ -610,17 +627,20 @@ function applyOutputStage() {
  * Those three feed both stages; whichever is faded up is the one heard:
  *
  *   dryGain ──────► merger L + R ─┐
- *   wetGainLeft ──► merger L      ├─► stereoOut ──────┐
- *   wetGainRight ─► merger R      ┘                   │
- *                                                     ├──► output ──► destination
- *   dryGain ──────► ambiMerger W + X ─┐               │
- *   splitter ─► 4 convolvers ─► ambiMerger            │
- *                    └─► ambiWet ─► FOA ─► ambiOut ───┘
+ *   wetGainLeft ──► merger L      ├─► stereoOut ────────────┐
+ *   wetGainRight ─► merger R      ┘                         │
+ *                                                           ├──► output ──► out
+ *   dryGain ─────────────────────► ambiDryMerger L + R ─┐   │
+ *   splitter ─► ambiWet ─► 4 convolvers ─► ambiMerger    ├─► ambiOut ─┘
+ *                                    └─► ambiBus ─► FOA ─┘
  *
  * The headphone stage taps the same splitter rather than the same convolvers:
  * the same mono wet signal through four B-format responses instead of an L/R
  * pair. Its output goes straight to the headphone channels, the decode having
  * already put it through a head.
+ *
+ * Dry and wet are gained separately in both stages, and by the same law, so the
+ * mix slider means one thing on either side of the button.
  *
  * Both stages are built every time the files allow and the unused one silenced:
  * tearing the graph down to change stage would restart the source.
@@ -678,44 +698,82 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
     // Ambisonic stage: four convolvers, one per AmbiX channel of this position's
     // B-format IR, all fed the same mono signal. Built only where the file and
     // the renderer are both there.
+    //
+    // THE TWO PATHS ARE GAINED SEPARATELY, and that is the whole shape of this
+    // block. Dry and wet are the same two signals the stereo stage mixes, so
+    // they have to reach the ears in the same proportion there as here: the mix
+    // law is what a listener is adjusting, and it cannot mean two things.
+    //
+    //   wet     ambiWet, upstream of the convolvers so one node carries the
+    //           whole 4-channel stream: the mix, and this position's trim
+    //   ambiBus the decoded stream, declared as a soundfield rather than a
+    //           speaker layout on the way to the decoder
+    //   dry     ambiDryMerger, straight to the stage output and never through
+    //           the decoder. See below.
     let ambisonicOut = null;
     let ambiMerger = null;
     let ambiWet = null;
+    let ambiDryMerger = null;
+    let ambiBus = null;
 
     if (bformatChannels && ambisonicRenderer) {
         ambiMerger = audioCtx.createChannelMerger(AMBISONIC_CHANNELS);
-        ambiWet = audioCtx.createGain();
         ambisonicOut = audioCtx.createGain();
+
+        // One node for the wet path, before the convolvers rather than after
+        // the merger, so that it scales the room without reaching the dry
+        // signal the merger is about to sum in.
+        ambiWet = audioCtx.createGain();
+        ambiWet.gain.value = ambisonicWetGain(mix);
+        splitter.connect(ambiWet, 0);
 
         for (let ch = 0; ch < AMBISONIC_CHANNELS; ch++) {
             const convolver = audioCtx.createConvolver();
             // Their level relative to each other is the soundfield itself, so
             // normalizing would flatten the directions out. The stage's level
-            // is set by AMBISONIC_TRIM_DB instead.
+            // is set by the trim in ambiWet instead.
             convolver.normalize = false;
             convolver.buffer = bformatChannels[ch];
-            splitter.connect(convolver, 0);
+            ambiWet.connect(convolver);
             convolver.connect(ambiMerger, 0, ch);
         }
 
-        // The mix slider, applied to the whole 4-channel stream at once. Ambisonic
-        // channels are not speaker feeds, so the stream is carried as discrete
-        // channels — left to the default "speakers" interpretation a 4-channel
-        // signal would be read as a quad layout and remapped.
-        ambiWet.channelCount = AMBISONIC_CHANNELS;
-        ambiWet.channelCountMode = 'explicit';
-        ambiWet.channelInterpretation = 'discrete';
-        ambiWet.gain.value = mix;
+        // Ambisonic channels are not speaker feeds, so the stream is declared
+        // discrete: left to the default "speakers" interpretation a 4-channel
+        // signal is read as a quad layout and remapped, which would scramble
+        // W/Y/Z/X into positions. Omnitone's own input says the same thing, but
+        // it is a CDN dependency and this is the one mistake here with no
+        // symptom other than a wrong soundfield.
+        ambiBus = audioCtx.createGain();
+        ambiBus.channelCount = AMBISONIC_CHANNELS;
+        ambiBus.channelCountMode = 'explicit';
+        ambiBus.channelInterpretation = 'discrete';
 
-        // Dry is centred here as it is everywhere else, but a soundfield has no
-        // centre channel to put it in: encoded as a plane wave from straight
-        // ahead, it lands on W and X, which is where a source in front belongs.
-        dryGain.connect(ambiMerger, 0, 0);   // ACN 0, W
-        dryGain.connect(ambiMerger, 0, 3);   // ACN 3, X
-
-        ambiMerger.connect(ambiWet);
-        ambiWet.connect(ambisonicRenderer.input);
+        ambiMerger.connect(ambiBus);
+        ambiBus.connect(ambisonicRenderer.input);
         ambisonicRenderer.output.connect(ambisonicOut);
+
+        // THE DRY DOES NOT GO THROUGH THE DECODER. It used to, encoded as a
+        // plane wave from the front — which is the textbook thing to do and
+        // bought nothing: W and X reach both ears equally, so the decode hands
+        // back a signal that is still exactly mono, having spent 5.7 dB and
+        // smeared it across 253 samples of HRTF colouring on the way.
+        //
+        // What that cost was audible: wind the mix to 0% and the room is gone,
+        // so both stages are playing nothing but this signal and ought to be
+        // indistinguishable. Decoded, the headphone side came back coloured and
+        // read as wider. Sent straight out, as the stereo stage sends it, the
+        // two stages are the same signal at the same level — which is what the
+        // slider at 0% should mean.
+        //
+        // The dry path is a bypass, not the room's direct sound: the impulse
+        // response carries that already. So it has no orientation to lose by
+        // skipping the soundfield, and head tracking turns the room around it.
+        ambiDryMerger = audioCtx.createChannelMerger(2);
+        dryGain.connect(ambiDryMerger, 0, 0);
+        dryGain.connect(ambiDryMerger, 0, 1);
+        ambiDryMerger.connect(ambisonicOut);
+
         ambisonicOut.connect(output);
     }
 
@@ -727,7 +785,8 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
 
     return {
         dryGain, wetGainLeft, wetGainRight, irTrim, stereoOut,
-        ambisonicOut, ambiMerger, ambiWet, ambisonicRenderer: ambisonicRenderer || null,
+        ambisonicOut, ambiMerger, ambiWet, ambiDryMerger, ambiBus,
+        ambisonicRenderer: ambisonicRenderer || null,
         output,
     };
 }
@@ -911,7 +970,7 @@ function stopPlayback() {
         // and is reused across plays — so the two edges that cross into it have
         // to be cut by hand. Left attached, every past graph's convolvers stay
         // hanging off its input.
-        if (activeGraph.ambiWet) activeGraph.ambiWet.disconnect();
+        if (activeGraph.ambiBus) activeGraph.ambiBus.disconnect();
         if (activeGraph.ambisonicRenderer) activeGraph.ambisonicRenderer.output.disconnect();
 
         activeGraph = null;

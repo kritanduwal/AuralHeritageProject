@@ -4,11 +4,16 @@
  * Measures the loudness of the headphone render and works out the trim that
  * would match it to plain stereo.
  *
- * The two stages do not arrive at the same level, and the difference is not a
- * constant: it depends on how much energy a room returns and on how each stage
- * treats it. Stereo is the reference — it is what the app plays with the button
- * off — so for every recovered set this renders both offline, measures them,
- * and reports the dB the render needs to sit where stereo sits.
+ * THE WET PATHS ARE WHAT GET MATCHED. Dry and wet are the same two signals in
+ * both stages, and the mix slider sets their proportion, so that proportion has
+ * to come out the same either side of the button or the slider means two
+ * different things. The dry is the identical signal in both — it skips the
+ * decoder entirely — which leaves the room as the one thing needing
+ * calibration, and the room is what the trim calibrates.
+ *
+ * So each position is rendered twice: once with the dry muted, to measure the
+ * two rooms against each other and derive the trim, and once as the app plays
+ * it, to report what that leaves.
  *
  *   node tools/measure-loudness.js --dry-run
  *   node tools/measure-loudness.js --write
@@ -25,7 +30,8 @@
  *
  *   stereo     IR channels 1 and 2, straight to the two ears
  *   ambisonic  the B-format IR through Omnitone's own decode — its embedded
- *              HRIRs and its exact routing
+ *              HRIRs and its exact routing — with the trim on the wet and the
+ *              dry added after it, exactly as buildConvolutionGraph wires it
  *
  * No part of this measurement is an estimate: the ambisonic column runs the
  * decode the browser runs, not a model of it.
@@ -64,6 +70,7 @@ const DEFAULT_SECONDS = 12;
 /** The app's defaults: the slider at 100%, so the dry path sits at its floor */
 const MIX = 1.0;
 const DRY_GAIN_AT_FULL_WET = 0.35;
+
 
 /** Omnitone's own FOA decode filters, extracted from the library it ships */
 const OMNITONE_HRIR = ['HRIR/omnitone-foa-1.wav', 'HRIR/omnitone-foa-2.wav'];
@@ -241,10 +248,13 @@ function reductionToGain(reductionDb) {
  * Renders both stages of a position, as stereo pairs.
  *
  * Mirrors buildConvolutionGraph(): one dry copy at the taper's level, one
- * trimmed copy into the convolvers, and the same dry signal centred in every
- * stage. The stage output gains are deliberately left at unity — what is being
- * measured is where each stage lands before any trim, which is the number the
- * trim is derived from.
+ * trimmed copy into the convolvers, and the same dry signal centred in both
+ * stages — compensated in the ambisonic one, as the engine compensates it.
+ *
+ * @param options.dry              false to mute the dry path and measure the
+ *                                 two rooms alone, which is how the trim is
+ *                                 derived
+ * @param options.ambisonicTrimDb  the trim, on the ambisonic wet path only
  */
 function renderModes(source, ir, options) {
     const frames = source.length;
@@ -263,7 +273,7 @@ function renderModes(source, ir, options) {
     const convolve = (response) => conv.multiply(wetSpectrum, conv.spectrum(response), outLength);
 
     const dry = new Float64Array(outLength);
-    addScaled(dry, source, dryGain);
+    if (options.dry !== false) addScaled(dry, source, dryGain);
 
     const modes = {};
 
@@ -284,10 +294,15 @@ function renderModes(source, ir, options) {
 
     // Live ambisonic: four channels, then Omnitone's own decode
     if (ir.bformat && options.omnitone) {
-        const ambi = ir.bformat.map(channel => convolve(channel));
-        // Dry enters as a plane wave from straight ahead: W and X only
-        addScaled(ambi[0], dry, 1);
-        addScaled(ambi[3], dry, 1);
+        // The trim rides on the wet path and nowhere else, as ambiWet carries it
+        const wet = MIX * Math.pow(10, (options.ambisonicTrimDb || 0) / 20);
+        const ambi = ir.bformat.map(channel => {
+            const c = convolve(channel);
+            if (wet !== 1) for (let i = 0; i < c.length; i++) c[i] *= wet;
+            return c;
+        });
+        // The dry is not in here: it skips the decoder and is added to both ears
+        // below, exactly as the stereo stage adds it. See buildConvolutionGraph.
 
         const [wy, zx] = options.omnitone;
         const a = makeConvolver(outLength + wy.left.length);
@@ -306,6 +321,10 @@ function renderModes(source, ir, options) {
         }
         addScaled(left, filtered.y, 1);
         addScaled(right, filtered.y, -1);
+
+        // Then the dry, centred and unfiltered, as the stereo stage has it
+        addScaled(left, dry, 1);
+        addScaled(right, dry, 1);
         modes.ambisonic = [left, right];
     }
 
@@ -536,7 +555,7 @@ function main() {
 
     console.log('Loudness match against stereo (ITU-R BS.1770 integrated LUFS)');
     console.log(`  source     ${options.source}, first ${(frames / src.sampleRate).toFixed(1)} s`);
-    console.log(`  mix        100% (dry at ${dryGainFor(MIX).toFixed(3)}), stage gains at unity`);
+    console.log(`  mix        100% (dry at ${dryGainFor(MIX).toFixed(3)}), the dry skips the decode`);
     console.log(`  ambisonic  ${omnitone ? "Omnitone's own decode — exact" : 'skipped'}`);
 
     const rooms = loadRooms();
@@ -577,14 +596,26 @@ function main() {
             } catch (err) {
                 continue;
             }
-            const modes = renderModes(source, ir, { gainDb: gainDbFor(rooms, dir, stem), omnitone, sampleRate: src.sampleRate });
+            const shared = { gainDb: gainDbFor(rooms, dir, stem), omnitone, sampleRate: src.sampleRate };
+
+            // The two rooms alone: their gap is the trim, since the dry either
+            // side of it is already at parity
+            const rooms2 = renderModes(source, ir, { ...shared, dry: false });
+            const trim = (Number.isFinite(integratedLufs(rooms2.stereo, src.sampleRate)) &&
+                          rooms2.ambisonic)
+                ? integratedLufs(rooms2.stereo, src.sampleRate) -
+                  integratedLufs(rooms2.ambisonic, src.sampleRate)
+                : null;
+
+            // Then the stage as the app plays it, to report what that leaves
+            const modes = renderModes(source, ir, { ...shared, ambisonicTrimDb: trim || 0 });
             const lufs = {};
             const peaks = {};
             for (const [name, pair] of Object.entries(modes)) {
                 lufs[name] = integratedLufs(pair, src.sampleRate);
                 peaks[name] = Math.max(...pair.map(peakOf));
             }
-            rows.push({ stem, receiver: receiverOf(stem), lufs, peaks });
+            rows.push({ stem, receiver: receiverOf(stem), lufs, peaks, trim });
         }
 
         const label = labelFor(rooms, dir);
@@ -602,21 +633,18 @@ function main() {
 
 const MODES = ['stereo', 'ambisonic'];
 
-/** The trim one position wants: what it takes to sit where its stereo sits */
-function trimOf(row, mode = 'ambisonic') {
-    if (!Number.isFinite(row.lufs[mode]) || !Number.isFinite(row.lufs.stereo)) return null;
-    return row.lufs.stereo - row.lufs[mode];
+/** The trim one position wants: what it takes for its room to sit where stereo's does */
+function trimOf(row) {
+    return Number.isFinite(row.trim) ? row.trim : null;
 }
 
 /**
- * Peak of the stage once its trim is applied, in dBFS. Matching loudness says
- * nothing about crest factor, and anything above 0 dBFS is clipped at the
- * destination rather than merely loud.
+ * Peak of the stage as the app plays it, in dBFS — the trim is already in the
+ * render. Matching loudness says nothing about crest factor, and anything above
+ * 0 dBFS is clipped at the destination rather than merely loud.
  */
 function trimmedPeakDb(row, mode = 'ambisonic') {
-    const trim = trimOf(row, mode);
-    if (trim === null || !(row.peaks[mode] > 0)) return null;
-    return db(row.peaks[mode]) + trim;
+    return row.peaks[mode] > 0 ? db(row.peaks[mode]) : null;
 }
 
 function reportChurch(label, rows) {
@@ -639,7 +667,7 @@ function reportChurch(label, rows) {
 
 function summarize(perChurch, options) {
     console.log(`\n${'─'.repeat(78)}`);
-    console.log('Per position. Trim = stereo LUFS - ambisonic LUFS.\n');
+    console.log('Per position. Trim = the gap between the two rooms, dry muted.\n');
     console.log('  church                              trims      spread');
 
     const suggested = {};

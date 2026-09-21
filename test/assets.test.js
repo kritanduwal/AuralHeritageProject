@@ -398,6 +398,7 @@ test('no application source references a file that no longer exists', () => {
     }
     assert.deepEqual(missing, []);
 });
+
 test('a church carries a trim only where it has a stage to trim', () => {
     // A stray church-level trim is a number nothing reads — the kind that goes
     // stale and then gets believed

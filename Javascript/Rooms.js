@@ -47,12 +47,19 @@
  *     change the room.
  *
  *         ir             where the recovered set lives
- *         trim           { ambisonic: { R1: -17.6, R2: -7.4, … } }, in dB,
+ *         trim           { ambisonic: { R1: -18.7, R2: -9.2, … } }, in dB,
  *                        replacing AMBISONIC_TRIM_DB outright. Bounded at -40
  *                        and +12 dB.
  *
+ *                        IT SCALES THE DECODED ROOM AND NOT THE DRY PATH,
+ *                        which is the identical signal in both stages and
+ *                        skips the decoder — see buildConvolutionGraph(). The
+ *                        room is the only thing left to calibrate. Applied to
+ *                        the whole stage instead, calibrating a church dragged
+ *                        its centre image down with it.
+ *
  *                        Per receiver, and the spread is wide: St Francis runs
- *                        -17.6 dB at R1 to -3.3 at R4. The published capsules
+ *                        -18.7 dB at R1 to -4.0 at R4. The published capsules
  *                        were normalized per position, so stereo does not get
  *                        quieter with distance; the recovered set was scaled as
  *                        a whole, so it does. One figure per church leaves the
@@ -188,7 +195,7 @@ const ROOMS = {
         soundfieldYaw: 180,
         unnormalized: {
             ir:   { dir: "IR/Basilica St. Francis, IN/Not Normalized", prefix: "St Francis_IN" },
-            trim: { ambisonic: { R1: -17.6, R2: -7.4, R3: -6.1, R4: -3.3, R5: -4.7, R6: -6.7, R7: -5.4, R8: -3.5 } },
+            trim: { ambisonic: { R1: -18.7, R2: -9.2, R3: -8.7, R4: -4, R5: -5.8, R6: -7.4, R7: -6.8, R8: -6.5 } },
             // Direct sound at azimuth -39 to -43 deg across all eight
             // positions: the array's front and the panorama's agree already.
             // Confirmed by ear.
@@ -214,7 +221,7 @@ const ROOMS = {
         soundfieldYaw: 180,
         unnormalized: {
             ir:   { dir: "IR/Monastery Immaculate Conception, IN/Not Normalized", prefix: "MIC_IN" },
-            trim: { ambisonic: { R1: -4, R2: 3.8, R3: 2.7, R4: 4.2, R5: 1.9, R6: 2.4 } },
+            trim: { ambisonic: { R1: -5.1, R2: 2.1, R3: 2.5, R4: 4.4, R5: 1.7, R6: 2.3 } },
             // Direct sound at azimuth -39 deg across all six positions, so
             // the two fronts agree already. The church's half turn on top would
             // render the source behind the listener, where lateral motion runs
@@ -251,7 +258,7 @@ const ROOMS = {
         soundfieldYaw: 180,
         unnormalized: {
             ir:   { dir: "IR/St Augustine Isleta, NM/Not Normalized", prefix: "St Augustine_Isleta" },
-            trim: { ambisonic: { R1: -14.1, R2: -9.8, R3: -9.3, R4: -2.3, R5: -5.4 } },
+            trim: { ambisonic: { R1: -16.6, R2: -10.7, R3: -12.1, R4: -5.2, R5: -9.8 } },
             // Direct sound at azimuth -40 to -41 deg across all five
             // positions, as above. Confirmed by ear.
             soundfieldYaw: 0,
