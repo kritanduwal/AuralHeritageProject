@@ -12,6 +12,19 @@
  * are case-sensitive once deployed. Churches without a cover photo simply omit
  * the field and the modal opens straight onto the history.
  *
+ * `coords` is where the building stands, in decimal degrees, for the pin the
+ * landing map drops on it (Landing.js). Read off the `address` above rather
+ * than surveyed, so they are accurate to the block and not to the door — close
+ * enough for a map of the country, and not close enough to direct anybody.
+ * Every church needs one: a church with no coordinates would be reachable from
+ * the list beside the map but nowhere on the map itself, which reads as the
+ * church being missing rather than unplaced. landing.test.js checks for that.
+ *
+ * The city and state under which the landing groups a church are *not* stored
+ * here. They are parsed back out of `address`, which already carries them in
+ * one consistent "…, City, ST ZIP" shape; a second copy would be free to drift
+ * away from the first.
+ *
  * @author Kritan Duwal
  */
 
@@ -19,6 +32,7 @@ const churchData = {
     BridgeCommunityChurch: {
         name: "Bridge Community Church",
         address: "4916 Franklin Pike, Nashville, TN 37220",
+        coords: { lat: 36.0800, lon: -86.7890 },
         measured: "June 13, 2025",
         history: [
             "Bridge Community Church is a Korean immigrant church located on Franklin Pike in Nashville, Tennessee. The church is affiliated with both the Southern Baptist Convention and the Korean Baptist Convention of America. The church's mission statement focuses on community, family, and connection.",
@@ -30,6 +44,7 @@ const churchData = {
     ChristChurchCathedral: {
         name: "Christ Church Cathedral",
         address: "900 Broadway, Nashville, TN 37203",
+        coords: { lat: 36.1573, lon: -86.7844 },
         measured: "June 12, 2025",
         cover: "Images/Christ Church Cathedral/Info cover.jpg",
         history: [
@@ -44,6 +59,7 @@ const churchData = {
     DowntownPresbyterianChurch: {
         name: "Downtown Presbyterian Church",
         address: "154 Rep. John Lewis Way N., Nashville, TN 37219",
+        coords: { lat: 36.1649, lon: -86.7805 },
         measured: "July 11, 2025",
         cover: "Images/Downtown Presbyterian Church/Info cover.jpg",
         history: [
@@ -57,6 +73,7 @@ const churchData = {
     FirstBaptistChurchCapitolHill: {
         name: "First Baptist Church Capitol Hill",
         address: "625 Rosa L. Parks Blvd., Nashville, TN 37203",
+        coords: { lat: 36.1682, lon: -86.7906 },
         measured: "June 10, 2025",
         cover: "Images/First Baptist Church Capitol Hill/Info cover.jpg",
         history: [
@@ -70,6 +87,7 @@ const churchData = {
     HolyTrinityEpiscopalChurch: {
         name: "Church of the Holy Trinity",
         address: "615 6th Avenue S., Nashville, TN 37203",
+        coords: { lat: 36.1509, lon: -86.7761 },
         measured: "June 11, 2025",
         cover: "Images/Holy Trinity Episcopal Church/Info cover.jpeg",
         history: [
@@ -83,6 +101,7 @@ const churchData = {
     UnitedMethodistChurch: {
         name: "Church Street United Methodist Church",
         address: "900 Henley Street, Knoxville, TN 37902",
+        coords: { lat: 35.9598, lon: -83.9219 },
         measured: "June 27, 2025",
         cover: "Images/Church Street United Methodist Church, Knoxville/Info cover.jpeg",
         history: [
@@ -96,6 +115,7 @@ const churchData = {
     CaneRidgeMeetingHouse: {
         name: "Cane Ridge Meeting House",
         address: "1655 Cane Ridge Rd, Paris, KY 40361",
+        coords: { lat: 38.2131, lon: -84.1181 },
         measured: "June 11, 2026",
         cover: "Images/Cane Ridge Meeting House, KY/Info cover.jpeg",
         history: [
@@ -110,6 +130,7 @@ const churchData = {
     FirstPresbyterianChurchKY: {
         name: "First Presbyterian Church",
         address: "171 Market St, Lexington, KY 40507",
+        coords: { lat: 38.0477, lon: -84.4977 },
         measured: "June 10, 2026",
         cover: "Images/First Presbyterian Church, KY/Info cover.jpg",
         history: [
@@ -125,6 +146,7 @@ const churchData = {
     BasilicaStFrancis: {
         name: "Basilica of St. Francis Xavier Proto-Cathedral",
         address: "205 Church St, Vincennes, IN 47591",
+        coords: { lat: 38.6786, lon: -87.5323 },
         measured: "July 21, 2026",
         cover: "Images/Basilica St. Francis, IN/Info cover.jpg",
         history: [
@@ -140,6 +162,7 @@ const churchData = {
     MonasteryImmaculateConception: {
         name: "Monastery Immaculate Conception",
         address: "802 E 10th St, Ferdinand, IN 47532",
+        coords: { lat: 38.2246, lon: -86.8608 },
         measured: "July 20, 2026",
         cover: "Images/Monastery Immaculate Conception, IN/Info cover.jpeg",
         history: [
@@ -154,6 +177,7 @@ const churchData = {
     OurLadyOfGuadalupe: {
         name: "Santuario de Nuestra Señora de Guadalupe",
         address: "100 S Guadalupe St, Santa Fe, NM 87501",
+        coords: { lat: 35.6870, lon: -105.9456 },
         measured: "July 30, 2026",
         cover: "Images/Our Lady of Guadalupe, NM/Info cover.jpg",
         history: [
@@ -167,6 +191,7 @@ const churchData = {
     StAugustineIsleta: {
         name: "St. Augustine Catholic Church",
         address: "71 Tribal Rd 35, Isleta, NM 87022",
+        coords: { lat: 34.9097, lon: -106.6928 },
         measured: "July 29, 2026",
         cover: "Images/St Augustine Isleta, NM/Info cover.jpeg",
         history: [

@@ -17,7 +17,7 @@ const vm = require('vm');
 const ROOT = path.join(__dirname, '..', '..');
 
 /** In the order index.html loads them */
-const APP_FILES = ['Features.js', 'ChurchData.js', 'Rooms.js', 'App.js', 'AudioEngine.js', 'SettingsMenu.js'];
+const APP_FILES = ['Features.js', 'ChurchData.js', 'Rooms.js', 'App.js', 'AudioEngine.js', 'SettingsMenu.js', 'Landing.js'];
 
 const EPILOGUE = `
 ;globalThis.__state = {
@@ -39,6 +39,8 @@ const EPILOGUE = `
     get bformatMissing()  { return bformatMissing; },
     get stageTrims()      { return stageTrims; },
     get FEATURES()        { return FEATURES; },
+    get landingMap()      { return landingMap; },
+    get landingLayers()   { return landingLayers; },
 };
 ;globalThis.__consts = {
     ROOMS, churchData, MissingResourceError, BUNDLED_SOURCE_FILES,
@@ -54,6 +56,10 @@ const EPILOGUE = `
     STAGE_TRIM_MAX_DB, STAGE_TRIM_MIN_DB,
     FEATURE_NAMES, FEATURE_IMPLIES, FEATURE_CONTROLS, MODE_TOGGLE_IDS,
     TOGGLE_ROW_START_PX, TOGGLE_ROW_STEP_PX,
+    LANDING_BOUNDS, LANDING_VIEW, LANDING_MIN_ZOOM,
+    CITY_SPLIT_ZOOM, CITY_FIT_PADDING, STATE_NAMES,
+    LANDING_TILES, LANDING_TILE_ATTRIBUTION,
+    placeOf, landingChurches, landingCities, landingStates, cityLabelOf,
 };
 `;
 
@@ -234,6 +240,119 @@ function createApp(options = {}) {
         },
     };
 
+    // ── Leaflet (the landing map) ─────────────────────────────────────────
+    // Records what the landing draws rather than drawing it: which pins were
+    // made, where they sit, and which layers are on the map at a given zoom.
+    // Absent when a test asks for it with noLeaflet, so the path Landing.js
+    // takes when the CDN script never arrives is exercised too.
+    const maps = [];
+    const markers = [];
+    const tileLayers = [];
+
+    const makeLayerGroup = () => ({
+        kind: 'layerGroup',
+        layers: [],
+        addLayer(layer) { this.layers.push(layer); return this; },
+        addTo(map) { map.addLayer(this); return this; },
+    });
+
+    const leaflet = {
+        // `mapOptions`, not `options`: the latter is createApp's, which
+        // getBoundsZoom() below reads the pane size out of
+        map(container, mapOptions) {
+            const map = {
+                container, options: mapOptions,
+                zoom: mapOptions.zoom,
+                center: mapOptions.center,
+                handlers: {},
+                /** Layers currently on the map, as hasLayer() sees them */
+                active: new Set(),
+                flights: [],
+                invalidated: 0,
+                getZoom() { return this.zoom; },
+                /**
+                 * The zoom Leaflet would pick to fit `bounds` in this pane.
+                 * Derived from the same Web Mercator arithmetic the real one
+                 * uses, against the pane size a test declares with mapSize, so
+                 * a spread of churches that needs zooming out actually reads as
+                 * one here rather than as whatever constant a stub returned.
+                 */
+                getBoundsZoom(bounds, inside, padding) {
+                    const pane = options.mapSize || { x: 900, y: 650 };
+                    const pad = padding || { x: 0, y: 0 };
+                    const width = Math.max(pane.x - 2 * pad.x, 1);
+                    const height = Math.max(pane.y - 2 * pad.y, 1);
+
+                    const mercator = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+                    const spanX = Math.abs(bounds.east - bounds.west) / 360;
+                    const spanY = Math.abs(mercator(bounds.north) - mercator(bounds.south)) / (2 * Math.PI);
+
+                    // 256px tiles, and a zoom that fits the tighter of the two axes
+                    const fit = (span, px) => span > 0 ? Math.log2(px / (256 * span)) : 24;
+                    return Math.floor(Math.min(fit(spanX, width), fit(spanY, height)));
+                },
+                /** Sets the view to the closest zoom that contains `bounds` */
+                fitBounds(bounds) {
+                    const box = Array.isArray(bounds) ? leaflet.latLngBounds(bounds) : bounds;
+                    this.fitted = box;
+                    this.center = box.getCenter();
+                    this.zoom = Math.max(this.getBoundsZoom(box), mapOptions.minZoom ?? 0);
+                    return this;
+                },
+                hasLayer(layer) { return this.active.has(layer); },
+                addLayer(layer) { this.active.add(layer); return this; },
+                removeLayer(layer) { this.active.delete(layer); return this; },
+                invalidateSize() { this.invalidated++; },
+                on(event, fn) { (this.handlers[event] ||= []).push(fn); return this; },
+                flyTo(center, zoom) {
+                    this.flights.push({ center, zoom });
+                    this.center = center;
+                    this.zoom = zoom;
+                    return this;
+                },
+                /** Moves the map and fires the handlers a real zoom would */
+                setZoom(zoom) {
+                    this.zoom = zoom;
+                    (this.handlers.zoomend || []).forEach(fn => fn());
+                },
+            };
+            maps.push(map);
+            return map;
+        },
+        tileLayer(url, options) {
+            const layer = { kind: 'tileLayer', url, options, addTo(map) { map.addLayer(this); return this; } };
+            tileLayers.push(layer);
+            return layer;
+        },
+        layerGroup: makeLayerGroup,
+        divIcon(options) { return { kind: 'divIcon', ...options }; },
+        point(x, y) { return { x, y }; },
+        latLngBounds(latlngs) {
+            const lats = latlngs.map(p => p[0]);
+            const lons = latlngs.map(p => p[1]);
+            return {
+                north: Math.max(...lats), south: Math.min(...lats),
+                east: Math.max(...lons), west: Math.min(...lons),
+                getCenter() {
+                    return [(this.north + this.south) / 2, (this.east + this.west) / 2];
+                },
+            };
+        },
+        marker(latlng, options) {
+            const marker = {
+                kind: 'marker', latlng, options,
+                tooltip: null,
+                handlers: {},
+                bindTooltip(content, opts) { this.tooltip = { content, opts }; return this; },
+                on(event, fn) { (this.handlers[event] ||= []).push(fn); return this; },
+                /** Stands in for a visitor clicking the pin */
+                click() { (this.handlers.click || []).forEach(fn => fn()); },
+            };
+            markers.push(marker);
+            return marker;
+        },
+    };
+
     // ── animation frames (queued, never automatic) ────────────────────────
     const frameQueue = [];
     const frames = {
@@ -357,6 +476,7 @@ function createApp(options = {}) {
         getComputedStyle: () => ({ backgroundImage: options.backgroundImage ?? 'none' }),
         pannellum,
         ...(options.noOmnitone ? {} : { Omnitone: omnitone }),
+        ...(options.noLeaflet ? {} : { L: leaflet }),
         document: {
             documentElement: el(':root'),
             body: el('body'),
@@ -403,6 +523,10 @@ function createApp(options = {}) {
         frames,
         foaRenderers,
         get foa() { return foaRenderers[foaRenderers.length - 1]; },
+        maps,
+        get map() { return maps[maps.length - 1]; },
+        markers,
+        tileLayers,
         probes,
         blobs,
         objectUrls,

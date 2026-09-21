@@ -11,14 +11,21 @@
     <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
     <!-- Decodes first-order ambisonics to binaural in the browser -->
     <script src="https://cdn.jsdelivr.net/npm/omnitone@1.3.0/build/omnitone.min.js"></script>
+    <!-- Draws the landing map. Landing.js checks it arrived and falls back to
+         the church list beside the map if it did not. -->
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="Style/Root.css">
     <link rel="stylesheet" href="Style/Layout.css">
     <link rel="stylesheet" href="Style/ChurchButtons.css">
     <link rel="stylesheet" href="Style/SettingsMenu.css">
+    <!-- After Layout.css: the landing's own rules for #map-btn build on the
+         tab row it sits in -->
+    <link rel="stylesheet" href="Style/Landing.css">
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
@@ -78,11 +85,19 @@
         </div>
     </div>
 
-    <!-- Tab Navigation -->
+    <!-- Tab Navigation. Each button is id'd "tab-<panel>" so switchTab() can
+         find the one to highlight when it is called from somewhere other than a
+         click — the landing switches to View as it closes. -->
     <div id="tab-nav">
-        <button class="tab-btn active" onclick="switchTab('main', this)">View</button>
-        <button class="tab-btn" onclick="switchTab('about', this)">About</button>
-        <button class="tab-btn" onclick="switchTab('instructions', this)">Instructions</button>
+        <button id="tab-main" class="tab-btn active" onclick="switchTab('main', this)">View</button>
+        <button id="tab-about" class="tab-btn" onclick="switchTab('about', this)">About</button>
+        <button id="tab-instructions" class="tab-btn" onclick="switchTab('instructions', this)">Instructions</button>
+
+        <!-- Reopens the landing. Not a tab: it covers the page rather than
+             swapping the panel below the row. -->
+        <button id="map-btn" onclick="openLanding()" title="Back to the map of all churches">
+            <span class="material-icons">public</span> Map
+        </button>
     </div>
 
     <!-- Content Area -->
@@ -410,6 +425,12 @@
                 <h2>How to Use</h2>
                 <ol>
                     <li>
+                        <strong>Start on the Map</strong> - The site opens on a map of the United States with a pin on every
+                        church. Click a pin, or a church in the list beside the map, to step inside it. Cities holding
+                        several churches show a single pin with a count &mdash; click it to zoom in on them. You can return
+                        to the map at any time with <strong>Map</strong> at the right of the tab row.
+                    </li>
+                    <li>
                         <strong>Select a Church</strong> - Use the "Select Church" dropdown in the control bar to choose a
                         recording location. The panoramic photo will update to show the interior of that space.
                     </li>
@@ -527,6 +548,46 @@
         </div>
     </div>
 
+    <!-- Landing. Ships with `open` rather than being shown by initLanding(),
+         so there is no moment on load where the app behind it is on screen.
+         The map and the list are filled in by Landing.js; everything here is
+         what the page can say before any script has run. -->
+    <div id="landing" class="open" role="dialog" aria-modal="true" aria-labelledby="landing-title">
+        <div id="landing-header">
+            <div>
+                <h1 id="landing-title">Aural Heritage Preservation of Historic American Churches</h1>
+                <p id="landing-subtitle">
+                    Choose one on the map to step inside it.
+                </p>
+            </div>
+            <div id="landing-logos">
+                <a href="https://creativeartscollective.com/" target="_blank" rel="noopener noreferrer">
+                    <img src="https://blogs.belmont.edu/new-creative-arts-collective/files/2025/10/horizontal-lockup-cac-centered-light.svg" alt="The Creative Arts Collective for Christian Life and Faith" onerror="this.style.display='none'">
+                </a>
+                <a href="https://www.belmont.edu/" target="_blank" rel="noopener noreferrer">
+                    <img src="https://www.belmont.edu/_assets/img/logo.svg" alt="Belmont University" class="landing-logo--invert" onerror="this.style.display='none'">
+                </a>
+            </div>
+        </div>
+
+        <div id="landing-body">
+            <div id="landing-map"></div>
+
+            <!-- The other half of the map, not a fallback for it: five of the
+                 twelve churches are in Nashville, and no zoom that shows the
+                 country tells them apart. -->
+            <div id="landing-aside">
+                <div id="landing-count"></div>
+                <div id="landing-list"></div>
+            </div>
+        </div>
+
+        <div id="landing-footer">
+            <p id="landing-hint">Cities holding several churches show a count &mdash; open one to see them apart.</p>
+            <button id="landing-skip" onclick="dismissLanding()">Skip the map</button>
+        </div>
+    </div>
+
     <!-- Loaded last so App.js can build the panorama viewer as soon as it runs.
          Data first, then the view and audio layers that read it. -->
     <script src="Javascript/Features.js"></script>
@@ -535,5 +596,7 @@
     <script src="Javascript/App.js"></script>
     <script src="Javascript/AudioEngine.js"></script>
     <script src="Javascript/SettingsMenu.js"></script>
+    <!-- After SettingsMenu.js: the landing's only exit is switchRoom() -->
+    <script src="Javascript/Landing.js"></script>
 </body>
 </html>
