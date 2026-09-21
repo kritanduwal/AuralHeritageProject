@@ -1,0 +1,430 @@
+/*
+    Landing
+
+    description: The opening map of the collection — the overlay, the map pane,
+                 the church list beside it, and the pins on the map.
+    author: Kritan Duwal
+ */
+
+/* ── The overlay ── */
+/* Covers the page rather than sitting inside a tab: it is where a visit starts,
+   above the dialogs (z-index 100) as well as the view. Ships with `open` in the
+   markup so the app never shows through before the script that covers it runs. */
+#landing {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: linear-gradient(135deg, #001540 0%, #00205b 55%, #1a4a9e 100%);
+    color: var(--text-color-white);
+    flex-direction: column;
+    padding: 28px 5% 22px;
+    box-sizing: border-box;
+}
+
+#landing.open {
+    display: flex;
+}
+
+/* ── Leaving ── */
+/* The sheet fades and swells slightly past the viewer while the map zooms at
+   the chosen church underneath it. Swelling rather than shrinking is what makes
+   the pair read as going into the church instead of as the map being taken
+   away; the two have to move the same direction or they fight.
+
+   0.6s is spelled in Landing.js as LANDING_EXIT_MS, which is the timer that
+   takes the sheet out of the document afterwards. landing.test.js checks they
+   still agree: a transition outlasting the timer is cut off mid-fade, and one
+   finishing early leaves an invisible sheet over the page.
+
+   pointer-events go first so the page underneath is live for the whole exit,
+   rather than swallowing the first click after a church is chosen. */
+#landing.landing--leaving {
+    opacity: 0;
+    transform: scale(1.06);
+    pointer-events: none;
+    transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+/* ── Coming back ── */
+/* Only ever on the way back to the map. On the first paint the landing is
+   simply there: fading it in would mean showing the app it exists to cover. */
+@keyframes landing-in {
+    from { opacity: 0; transform: scale(1.03); }
+    to   { opacity: 1; transform: none; }
+}
+
+#landing.landing--entering {
+    animation: landing-in 0.4s ease;
+}
+
+/* A visitor who has asked for less movement gets the same states with nothing
+   in between — the landing cuts in and out. Landing.js skips the dive and the
+   fade for them too, so this only covers a preference changed mid-visit. */
+@media (prefers-reduced-motion: reduce) {
+    #landing.landing--leaving {
+        transition: none;
+    }
+
+    #landing.landing--entering {
+        animation: none;
+    }
+}
+
+/* ── Header ── */
+#landing-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 20px;
+}
+
+#landing-title {
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.25;
+    margin: 0 0 8px;
+    max-width: 760px;
+}
+
+#landing-subtitle {
+    font-size: 15px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.78);
+    margin: 0;
+    max-width: 680px;
+}
+
+#landing-logos {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-shrink: 0;
+}
+
+#landing-logos img {
+    height: 38px;
+    width: auto;
+    object-fit: contain;
+    display: block;
+}
+
+.landing-logo--invert {
+    filter: brightness(0) invert(1);
+}
+
+/* ── Body: map beside list ── */
+#landing-body {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 20px;
+}
+
+#landing-map {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+    /* Stands in for the tiles until they arrive, and stays behind them where
+       the network never answers, so the pane never flashes white */
+    background-color: #dfe3ea;
+    min-height: 0;
+    /* Leaflet paints its panes and controls above anything that follows it in
+       the document unless they are given a stacking context of their own */
+    position: relative;
+    z-index: 0;
+}
+
+/* Shown in the map's place when Leaflet itself did not load */
+.landing-map-note {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    margin: 0;
+    padding: 24px;
+    box-sizing: border-box;
+    text-align: center;
+    font-size: 15px;
+    color: #44506a;
+}
+
+/* ── The church list ── */
+#landing-aside {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+#landing-count {
+    flex-shrink: 0;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+#landing-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0 12px;
+    /* Kept visible rather than left to the platform's overlay scrollbar. The
+       last state in the list is below the fold on a short window, and an
+       overlay bar that only appears once you scroll cannot tell you to. */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+#landing-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+#landing-list::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+}
+
+#landing-list::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(255, 255, 255, 0.5);
+}
+
+.landing-group {
+    margin: 14px 18px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--buttoncolor1);
+}
+
+.landing-group:first-child {
+    margin-top: 4px;
+}
+
+.landing-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    padding: 9px 18px;
+    background: none;
+    border: none;
+    border-left: 3px solid transparent;
+    text-align: left;
+    color: inherit;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+.landing-item:hover,
+.landing-item:focus-visible {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-left-color: var(--activecolor);
+    outline: none;
+}
+
+.landing-item-name {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.landing-item-place {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.62);
+}
+
+/* ── Footer ── */
+#landing-footer {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 18px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+#landing-hint {
+    margin: 0;
+}
+
+#landing-skip {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 18px;
+    padding: 8px 18px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+#landing-skip:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.6);
+    color: #fff;
+}
+
+/* ── Pins ── */
+/* Circles, not teardrops: on a map that starts at the scale of the country a
+   pin only has to be visible against the basemap and big enough to hit. The
+   ring is what keeps them legible where two nearly coincide. */
+.landing-pin {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    border-radius: 50%;
+    background-color: var(--belmont-blue);
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+    color: #fff;
+    font-family: var(--font), sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    transition: background-color 0.15s, transform 0.15s;
+}
+
+/* A city holding several churches, carrying the count. Lighter than a single
+   church's pin so the two never read as the same kind of thing. */
+.landing-pin--group {
+    background-color: #1a4a9e;
+}
+
+/* --activecolor, not --maincolor2. The latter is the availability colour: it
+   ships crimson and updateSelectedColor() swings it between green and crimson
+   to report whether a receiver has a recording. Borrowing it painted every pin
+   red until a church had been chosen — a whole map that read as broken — and
+   then quietly changed meaning once one had. A pin has nothing to say about
+   availability, so it takes the fixed green. */
+.leaflet-marker-icon:hover .landing-pin {
+    background-color: var(--activecolor);
+    color: var(--belmont-blue);
+    transform: scale(1.15);
+}
+
+/* Leaflet gives a focused marker its own outline; the fill has to answer too,
+   since the outline sits on the icon's square rather than on the circle */
+.leaflet-marker-icon:focus .landing-pin {
+    background-color: var(--activecolor);
+    color: var(--belmont-blue);
+}
+
+/* The church being entered, marked for the length of the dive. It shares the
+   hover green, because the pin that was just clicked is almost always the one
+   under the pointer — what separates the two is the size and the ring, and the
+   :hover half of the selector is what stops hover's smaller scale winning.
+
+   The ring grows out of the pin rather than being drawn around it, so a pin
+   already sitting under the pointer still visibly changes state. */
+.leaflet-marker-icon.landing-pin-chosen .landing-pin,
+.leaflet-marker-icon.landing-pin-chosen:hover .landing-pin {
+    background-color: var(--activecolor);
+    color: var(--belmont-blue);
+    transform: scale(1.5);
+    box-shadow: 0 0 0 0 rgba(0, 244, 127, 0.55);
+    animation: landing-pin-chosen 0.6s ease-out;
+}
+
+@keyframes landing-pin-chosen {
+    from { box-shadow: 0 0 0 0 rgba(0, 244, 127, 0.55); }
+    to   { box-shadow: 0 0 0 18px rgba(0, 244, 127, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .leaflet-marker-icon.landing-pin-chosen .landing-pin,
+    .leaflet-marker-icon.landing-pin-chosen:hover .landing-pin {
+        transform: none;
+        animation: none;
+    }
+}
+
+.leaflet-tooltip {
+    font-family: var(--font), sans-serif;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* ── The way back ── */
+/* Sits at the end of the tab row rather than among the tabs: it reopens the
+   landing over the page instead of swapping the panel under the row. */
+#map-btn {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    padding: 12px 8px 12px 16px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #666;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+#map-btn:hover {
+    color: var(--belmont-blue);
+}
+
+#map-btn .material-icons {
+    font-size: 20px;
+}
+
+/* ── Narrow windows ── */
+/* The list goes under the map rather than beside it. Both scroll, so the map
+   keeps a floor of its own instead of collapsing to nothing. */
+@media (max-width: 860px) {
+    #landing {
+        padding: 20px 20px 16px;
+    }
+
+    #landing-body {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(220px, 1fr) minmax(0, 1fr);
+    }
+
+    #landing-header {
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    #landing-title {
+        font-size: 22px;
+    }
+
+    /* The two lockups side by side are about 370px of unshrinkable logo, which
+       is most of a phone. Smaller, and allowed onto a second row, so the
+       landing's own header is not what decides how narrow the page can go. */
+    #landing-logos {
+        flex-wrap: wrap;
+        gap: 12px 16px;
+    }
+
+    #landing-logos img {
+        height: 28px;
+    }
+
+    #landing-footer {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+    }
+}

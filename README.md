@@ -48,9 +48,9 @@ npm test
 
 Tests are run by Node's built-in test runner. No dependencies and no browser: the
 application files are loaded into a `vm` context whose globals are test doubles for
-the DOM, Web Audio, pannellum, `fetch` and timers, so the real `compile()`,
-`buildConvolutionGraph()` and `switchRoom()` are exercised rather than copies of
-them.
+the DOM, Web Audio, pannellum, Leaflet, `fetch` and timers, so the real `compile()`,
+`buildConvolutionGraph()`, `switchRoom()` and `buildLandingMap()` are exercised
+rather than copies of them.
 
 | File | Covers |
 | --- | --- |
@@ -59,6 +59,7 @@ them.
 | `test/app.test.js` | `compile()`, the stale-selection guard, viewer lifetime, error banner |
 | `test/settings.test.js` | Church switching and the source file picker |
 | `test/assets.test.js` | Every path in `ROOMS`, the markup and the CSS resolve to real files; the playback controls do not overlap |
+| `test/landing.test.js` | The landing map: church coordinates, the pins and how they split by zoom, the list, entering a church from either, and the animation that takes the landing away |
 | `test/helpers/harness.js` | The sandbox the other files use |
 
 ---
@@ -68,6 +69,10 @@ them.
 ### The flow of one selection
 
 ```
+  landing map pin ──┐                   Landing.js
+  landing list row ─┤                    closes the landing, switches to the
+                    │                    View tab, sets the dropdown
+                    ▼
   church dropdown ──► switchRoom()      SettingsMenu.js
                           │              shows that room's floorplan overlay,
                           │              selects receiver R1
@@ -110,22 +115,99 @@ has started. A slow response can never overwrite a later choice.
 
 | File | Responsibility |
 | --- | --- |
-| `index.html` | Markup: controls, the three tabs, floorplan overlays, modals |
+| `index.html` | Markup: the landing, controls, the three tabs, floorplan overlays, modals |
 | `Javascript/Features.js` | Which optional renders this visit can reach, read from the address |
 | `Javascript/Rooms.js` | **Data.** Per-church IR/panorama paths, camera angles, gain trims |
-| `Javascript/ChurchData.js` | **Data.** History, dimensions and distances for the Church Info modal. Reference only — nothing here reaches playback |
-| `Javascript/App.js` | Page state, panorama viewer, `compile()`, error banner, modals |
+| `Javascript/ChurchData.js` | **Data.** History, dimensions, distances and coordinates. Reference only — nothing here reaches playback |
+| `Javascript/App.js` | Page state, panorama viewer, `compile()`, error banner, tabs, modals |
 | `Javascript/AudioEngine.js` | Web Audio graph, IR loading and caching, playback, the headphone output stage and its soundfield rotation |
 | `Javascript/SettingsMenu.js` | Church dropdown, source file picker |
+| `Javascript/Landing.js` | The opening map of the collection and the church list beside it |
 | `Style/Root.css` | Colour variables, marker button styles |
 | `Style/Layout.css` | Page layout, overlay sizes, diagram background images |
 | `Style/ChurchButtons.css` | Where each S/R marker sits on its floorplan |
 | `Style/SettingsMenu.css` | Modal styling |
+| `Style/Landing.css` | The landing overlay, its map pane, list and pins |
 | `server.js` | Static server plus the `/api/source-files` listing |
 
 `Rooms.js` is the single source of truth for playback behaviour. It replaced twelve
 near-identical `CompileSelection<Church>()` functions that differed only in their
 string literals and camera angles.
+
+### The landing map
+
+The page opens on a map of the United States with a pin on every church, over the
+top of the app rather than as a fourth tab. Choosing a church — from a pin or from
+the list beside the map — closes the landing, switches to the **View** tab, sets the
+dropdown, and calls `switchRoom()`. That is the whole of it: the landing has no
+private route into playback, so a church reached from the map is in exactly the
+state it would be in had the dropdown been used.
+
+`Map` at the end of the tab row reopens it; `Skip the map` and `Escape` close it
+without choosing, which leaves the same empty selection the page has always
+started in. Reopening never disturbs the current selection.
+
+**Choosing a church is animated.** The chosen pin lights up, the map zooms at it,
+and the sheet fades and swells past the viewer — the two movements have to go the
+same direction or they fight, which is why the sheet grows rather than shrinks.
+
+The church is selected *before* the landing starts leaving, which is the opposite
+of how it reads. The panorama fetch and the impulse-response probe are a wait that
+happens anyway, against elements already laid out at full size behind the overlay,
+so the animation is spent on it rather than added in front of it. By the time the
+sheet is gone the panorama is usually already aimed.
+
+`LANDING_EXIT_MS` in `Landing.js` and the transition on `#landing.landing--leaving`
+are the same duration and `landing.test.js` checks they stay that way: a stylesheet
+that outlasts the timer is cut off mid-fade, and one that finishes early leaves an
+invisible sheet over the page. The sheet drops `pointer-events` for the whole exit,
+so the page underneath is live immediately rather than swallowing the first click.
+
+The map is put back where the dive started **as the landing leaves**, not when it
+returns — nothing is on screen to see the snap, and the tiles for that view are
+then requested while nobody is looking. Restoring on the way in instead showed a
+blank grey pane, because a dive ends at a zoom no tile was ever fetched for. It
+returns to the view the visitor left, not to the country: someone who zoomed into
+a city and picked a church there expects that city back.
+
+A visitor who has asked for reduced motion gets none of this — the landing cuts,
+the map does not dive — and ends in exactly the same place. The stylesheet stands
+the animations down as well, for a preference changed while the page is open.
+
+**It ships open.** `<div id="landing" class="open">` is in the markup and
+`initLanding()` only fills it in, so there is no moment on load where the app is on
+screen before the script that covers it has run.
+
+**The list is the other half of the map, not a fallback for it.** Five of the twelve
+churches are in Nashville, within a mile of each other; at the zoom that shows the
+country they are one pin no matter how the map is drawn. The pins close that gap
+from their side too: a city holding more than one church shows a single counted pin
+below `CITY_SPLIT_ZOOM`, and opening it flies to a zoom fitted to that city's
+churches — floored at the split, so the click that frames them is also the one that
+makes them separately clickable.
+
+**Coordinates** live in `ChurchData.js` as `coords: { lat, lon }`. They were read
+off the addresses rather than surveyed, so they are good to the block and not to
+the door. `landing.test.js` checks that every church in `ROOMS` has one, that they
+are inside the United States, that no two are identical, and that each sits within
+25 km of the city its own address names — which is what catches a transposed digit.
+
+The city and state a church is listed under are parsed back out of `address`, which
+already carries them in one consistent `…, City, ST ZIP` shape. Storing them twice
+would let the copies drift.
+
+**Leaflet and its tiles are CDN dependencies**, pinned by version like pannellum and
+omnitone. Tiles come from OpenStreetMap, which needs no key — the grey basemaps that
+would suit the palette better all want an account now, and a tile server that wants a
+key it is not given stamps that across every tile rather than failing. If Leaflet
+itself does not load, `buildLandingMap()` says so in the map's place and the list
+beside it carries the whole landing; an empty grey rectangle would read as a map
+still loading.
+
+> **Known, pre-existing:** the page overflows horizontally below about 550px. The
+> app bar's two logos and the control bar set that floor and always have; the
+> landing has its own stacked layout under 860px and demands no more than 390px on
+> its own, but it sits inside the same viewport as everything else.
 
 ### The impulse response library
 
@@ -706,9 +788,14 @@ graph and its tests are identical either way.
    distances for the Church Info modal, plus a `cover` photo (see below). Spell
    each receiver distance as `"<number> ft"`, which is the form the modal shows
    and the one `rooms.test.js` checks.
+8. **`Javascript/ChurchData.js`** — add `coords: { lat, lon }` for the landing map
+   pin, and write the `address` in the same `…, City, ST ZIP` shape as the rest,
+   which is where the map reads its city and state from. A church in a state no
+   other church is in also needs its name in `STATE_NAMES` (`Landing.js`), or it
+   is listed under a bare two-letter code. `landing.test.js` fails on all three.
 
-No JavaScript logic changes: `switchRoom()`, `compile()` and the audio engine all
-derive their behaviour from the ids and the `ROOMS` entry.
+No JavaScript logic changes: `switchRoom()`, `compile()`, the landing and the audio
+engine all derive their behaviour from the ids and the `ROOMS` entry.
 
 ---
 

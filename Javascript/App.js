@@ -299,11 +299,20 @@ function setMix(percent) {
 }
 
 // ── Tabs ──────────────────────────────────────────────────────────────────
+
+/**
+ * @param btnEl The tab button that was clicked. Optional: a switch made from
+ *              somewhere other than the row — the landing closes onto the View
+ *              tab — has no button to hand, and the one to highlight is found
+ *              by id instead.
+ */
 function switchTab(tabId, btnEl) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(tabId + '-panel').classList.add('active');
-    btnEl.classList.add('active');
+
+    const button = btnEl || document.getElementById('tab-' + tabId);
+    if (button) button.classList.add('active');
 }
 
 // ── Church Info Modal ─────────────────────────────────────────────────────
@@ -442,10 +451,15 @@ document.addEventListener('fullscreenchange', () => {
 /**
  * Called from <body onload>. Loads the default source file and syncs the
  * playback controls to the state the audio engine starts in.
+ *
+ * The landing is filled in last. It is already covering all of this — it ships
+ * open in the markup — so the controls under it are set up before anybody can
+ * reach them, rather than while they are being looked at.
  */
 function initApp() {
     applyFeatureGating();
     loadSource();
     setMix(document.getElementById('convmix').value);
     refreshModeButtons();
+    initLanding();
 }
