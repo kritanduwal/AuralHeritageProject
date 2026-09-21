@@ -100,6 +100,13 @@ let landingMap = null;
  */
 let landingLayers = null;
 
+/**
+ * Church key to its own pin, so the church being entered can be lit up whether
+ * it was picked from the map or from the list. City pins are not in here: they
+ * stand for several churches and none of them is the one chosen.
+ */
+let landingPins = null;
+
 // ── Reading the collection ────────────────────────────────────────────────
 
 /**
@@ -187,40 +194,82 @@ function landingStates(churches) {
  * every control behind it exactly as it would have been had the dropdown been
  * used. The dropdown is set as well as the room, or the control bar would go on
  * reading "Select a Church" over a church that is loaded.
+ *
+ * The church is put on before the landing comes off, which is the opposite of
+ * how it reads. The panorama has to be fetched and the impulse response probed,
+ * and both of those happen against elements that are already laid out at full
+ * size behind the overlay — so the exit animation is spent on a wait that was
+ * happening anyway rather than added in front of it.
  */
 function enterChurch(key) {
-    closeLanding();
     switchTab('main');
 
     const dropdown = document.getElementById('roomDropdown');
     if (dropdown) dropdown.value = key;
 
     switchRoom(key);
+    diveIntoChurch(key);
 }
 
 // ── Opening and closing ───────────────────────────────────────────────────
 
 function openLanding() {
     const landing = document.getElementById('landing');
-    if (landing) landing.classList.add('open');
+    if (!landing) return;
+
+    // An exit still in flight would otherwise hide the landing again a moment
+    // after it was asked for. Its dive is still running and was never closed
+    // down by closeLanding(), so the view wants putting back here too.
+    cancelLandingExit();
+    restoreLandingView();
+
+    const reopening = !landing.classList.contains('open');
+    landing.classList.add('open');
+    clearChosenPins();
 
     // Leaflet measures its container once and caches it. A map built or resized
     // while the landing was hidden has no size to have measured, and comes back
     // as a single tile in the corner until it is told to look again.
     if (landingMap) landingMap.invalidateSize();
+
+    // Only on the way back. The landing is on screen from the first paint, and
+    // fading it in there would mean fading the app out from under it.
+    if (reopening) playLandingEntrance(landing);
 }
 
+/**
+ * Takes the landing off the screen at once, with no animation.
+ *
+ * The end of every other exit as well as an exit in its own right: the animated
+ * ones run their course and then call this.
+ */
 function closeLanding() {
+    cancelLandingExit();
+
+    // Put the map back the moment it stops being looked at, rather than when it
+    // is next looked at. Nothing is on screen to see the snap, and the tiles for
+    // the view being returned to are requested now instead of on the way back —
+    // reopening onto a blank grey pane is what happens otherwise, because the
+    // dive ends somewhere no tile has ever been fetched for.
+    restoreLandingView();
+
     const landing = document.getElementById('landing');
-    if (landing) landing.classList.remove('open');
+    if (!landing) return;
+
+    landing.classList.remove('open');
+    landing.classList.remove('landing--leaving');
+    landing.classList.remove('landing--entering');
 }
 
 /**
  * Leaving the landing without choosing is a real answer — it lands on the same
  * empty selection the page has always started in, with the dropdown free.
+ *
+ * Fades rather than dives: a dive is a movement towards the church that was
+ * picked, and nothing was picked here.
  */
 function dismissLanding() {
-    closeLanding();
+    if (!startLandingExit()) closeLanding();
 }
 
 // Escape closes the landing, the way it closes the dialogs it sits above.
@@ -230,6 +279,154 @@ document.addEventListener('keydown', event => {
     const landing = document.getElementById('landing');
     if (landing && landing.classList.contains('open')) dismissLanding();
 });
+
+// ── Getting out of the way ────────────────────────────────────────────────
+
+/**
+ * How long the landing takes to leave, in milliseconds. Spelled here and in the
+ * transition on #landing.landing--leaving; landing.test.js checks the two agree,
+ * because a stylesheet that outlasts this timer is cut off mid-fade and one that
+ * finishes early leaves an invisible sheet over the page until it fires.
+ */
+const LANDING_EXIT_MS = 600;
+
+/** How far the map dives towards a church, in zoom levels, and where it stops */
+const LANDING_DIVE_STEP = 5;
+const LANDING_DIVE_MAX_ZOOM = 16;
+
+/** The pending end-of-exit callback, so an exit can be called off partway */
+let landingExitTimer = null;
+
+/**
+ * Where the map was before it dived into a church.
+ *
+ * Reopening restores it rather than the country: a visitor who zoomed into a
+ * city, picked a church there and came back for another expects the city they
+ * left, and the dive is the app's movement rather than theirs.
+ */
+let landingViewBeforeDive = null;
+
+/**
+ * Whether this visitor has asked for less movement. The landing then cuts
+ * instead of fading — every exit still ends in the same place.
+ */
+function landingReducedMotion() {
+    return typeof matchMedia === 'function' &&
+        matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/**
+ * Starts the landing fading out of the way.
+ * @returns false where there is nothing to animate, so the caller can cut
+ */
+function startLandingExit() {
+    const landing = document.getElementById('landing');
+    if (!landing || !landing.classList.contains('open')) return false;
+    if (landingReducedMotion()) return false;
+
+    cancelLandingExit();
+    landing.classList.add('landing--leaving');
+
+    // A timer rather than transitionend: the event does not arrive if the
+    // transition is interrupted or never runs, and an overlay that is stuck at
+    // opacity 0 over the page is invisible and still there.
+    landingExitTimer = setTimeout(closeLanding, LANDING_EXIT_MS);
+    return true;
+}
+
+function cancelLandingExit() {
+    if (landingExitTimer === null) return;
+    clearTimeout(landingExitTimer);
+    landingExitTimer = null;
+
+    const landing = document.getElementById('landing');
+    if (landing) landing.classList.remove('landing--leaving');
+}
+
+/**
+ * Leaves the landing by moving towards the church that was chosen: the map
+ * zooms at its pin while the sheet fades and swells past the viewer, which
+ * together read as going in rather than as the map being taken away.
+ *
+ * The map keeps flying inside a sheet that is already transparent for the last
+ * of it, which is deliberate — it is what stops the zoom ending in a snap.
+ */
+function diveIntoChurch(key) {
+    if (!startLandingExit()) {
+        closeLanding();
+        return;
+    }
+
+    markChosenPin(key);
+
+    const coords = (churchData[key] || {}).coords;
+    if (!landingMap || !coords) return;
+
+    landingViewBeforeDive = { center: landingMap.getCenter(), zoom: landingMap.getZoom() };
+
+    landingMap.flyTo(
+        [coords.lat, coords.lon],
+        Math.min(landingMap.getZoom() + LANDING_DIVE_STEP, LANDING_DIVE_MAX_ZOOM),
+        { duration: LANDING_EXIT_MS / 1000 });
+}
+
+/**
+ * Puts the map back where the dive took it from, and stops the dive if it is
+ * still running in a container nobody can see.
+ */
+function restoreLandingView() {
+    if (!landingMap || !landingViewBeforeDive) return;
+
+    landingMap.stop();
+    landingMap.setView(landingViewBeforeDive.center, landingViewBeforeDive.zoom, { animate: false });
+    landingViewBeforeDive = null;
+}
+
+/**
+ * Lights up the pin of the church being entered, so the dive is anchored to the
+ * one that was picked rather than to a point on the map.
+ *
+ * Does nothing where that church has no pin on the map at this zoom — choosing
+ * one of the five Nashville churches from the list while the country is in view
+ * is a choice the map cannot show.
+ */
+function markChosenPin(key) {
+    const marker = landingPins && landingPins.get(key);
+    const element = marker && marker.getElement && marker.getElement();
+    if (element) element.classList.add('landing-pin-chosen');
+}
+
+/**
+ * Clears the highlight, so a reopened map is not still lit from last time.
+ *
+ * Tooltips go with it. A pin clicked with the pointer on it is hidden before
+ * the pointer ever leaves, so Leaflet never gets the mouseout that would close
+ * its label — and the map reopens with the last church still named on it.
+ */
+function clearChosenPins() {
+    if (!landingPins) return;
+
+    for (const marker of landingPins.values()) {
+        const element = marker.getElement && marker.getElement();
+        if (element) element.classList.remove('landing-pin-chosen');
+        if (marker.closeTooltip) marker.closeTooltip();
+    }
+}
+
+/**
+ * Fades the landing back in over the church it was last closed onto.
+ *
+ * Restarting a CSS animation needs the class off, a reflow, and the class on
+ * again; without the reflow the browser never sees it having been removed and
+ * the second open does not animate at all.
+ */
+function playLandingEntrance(landing) {
+    if (landingReducedMotion()) return;
+
+    landing.classList.remove('landing--entering');
+    void landing.offsetWidth;
+    landing.classList.add('landing--entering');
+}
 
 // ── The list ──────────────────────────────────────────────────────────────
 
@@ -395,13 +592,16 @@ function buildLandingMap(churches) {
         .addTo(landingMap);
 
     landingLayers = { solo: L.layerGroup(), group: L.layerGroup(), member: L.layerGroup() };
+    landingPins = new Map();
 
     for (const city of landingCities(churches)) {
         const several = city.churches.length > 1;
         if (several) landingLayers.group.addLayer(cityPin(city));
 
         for (const church of city.churches) {
-            (several ? landingLayers.member : landingLayers.solo).addLayer(churchPin(church));
+            const pin = churchPin(church);
+            landingPins.set(church.key, pin);
+            (several ? landingLayers.member : landingLayers.solo).addLayer(pin);
         }
     }
 

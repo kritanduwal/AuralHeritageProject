@@ -16,12 +16,26 @@ const { createApp, ROOT } = require('./helpers/harness.js');
 
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 
-/** A landing that has been filled in, as initApp() leaves it */
+/**
+ * A landing that has been filled in and is on screen, as a visit starts.
+ *
+ * The `open` class is put on by hand because index.html ships it in the markup
+ * and the stub DOM starts every element bare — without it every "the landing
+ * got out of the way" assertion below would pass against a landing that was
+ * never up.
+ */
 function landed(options) {
     const app = createApp(options);
+    app.el('landing').classList.add('open');
     app.g.initLanding();
     return app;
 }
+
+const isOpen = (app) => app.el('landing').classList.contains('open');
+const isLeaving = (app) => app.el('landing').classList.contains('landing--leaving');
+
+/** Runs the exit animation's timer out, the way the browser's clock would */
+const finishExit = (app) => app.timers.flush();
 
 /** Great-circle distance in kilometres, for the coordinate sanity checks */
 function kmBetween(a, b) {
@@ -351,7 +365,9 @@ test('clicking a pin opens that church in the view tab', async () => {
     assert.equal(app.el('CaneRidgeMeetingHouseui').style.display, 'flex');
     assert.ok(app.el('main-panel').classList.contains('active'));
     assert.ok(app.el('tab-main').classList.contains('active'));
-    assert.ok(!app.el('landing').classList.contains('open'), 'the landing has to get out of the way');
+
+    finishExit(app);
+    assert.ok(!isOpen(app), 'the landing has to get out of the way');
 });
 
 test('entering a church leaves the dropdown reading that church', async () => {
@@ -372,9 +388,10 @@ test('a list entry is the same door as a pin', async () => {
     assert.ok(entry, 'Guadalupe is not in the list');
     entry.onclick();
     await app.settle();
+    finishExit(app);
 
     assert.equal(app.state.room, 'OurLadyOfGuadalupe');
-    assert.ok(!app.el('landing').classList.contains('open'));
+    assert.ok(!isOpen(app));
 });
 
 test('every church can be entered from the map without error', async () => {
@@ -394,7 +411,7 @@ test('the map button brings the landing back, and remeasures it', () => {
 
     app.g.openLanding();
 
-    assert.ok(app.el('landing').classList.contains('open'));
+    assert.ok(isOpen(app));
     assert.ok(app.state.landingMap.invalidated > 0,
         'Leaflet caches its container size, and a hidden container has none');
 });
@@ -405,9 +422,11 @@ test('reopening the landing leaves the selection alone', async () => {
     const app = landed();
     app.g.enterChurch('BasilicaStFrancis');
     await app.settle();
+    finishExit(app);
 
     app.g.openLanding();
     app.g.dismissLanding();
+    finishExit(app);
 
     assert.equal(app.state.room, 'BasilicaStFrancis');
     assert.equal(app.state.rcvpos, 'rpR1_BasilicaStFrancis');
@@ -416,18 +435,19 @@ test('reopening the landing leaves the selection alone', async () => {
 test('leaving without choosing is allowed, and chooses nothing', () => {
     const app = landed();
     app.g.dismissLanding();
+    finishExit(app);
 
-    assert.ok(!app.el('landing').classList.contains('open'));
+    assert.ok(!isOpen(app));
     assert.equal(app.state.room, '', 'the same empty selection the page has always started in');
 });
 
 test('escape closes the landing', () => {
     const app = landed();
-    app.el('landing').classList.add('open');
 
     app.listeners.keydown.forEach(fn => fn({ key: 'Escape' }));
+    finishExit(app);
 
-    assert.ok(!app.el('landing').classList.contains('open'));
+    assert.ok(!isOpen(app));
 });
 
 test('escape does nothing once the landing is closed', () => {
@@ -435,12 +455,318 @@ test('escape does nothing once the landing is closed', () => {
     // hands off a page that is being used
     const app = landed();
     app.g.dismissLanding();
+    finishExit(app);
     app.el('main-panel').classList.add('active');
 
     app.listeners.keydown.forEach(fn => fn({ key: 'Escape' }));
     app.listeners.keydown.forEach(fn => fn({ key: 'a' }));
 
     assert.ok(app.el('main-panel').classList.contains('active'));
+    assert.ok(!isLeaving(app), 'nothing should have been started to close');
+});
+
+// ── the way out ───────────────────────────────────────────────────────────
+
+test('choosing a church starts the landing leaving rather than cutting it', () => {
+    const app = landed();
+    app.g.enterChurch('CaneRidgeMeetingHouse');
+
+    assert.ok(isLeaving(app), 'nothing was animated');
+    assert.ok(isOpen(app), 'the sheet has to still be there to be seen fading');
+
+    finishExit(app);
+    assert.ok(!isOpen(app), 'and gone once it has');
+    assert.ok(!isLeaving(app), 'with nothing left on it to confuse the next exit');
+});
+
+test('the church is put on before the landing comes off', () => {
+    // The panorama fetch and the availability probe are the wait the animation
+    // is there to cover. Started after it, they would be added to it instead.
+    const app = landed();
+    app.g.enterChurch('CaneRidgeMeetingHouse');
+
+    assert.equal(app.state.room, 'CaneRidgeMeetingHouse', 'the church was not selected until the sheet had gone');
+    assert.ok(isOpen(app), 'and it was selected while the landing was still up');
+});
+
+test('the map dives at the church that was chosen', () => {
+    const app = landed();
+    const before = app.map.zoom;
+
+    app.g.enterChurch('CaneRidgeMeetingHouse');
+
+    const dive = app.map.flights.at(-1);
+    const coords = app.data.churchData.CaneRidgeMeetingHouse.coords;
+    assert.equal(dive.center[0], coords.lat);
+    assert.equal(dive.center[1], coords.lon);
+    assert.ok(dive.zoom > before, 'a dive has to go in, not out');
+    assert.equal(dive.zoom, Math.min(before + app.data.LANDING_DIVE_STEP, app.data.LANDING_DIVE_MAX_ZOOM));
+});
+
+test('the dive lasts exactly as long as the sheet takes to fade', () => {
+    // They are one movement. A dive still running under a sheet that has gone
+    // is a zoom the visitor never sees; one that ends early is a snap.
+    const app = landed();
+    app.g.enterChurch('OurLadyOfGuadalupe');
+
+    assert.equal(app.map.flights.at(-1).options.duration, app.data.LANDING_EXIT_MS / 1000);
+});
+
+test('the chosen pin is lit up, and only that one', () => {
+    const app = landed();
+    app.g.enterChurch('CaneRidgeMeetingHouse');
+
+    const lit = Array.from(app.state.landingPins.entries())
+        .filter(([, pin]) => pin.getElement().classList.contains('landing-pin-chosen'))
+        .map(([key]) => key);
+    assert.deepEqual(lit, ['CaneRidgeMeetingHouse']);
+});
+
+test('coming back to the map clears the pin that was lit', () => {
+    // Otherwise the map reopens still showing the last choice as if it were
+    // being made again
+    const app = landed();
+    app.g.enterChurch('CaneRidgeMeetingHouse');
+    finishExit(app);
+
+    app.g.openLanding();
+
+    const lit = Array.from(app.state.landingPins.values())
+        .filter(pin => pin.getElement().classList.contains('landing-pin-chosen'));
+    assert.equal(lit.length, 0);
+});
+
+test('the map is put back as the landing leaves, not when it returns', () => {
+    // Not to the country: a visitor who zoomed into a city and picked a church
+    // there expects the city back. The dive was the app's movement, not theirs.
+    //
+    // And put back at once rather than on the way in, so the tiles for it are
+    // requested while nobody is looking. Restoring on reopen showed a blank
+    // grey pane for as long as they took, because the dive ends at a zoom no
+    // tile was ever fetched for.
+    const app = landed();
+    app.map.setZoom(app.data.CITY_SPLIT_ZOOM + 1);
+    const wasAt = { center: app.map.center, zoom: app.map.zoom };
+
+    app.g.enterChurch('ChristChurchCathedral');
+    assert.notEqual(app.map.zoom, wasAt.zoom, 'the dive should have moved the map');
+
+    finishExit(app);
+
+    assert.equal(app.map.zoom, wasAt.zoom, 'the view was not put back when the landing went');
+    assert.equal(app.map.center, wasAt.center);
+    assert.ok(app.map.views.at(-1).options.animate === false,
+        'the map has to be back before it is looked at, not travelling there');
+
+    app.g.openLanding();
+    assert.equal(app.map.zoom, wasAt.zoom, 'and it has to still be there on the way in');
+});
+
+test('a reopen that interrupts the dive puts the map back too', () => {
+    // closeLanding() never runs on this path, so the restore cannot live only
+    // there — the map would be left wherever the cancelled dive had got to
+    const app = landed();
+    app.map.setZoom(app.data.CITY_SPLIT_ZOOM + 1);
+    const wasAt = { center: app.map.center, zoom: app.map.zoom };
+
+    app.g.enterChurch('ChristChurchCathedral');
+    app.g.openLanding();          // before the exit timer has fired
+
+    assert.equal(app.map.zoom, wasAt.zoom);
+    assert.equal(app.map.center, wasAt.center);
+    assert.equal(app.map.flying, false, 'the dive is still running under the map');
+});
+
+test('the tooltip of the pin that was clicked does not survive the exit', () => {
+    // A pin clicked under the pointer is hidden before the pointer leaves it,
+    // so Leaflet never gets the mouseout that closes its label
+    const app = landed();
+    const pin = app.state.landingPins.get('CaneRidgeMeetingHouse');
+    pin.openTooltip();
+
+    app.g.enterChurch('CaneRidgeMeetingHouse');
+    finishExit(app);
+    app.g.openLanding();
+
+    assert.equal(pin.tooltipOpen, false, 'the map reopens still naming the last church');
+});
+
+test('reopening calls off an exit that is still running', () => {
+    // The timer would otherwise fire a moment later and hide the landing that
+    // was just asked for
+    const app = landed();
+    app.g.dismissLanding();
+    assert.ok(isLeaving(app));
+
+    app.g.openLanding();
+    finishExit(app);
+
+    assert.ok(isOpen(app), 'the pending exit closed the landing out from under the reopen');
+    assert.ok(!isLeaving(app));
+});
+
+test('a dive left mid-flight is stopped rather than left running unseen', () => {
+    const app = landed();
+    app.g.enterChurch('StAugustineIsleta');
+    finishExit(app);
+
+    app.g.openLanding();
+
+    assert.ok(app.map.stopped > 0, 'Leaflet keeps animating a container nobody can see');
+    assert.equal(app.map.flying, false);
+});
+
+test('choosing a second church does not leave the first exit pending', () => {
+    const app = landed();
+    app.g.enterChurch('CaneRidgeMeetingHouse');
+    app.g.openLanding();
+    app.g.enterChurch('OurLadyOfGuadalupe');
+    finishExit(app);
+
+    assert.ok(!isOpen(app));
+    assert.equal(app.state.room, 'OurLadyOfGuadalupe');
+    assert.equal(app.state.landingExitTimer, null, 'a timer was left behind');
+});
+
+test('the fade in the stylesheet lasts as long as the timer that follows it', () => {
+    // The timer is what takes the sheet out of the document. Longer, and an
+    // invisible sheet sits over the page; shorter, and the fade is cut off.
+    const css = fs.readFileSync(path.join(ROOT, 'Style/Landing.css'), 'utf8');
+    const rule = css.match(/#landing\.landing--leaving\s*\{([^}]*)\}/)[1];
+
+    const seconds = Array.from(rule.matchAll(/transition:[^;]*/g))
+        .flatMap(m => Array.from(m[0].matchAll(/([\d.]+)s/g), n => Number(n[1])));
+    assert.ok(seconds.length, 'the leaving state has no transition at all');
+
+    const app = createApp();
+    for (const s of seconds) {
+        assert.equal(s * 1000, app.data.LANDING_EXIT_MS,
+            `the stylesheet says ${s}s, LANDING_EXIT_MS says ${app.data.LANDING_EXIT_MS}ms`);
+    }
+});
+
+test('a pin never borrows the colour that reports availability', () => {
+    // --maincolor2 ships crimson and updateSelectedColor() swings it between
+    // green and crimson to say whether a receiver has a recording. A pin using
+    // it is red for the whole of the first visit — a map that reads as broken
+    // before anything has been clicked — and then changes meaning once a church
+    // is chosen. Layout.css keeps --activecolor for exactly this reason.
+    const css = fs.readFileSync(path.join(ROOT, 'Style/Landing.css'), 'utf8');
+
+    const offenders = Array.from(css.matchAll(/([^{}]*\.landing-pin[^{}]*)\{([^}]*)\}/g))
+        .filter(m => /--maincolor2/.test(m[2]))
+        .map(m => m[1].trim());
+
+    assert.deepEqual(offenders, [], 'these pin rules change colour with the app\'s state');
+});
+
+test('a pin at rest and a pin under the pointer are different colours', () => {
+    const css = fs.readFileSync(path.join(ROOT, 'Style/Landing.css'), 'utf8');
+    const fill = (selector) => {
+        const rule = css.match(new RegExp(selector + '\\s*\\{([^}]*)\\}'))[1];
+        return rule.match(/background-color:\s*(var\([^)]*\)|[^;]+);/)[1].trim();
+    };
+
+    const resting = fill('\\.landing-pin');
+    const hover = fill('\\.leaflet-marker-icon:hover \\.landing-pin');
+
+    assert.notEqual(hover, resting, 'hover has to answer the pointer');
+    assert.equal(hover, 'var(--activecolor)', 'the fixed green, not the availability one');
+    assert.match(fs.readFileSync(path.join(ROOT, 'Style/Root.css'), 'utf8'), /--activecolor:/,
+        'the variable has to be defined somewhere');
+});
+
+test('the leaving sheet lets the page underneath be clicked', () => {
+    // It covers the whole page for the length of the fade, and the first thing
+    // a visitor does after choosing a church is reach for the play button
+    const css = fs.readFileSync(path.join(ROOT, 'Style/Landing.css'), 'utf8');
+    const rule = css.match(/#landing\.landing--leaving\s*\{([^}]*)\}/)[1];
+    assert.match(rule, /pointer-events:\s*none/);
+});
+
+test('the landing does not animate itself in on the first paint', () => {
+    // It ships open to cover the app; fading it in would fade the app in too
+    assert.doesNotMatch(html, /<div id="landing"[^>]*class="[^"]*landing--entering/);
+
+    const css = fs.readFileSync(path.join(ROOT, 'Style/Landing.css'), 'utf8');
+    const open = css.match(/#landing\.open\s*\{([^}]*)\}/)[1];
+    assert.doesNotMatch(open, /animation:/, 'an animation on .open would run on the first paint too');
+});
+
+test('reopening the map does animate it in', () => {
+    const app = landed();
+    app.g.dismissLanding();
+    finishExit(app);
+
+    app.g.openLanding();
+    assert.ok(app.el('landing').classList.contains('landing--entering'));
+});
+
+// ── less movement, where it was asked for ─────────────────────────────────
+
+const stillness = { media: { '(prefers-reduced-motion: reduce)': true } };
+
+test('a visitor who asked for less movement gets none of it', () => {
+    const app = landed(stillness);
+    app.g.enterChurch('CaneRidgeMeetingHouse');
+
+    assert.ok(!isOpen(app), 'the landing should have cut, not faded');
+    assert.ok(!isLeaving(app));
+    assert.equal(app.state.landingExitTimer, null);
+    assert.equal(app.map.flights.length, 0, 'the dive is movement too');
+});
+
+test('less movement still ends on the same church', () => {
+    const app = landed(stillness);
+    app.g.enterChurch('MonasteryImmaculateConception');
+
+    assert.equal(app.state.room, 'MonasteryImmaculateConception');
+    assert.equal(app.el('roomDropdown').value, 'MonasteryImmaculateConception');
+    assert.ok(app.el('main-panel').classList.contains('active'));
+});
+
+test('less movement still gets out of the way when dismissed', () => {
+    const app = landed(stillness);
+    app.g.dismissLanding();
+
+    assert.ok(!isOpen(app));
+});
+
+test('less movement still reopens the map', () => {
+    const app = landed(stillness);
+    app.g.enterChurch('CaneRidgeMeetingHouse');
+    app.g.openLanding();
+
+    assert.ok(isOpen(app));
+    assert.ok(!app.el('landing').classList.contains('landing--entering'), 'the fade in is movement too');
+});
+
+test('less movement still clears the pin and its tooltip', () => {
+    // The clearing rides along with the entrance animation, which this visitor
+    // does not get — it has to happen either way
+    const app = landed(stillness);
+    const pin = app.state.landingPins.get('CaneRidgeMeetingHouse');
+    pin.openTooltip();
+    pin.getElement().classList.add('landing-pin-chosen');
+
+    app.g.enterChurch('CaneRidgeMeetingHouse');
+    app.g.openLanding();
+
+    assert.ok(!pin.getElement().classList.contains('landing-pin-chosen'));
+    assert.equal(pin.tooltipOpen, false);
+});
+
+test('the stylesheet stands the animations down as well', () => {
+    // Landing.js covers a preference set before the page loaded; this covers
+    // one changed while it is open, which never runs that code again
+    const css = fs.readFileSync(path.join(ROOT, 'Style/Landing.css'), 'utf8');
+    const blocks = Array.from(css.matchAll(/@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*?)\n\}/g), m => m[1]);
+    assert.ok(blocks.length, 'the stylesheet never asks');
+
+    const reduced = blocks.join('\n');
+    assert.match(reduced, /#landing\.landing--leaving/);
+    assert.match(reduced, /#landing\.landing--entering/);
+    assert.match(reduced, /landing-pin-chosen/);
 });
 
 // ── when the map does not arrive ──────────────────────────────────────────
@@ -465,8 +791,10 @@ test('without Leaflet, entering a church still works', async () => {
 
     entry.onclick();
     await app.settle();
+    finishExit(app);
 
     assert.equal(app.state.room, 'ChristChurchCathedral');
+    assert.ok(!isOpen(app), 'the exit cannot depend on there being a map to dive through');
 });
 
 test('opening the landing without a map does not reach for one', () => {
@@ -474,7 +802,7 @@ test('opening the landing without a map does not reach for one', () => {
     app.g.closeLanding();
     app.g.openLanding();   // invalidateSize() on a null map would throw here
 
-    assert.ok(app.el('landing').classList.contains('open'));
+    assert.ok(isOpen(app));
 });
 
 // ── the markup ────────────────────────────────────────────────────────────

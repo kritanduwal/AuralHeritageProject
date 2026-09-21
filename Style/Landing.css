@@ -26,6 +26,51 @@
     display: flex;
 }
 
+/* ── Leaving ── */
+/* The sheet fades and swells slightly past the viewer while the map zooms at
+   the chosen church underneath it. Swelling rather than shrinking is what makes
+   the pair read as going into the church instead of as the map being taken
+   away; the two have to move the same direction or they fight.
+
+   0.6s is spelled in Landing.js as LANDING_EXIT_MS, which is the timer that
+   takes the sheet out of the document afterwards. landing.test.js checks they
+   still agree: a transition outlasting the timer is cut off mid-fade, and one
+   finishing early leaves an invisible sheet over the page.
+
+   pointer-events go first so the page underneath is live for the whole exit,
+   rather than swallowing the first click after a church is chosen. */
+#landing.landing--leaving {
+    opacity: 0;
+    transform: scale(1.06);
+    pointer-events: none;
+    transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+/* ── Coming back ── */
+/* Only ever on the way back to the map. On the first paint the landing is
+   simply there: fading it in would mean showing the app it exists to cover. */
+@keyframes landing-in {
+    from { opacity: 0; transform: scale(1.03); }
+    to   { opacity: 1; transform: none; }
+}
+
+#landing.landing--entering {
+    animation: landing-in 0.4s ease;
+}
+
+/* A visitor who has asked for less movement gets the same states with nothing
+   in between — the landing cuts in and out. Landing.js skips the dive and the
+   fade for them too, so this only covers a preference changed mid-visit. */
+@media (prefers-reduced-motion: reduce) {
+    #landing.landing--leaving {
+        transition: none;
+    }
+
+    #landing.landing--entering {
+        animation: none;
+    }
+}
+
 /* ── Header ── */
 #landing-header {
     flex-shrink: 0;
@@ -263,15 +308,52 @@
     background-color: #1a4a9e;
 }
 
+/* --activecolor, not --maincolor2. The latter is the availability colour: it
+   ships crimson and updateSelectedColor() swings it between green and crimson
+   to report whether a receiver has a recording. Borrowing it painted every pin
+   red until a church had been chosen — a whole map that read as broken — and
+   then quietly changed meaning once one had. A pin has nothing to say about
+   availability, so it takes the fixed green. */
 .leaflet-marker-icon:hover .landing-pin {
-    background-color: var(--maincolor2);
+    background-color: var(--activecolor);
+    color: var(--belmont-blue);
     transform: scale(1.15);
 }
 
 /* Leaflet gives a focused marker its own outline; the fill has to answer too,
    since the outline sits on the icon's square rather than on the circle */
 .leaflet-marker-icon:focus .landing-pin {
-    background-color: var(--maincolor2);
+    background-color: var(--activecolor);
+    color: var(--belmont-blue);
+}
+
+/* The church being entered, marked for the length of the dive. It shares the
+   hover green, because the pin that was just clicked is almost always the one
+   under the pointer — what separates the two is the size and the ring, and the
+   :hover half of the selector is what stops hover's smaller scale winning.
+
+   The ring grows out of the pin rather than being drawn around it, so a pin
+   already sitting under the pointer still visibly changes state. */
+.leaflet-marker-icon.landing-pin-chosen .landing-pin,
+.leaflet-marker-icon.landing-pin-chosen:hover .landing-pin {
+    background-color: var(--activecolor);
+    color: var(--belmont-blue);
+    transform: scale(1.5);
+    box-shadow: 0 0 0 0 rgba(0, 244, 127, 0.55);
+    animation: landing-pin-chosen 0.6s ease-out;
+}
+
+@keyframes landing-pin-chosen {
+    from { box-shadow: 0 0 0 0 rgba(0, 244, 127, 0.55); }
+    to   { box-shadow: 0 0 0 18px rgba(0, 244, 127, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .leaflet-marker-icon.landing-pin-chosen .landing-pin,
+    .leaflet-marker-icon.landing-pin-chosen:hover .landing-pin {
+        transform: none;
+        animation: none;
+    }
 }
 
 .leaflet-tooltip {

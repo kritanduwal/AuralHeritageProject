@@ -41,6 +41,9 @@ const EPILOGUE = `
     get FEATURES()        { return FEATURES; },
     get landingMap()      { return landingMap; },
     get landingLayers()   { return landingLayers; },
+    get landingPins()     { return landingPins; },
+    get landingExitTimer(){ return landingExitTimer; },
+    get landingViewBeforeDive() { return landingViewBeforeDive; },
 };
 ;globalThis.__consts = {
     ROOMS, churchData, MissingResourceError, BUNDLED_SOURCE_FILES,
@@ -58,6 +61,7 @@ const EPILOGUE = `
     TOGGLE_ROW_START_PX, TOGGLE_ROW_STEP_PX,
     LANDING_BOUNDS, LANDING_VIEW, LANDING_MIN_ZOOM,
     CITY_SPLIT_ZOOM, CITY_FIT_PADDING, STATE_NAMES,
+    LANDING_EXIT_MS, LANDING_DIVE_STEP, LANDING_DIVE_MAX_ZOOM,
     LANDING_TILES, LANDING_TILE_ATTRIBUTION,
     placeOf, landingChurches, landingCities, landingStates, cityLabelOf,
 };
@@ -118,6 +122,7 @@ function createApp(options = {}) {
 
     // ── timers (queued, never automatic, so tests control ordering) ───────
     const timerQueue = [];
+    let timerSeq = 0;
     const timers = {
         queue: timerQueue,
         get pending() { return timerQueue.length; },
@@ -268,6 +273,8 @@ function createApp(options = {}) {
                 /** Layers currently on the map, as hasLayer() sees them */
                 active: new Set(),
                 flights: [],
+                views: [],
+                flying: false,
                 invalidated: 0,
                 getZoom() { return this.zoom; },
                 /**
@@ -304,8 +311,18 @@ function createApp(options = {}) {
                 removeLayer(layer) { this.active.delete(layer); return this; },
                 invalidateSize() { this.invalidated++; },
                 on(event, fn) { (this.handlers[event] ||= []).push(fn); return this; },
-                flyTo(center, zoom) {
-                    this.flights.push({ center, zoom });
+                getCenter() { return this.center; },
+                flyTo(center, zoom, options) {
+                    this.flights.push({ center, zoom, options });
+                    this.center = center;
+                    this.zoom = zoom;
+                    this.flying = true;
+                    return this;
+                },
+                /** Cancels an animation in progress, as Leaflet's does */
+                stop() { this.flying = false; this.stopped = (this.stopped || 0) + 1; return this; },
+                setView(center, zoom, options) {
+                    this.views.push({ center, zoom, options });
                     this.center = center;
                     this.zoom = zoom;
                     return this;
@@ -339,12 +356,21 @@ function createApp(options = {}) {
             };
         },
         marker(latlng, options) {
+            // Leaflet's marker owns a DOM element once it is on the map, which
+            // is what the chosen-pin highlight is put on
+            const icon = makeElement('marker-icon');
+            icon.classList._o = icon;
+
             const marker = {
-                kind: 'marker', latlng, options,
+                kind: 'marker', latlng, options, icon,
                 tooltip: null,
+                tooltipOpen: false,
                 handlers: {},
                 bindTooltip(content, opts) { this.tooltip = { content, opts }; return this; },
+                openTooltip() { this.tooltipOpen = true; return this; },
+                closeTooltip() { this.tooltipOpen = false; return this; },
                 on(event, fn) { (this.handlers[event] ||= []).push(fn); return this; },
+                getElement() { return this.icon; },
                 /** Stands in for a visitor clicking the pin */
                 click() { (this.handlers.click || []).forEach(fn => fn()); },
             };
@@ -449,8 +475,18 @@ function createApp(options = {}) {
             return img;
         },
         fetch: fetchStub,
-        setTimeout: (fn, ms) => { timerQueue.push({ fn, ms }); return timerQueue.length; },
-        clearTimeout: () => { },
+        // Cancellable, because code under test uses clearTimeout to call off
+        // work it has scheduled — a no-op here would let a cancelled callback
+        // run on the next flush and pass for the bug it was written to prevent
+        setTimeout: (fn, ms) => {
+            const id = ++timerSeq;
+            timerQueue.push({ id, fn, ms });
+            return id;
+        },
+        clearTimeout: (id) => {
+            const at = timerQueue.findIndex(t => t.id === id);
+            if (at !== -1) timerQueue.splice(at, 1);
+        },
         requestAnimationFrame: (fn) => { frameQueue.push({ fn }); return frameQueue.length; },
         cancelAnimationFrame: (id) => { frameQueue.length = 0; },
         location: {
@@ -474,6 +510,10 @@ function createApp(options = {}) {
             },
         },
         getComputedStyle: () => ({ backgroundImage: options.backgroundImage ?? 'none' }),
+        // Only defined when a test asks for it. A browser that does not answer
+        // media queries at all is a real case the code has to survive, and
+        // leaving it out by default is what keeps that path covered.
+        ...(options.media ? { matchMedia: (query) => ({ media: query, matches: !!options.media[query] }) } : {}),
         pannellum,
         ...(options.noOmnitone ? {} : { Omnitone: omnitone }),
         ...(options.noLeaflet ? {} : { L: leaflet }),

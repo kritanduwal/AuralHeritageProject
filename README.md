@@ -59,7 +59,7 @@ rather than copies of them.
 | `test/app.test.js` | `compile()`, the stale-selection guard, viewer lifetime, error banner |
 | `test/settings.test.js` | Church switching and the source file picker |
 | `test/assets.test.js` | Every path in `ROOMS`, the markup and the CSS resolve to real files; the playback controls do not overlap |
-| `test/landing.test.js` | The landing map: church coordinates, the pins and how they split by zoom, the list, and entering a church from either |
+| `test/landing.test.js` | The landing map: church coordinates, the pins and how they split by zoom, the list, entering a church from either, and the animation that takes the landing away |
 | `test/helpers/harness.js` | The sandbox the other files use |
 
 ---
@@ -146,6 +146,33 @@ state it would be in had the dropdown been used.
 `Map` at the end of the tab row reopens it; `Skip the map` and `Escape` close it
 without choosing, which leaves the same empty selection the page has always
 started in. Reopening never disturbs the current selection.
+
+**Choosing a church is animated.** The chosen pin lights up, the map zooms at it,
+and the sheet fades and swells past the viewer — the two movements have to go the
+same direction or they fight, which is why the sheet grows rather than shrinks.
+
+The church is selected *before* the landing starts leaving, which is the opposite
+of how it reads. The panorama fetch and the impulse-response probe are a wait that
+happens anyway, against elements already laid out at full size behind the overlay,
+so the animation is spent on it rather than added in front of it. By the time the
+sheet is gone the panorama is usually already aimed.
+
+`LANDING_EXIT_MS` in `Landing.js` and the transition on `#landing.landing--leaving`
+are the same duration and `landing.test.js` checks they stay that way: a stylesheet
+that outlasts the timer is cut off mid-fade, and one that finishes early leaves an
+invisible sheet over the page. The sheet drops `pointer-events` for the whole exit,
+so the page underneath is live immediately rather than swallowing the first click.
+
+The map is put back where the dive started **as the landing leaves**, not when it
+returns — nothing is on screen to see the snap, and the tiles for that view are
+then requested while nobody is looking. Restoring on the way in instead showed a
+blank grey pane, because a dive ends at a zoom no tile was ever fetched for. It
+returns to the view the visitor left, not to the country: someone who zoomed into
+a city and picked a church there expects that city back.
+
+A visitor who has asked for reduced motion gets none of this — the landing cuts,
+the map does not dive — and ends in exactly the same place. The stylesheet stands
+the animations down as well, for a preference changed while the page is open.
 
 **It ships open.** `<div id="landing" class="open">` is in the markup and
 `initLanding()` only fills it in, so there is no moment on load where the app is on
