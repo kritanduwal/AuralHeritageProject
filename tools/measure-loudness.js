@@ -1,14 +1,19 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * Measures the loudness of each render mode and works out the trim that would
- * match it to plain stereo.
+ * Measures the loudness of the headphone render and works out the trim that
+ * would match it to plain stereo.
  *
- * The four modes do not arrive at the same level, and the difference is not a
- * constant: it depends on how much energy a room returns and on how each stage
- * treats it. Stereo is the reference — it is what the app plays with no flag
- * set — so for every church this renders all four modes offline, measures them,
- * and reports the dB each one needs to sit where stereo sits.
+ * THE WET PATHS ARE WHAT GET MATCHED. Dry and wet are the same two signals in
+ * both stages, and the mix slider sets their proportion, so that proportion has
+ * to come out the same either side of the button or the slider means two
+ * different things. The dry is the identical signal in both — it skips the
+ * decoder entirely — which leaves the room as the one thing needing
+ * calibration, and the room is what the trim calibrates.
+ *
+ * So each position is rendered twice: once with the dry muted, to measure the
+ * two rooms against each other and derive the trim, and once as the app plays
+ * it, to report what that leaves.
  *
  *   node tools/measure-loudness.js --dry-run
  *   node tools/measure-loudness.js --write
@@ -18,24 +23,18 @@
  * That rather than peak or plain RMS because it is the measure that tracks what
  * a listener calls "as loud as", which is what the trims are for.
  *
- * ── ALL FOUR CHAINS ARE REPRODUCED EXACTLY ───────────────────────────────────
+ * ── BOTH CHAINS ARE REPRODUCED EXACTLY ───────────────────────────────────────
  *
- * Every mode is rebuilt here as AudioEngine.js builds it, down to the dry taper,
- * the per-position gainDb, and which convolvers normalize and which do not:
+ * Each is rebuilt here as AudioEngine.js builds it, down to the dry taper, the
+ * per-position gainDb, and which convolvers normalize and which do not:
  *
  *   stereo     IR channels 1 and 2, straight to the two ears
- *   binaural   those two on virtual loudspeakers, convolved against the very
- *              HRIR files the app fetches
- *   brir       the measured binaural pair, one convolution per ear
  *   ambisonic  the B-format IR through Omnitone's own decode — its embedded
- *              HRIRs and its exact routing
+ *              HRIRs and its exact routing — with the trim on the wet and the
+ *              dry added after it, exactly as buildConvolutionGraph wires it
  *
- * The binaural render used to be the exception: it went through a PannerNode,
- * whose HRTF database lives inside the browser and could only be approximated
- * from here, so its figure was an estimate anchored on one church trimmed by
- * ear. Moving that stage onto the same SADIE ears as the other two removed the
- * approximation along with the inconsistency — no part of this measurement has
- * to be taken on trust any more.
+ * No part of this measurement is an estimate: the ambisonic column runs the
+ * decode the browser runs, not a model of it.
  *
  * @author Kritan Duwal
  */
@@ -44,7 +43,7 @@ const fs = require('fs');
 const path = require('path');
 
 const {
-    readWav, resample, db, fft, findPositions, ambisonicBlock,
+    readWav, resample, db, fft, findPositions, ambisonicBlock, peak: peakOf,
 } = require('./aformat-to-bformat.js');
 
 /** ROOMS, read the way the harness does: the file declares a bare const */
@@ -68,22 +67,13 @@ const DEFAULT_SOURCE = 'Source Files/Clarinet.wav';
  */
 const DEFAULT_SECONDS = 12;
 
-/** Where the virtual speakers stand, matching the engine; see its constant */
-const VIRTUAL_SPEAKER_AZIMUTH = 45;
-
 /** The app's defaults: the slider at 100%, so the dry path sits at its floor */
 const MIX = 1.0;
 const DRY_GAIN_AT_FULL_WET = 0.35;
 
+
 /** Omnitone's own FOA decode filters, extracted from the library it ships */
 const OMNITONE_HRIR = ['HRIR/omnitone-foa-1.wav', 'HRIR/omnitone-foa-2.wav'];
-
-/**
- * The two responses the binaural stage convolves against, as the app loads
- * them. Reading these rather than picking a nearest match out of the full SADIE
- * set is what makes this measurement exact: it is the same two files.
- */
-const VIRTUAL_SPEAKER_HRIR = ['HRIR/virtual-speaker-left.wav', 'HRIR/virtual-speaker-right.wav'];
 
 // ── BS.1770 loudness ──────────────────────────────────────────────────────
 
@@ -170,13 +160,12 @@ function integratedLufs(channels, sampleRate) {
  * The scale a ConvolverNode applies to its buffer when `normalize` is left on.
  *
  * This is the whole reason the modes arrive at such different levels, and it is
- * easy to forget because it happens invisibly: the stereo and modelled-binaural
- * stages hand their impulse responses to a convolver at its default setting, so
- * the browser divides out the response's own RMS and multiplies by a fixed
- * calibration constant. The BRIR and ambisonic stages set normalize = false, so
- * they keep whatever level the offline decode gave them. Measuring one against
- * the other without reproducing this reports two stages as nearly matched when
- * they are fifteen-odd dB apart.
+ * easy to forget because it happens invisibly: the stereo stage hands its
+ * impulse responses to a convolver at its default setting, so the browser
+ * divides out the response's own RMS and multiplies by a fixed calibration
+ * constant. The ambisonic stage sets normalize = false and keeps whatever level
+ * the offline decode gave it. Measuring one against the other without
+ * reproducing this reports two stages as matched when they are not.
  *
  * Reproduced from the algorithm the Web Audio specification publishes for it,
  * constants included.
@@ -256,19 +245,21 @@ function reductionToGain(reductionDb) {
 }
 
 /**
- * Renders every mode a position can offer, as stereo pairs.
+ * Renders both stages of a position, as stereo pairs.
  *
  * Mirrors buildConvolutionGraph(): one dry copy at the taper's level, one
- * trimmed copy into the convolvers, and the same dry signal centred in every
- * stage. The stage output gains are deliberately left at unity — what is being
- * measured is where each stage lands before any trim, which is the number the
- * trim is derived from.
+ * trimmed copy into the convolvers, and the same dry signal centred in both
+ * stages — compensated in the ambisonic one, as the engine compensates it.
+ *
+ * @param options.dry              false to mute the dry path and measure the
+ *                                 two rooms alone, which is how the trim is
+ *                                 derived
+ * @param options.ambisonicTrimDb  the trim, on the ambisonic wet path only
  */
 function renderModes(source, ir, options) {
     const frames = source.length;
     const tail = Math.max(
         ir.left.length,
-        ir.brir ? ir.brir.left.length : 0,
         ir.bformat ? ir.bformat[0].length : 0);
     const outLength = frames + tail - 1;
 
@@ -282,13 +273,13 @@ function renderModes(source, ir, options) {
     const convolve = (response) => conv.multiply(wetSpectrum, conv.spectrum(response), outLength);
 
     const dry = new Float64Array(outLength);
-    addScaled(dry, source, dryGain);
+    if (options.dry !== false) addScaled(dry, source, dryGain);
 
     const modes = {};
 
     // Stereo: one convolver per ear, dry centred between them
     // The IR pair is the only response the app lets a convolver normalize; the
-    // BRIR and ambisonic stages set normalize = false and keep their own level.
+    // ambisonic stage sets normalize = false and keeps its own level.
     const rate = options.sampleRate;
     const wetLeft = convolve(ir.left);
     const wetRight = convolve(ir.right);
@@ -301,37 +292,17 @@ function renderModes(source, ir, options) {
         addScaled(Float64Array.from(dry), wetRight, MIX),
     ];
 
-    // Modelled binaural: the same two signals on virtual speakers at +-45
-    if (options.speakers) {
-        const feedLeft = modes.stereo[0];
-        const feedRight = modes.stereo[1];
-        const [near, far] = options.speakers;    // hrir pairs for -30 and +30
-        const left = new Float64Array(outLength);
-        const right = new Float64Array(outLength);
-        const s = makeConvolver(outLength + near.left.length);
-        const fl = s.spectrum(feedLeft);
-        const fr = s.spectrum(feedRight);
-        addScaled(left, s.multiply(fl, s.spectrum(near.left), outLength), 1);
-        addScaled(left, s.multiply(fr, s.spectrum(far.left), outLength), 1);
-        addScaled(right, s.multiply(fl, s.spectrum(near.right), outLength), 1);
-        addScaled(right, s.multiply(fr, s.spectrum(far.right), outLength), 1);
-        modes.binaural = [left, right];
-    }
-
-    // Measured binaural: the room and the head in one filter, straight out
-    if (ir.brir) {
-        modes.brir = [
-            addScaled(Float64Array.from(dry), convolve(ir.brir.left), MIX),
-            addScaled(Float64Array.from(dry), convolve(ir.brir.right), MIX),
-        ];
-    }
-
     // Live ambisonic: four channels, then Omnitone's own decode
     if (ir.bformat && options.omnitone) {
-        const ambi = ir.bformat.map(channel => convolve(channel));
-        // Dry enters as a plane wave from straight ahead: W and X only
-        addScaled(ambi[0], dry, 1);
-        addScaled(ambi[3], dry, 1);
+        // The trim rides on the wet path and nowhere else, as ambiWet carries it
+        const wet = MIX * Math.pow(10, (options.ambisonicTrimDb || 0) / 20);
+        const ambi = ir.bformat.map(channel => {
+            const c = convolve(channel);
+            if (wet !== 1) for (let i = 0; i < c.length; i++) c[i] *= wet;
+            return c;
+        });
+        // The dry is not in here: it skips the decoder and is added to both ears
+        // below, exactly as the stereo stage adds it. See buildConvolutionGraph.
 
         const [wy, zx] = options.omnitone;
         const a = makeConvolver(outLength + wy.left.length);
@@ -350,6 +321,10 @@ function renderModes(source, ir, options) {
         }
         addScaled(left, filtered.y, 1);
         addScaled(right, filtered.y, -1);
+
+        // Then the dry, centred and unfiltered, as the stereo stage has it
+        addScaled(left, dry, 1);
+        addScaled(right, dry, 1);
         modes.ambisonic = [left, right];
     }
 
@@ -372,20 +347,14 @@ function hrirPair(file) {
 /**
  * What a position can offer, skipping whatever it does not have.
  *
- * Two bases, mirroring the engine: the impulse response pair that stereo and
- * the virtual-loudspeaker render convolve, and the decoded files behind the
- * other two stages. Measuring a recovered set means measuring the combination
- * the app actually plays — the originals decoded, against the published
- * library's stereo — rather than the originals on their own, which would
- * calibrate them to a reference no visitor hears.
+ * Two bases, mirroring the engine: the impulse response pair stereo convolves,
+ * and the B-format behind the headphone render. Measuring a recovered set means
+ * measuring the combination the app actually plays — the originals decoded,
+ * against the published library's stereo — rather than the originals on their
+ * own, which would calibrate them to a reference no visitor hears.
  */
 function loadPosition(base, decodedBase = base) {
     const ir = { left: monoOf(base + '1.wav').data, right: monoOf(base + '2.wav').data };
-
-    const brirLeft = decodedBase + 'BRIR-L.wav';
-    if (fs.existsSync(brirLeft)) {
-        ir.brir = { left: monoOf(brirLeft).data, right: monoOf(decodedBase + 'BRIR-R.wav').data };
-    }
 
     const bformat = decodedBase + 'Bformat.wav';
     if (fs.existsSync(bformat)) {
@@ -400,7 +369,7 @@ function loadPosition(base, decodedBase = base) {
  * A directory as ROOMS spells it: relative to the repository, forward slashes.
  *
  * Callers reach this tool with either form — a path typed on the command line
- * or an absolute one built when it defaults to all of IR/ — and both have to
+ * or an absolute one built from ROOMS when it defaults to the whole library —
  * land on the same key. Matching on the basename alone used to be enough and no
  * longer is: every church keeps its originals in a folder of the same name, so
  * the tail is the one part of the path that does not identify a church.
@@ -431,20 +400,39 @@ function setFor(rooms, dir) {
     return null;
 }
 
-/** How a measured directory is named in the report */
+/**
+ * How a measured directory is named in the report: the church, plus a marker
+ * where the row is its originals rather than its published library.
+ *
+ * The church comes from the folder above the set, since the set folders are all
+ * called the same two things — naming the set instead would print `Normalized`
+ * down the whole summary column.
+ */
 function labelFor(rooms, dir) {
     const found = setFor(rooms, dir);
-    if (!found) return path.basename(dir);
-    return path.basename(found.config.ir.dir) +
+    if (!found) return path.basename(path.dirname(path.resolve(dir)));
+    return path.basename(path.dirname(found.config.ir.dir)) +
         (found.set === 'unnormalized' ? '  (originals)' : '');
+}
+
+/**
+ * Which receiver a file stem belongs to, e.g. "MIC_IN_R3" -> "R3".
+ *
+ * Both spellings the library uses: prefix_receiver, and the positions filed
+ * under their own name ("St Francis_IN_balcony R8"). "" keeps a stray file out
+ * of the trim table.
+ */
+function receiverOf(stem) {
+    const match = /_(R\d+)$|\b(R\d+)$/.exec(stem);
+    return (match && (match[1] || match[2])) || '';
 }
 
 /**
  * The per-position reverb trim the app would apply, in dB.
  *
- * It sits upstream of every convolver, so it moves all four modes together —
- * but it moves only the wet path, so leaving it out would measure each mode at
- * a slightly different wet-to-dry balance than a listener hears.
+ * It sits upstream of every convolver, so it moves both stages together — but
+ * it moves only the wet path, so leaving it out would measure each stage at a
+ * slightly different wet-to-dry balance than a listener hears.
  *
  * Read off the church rather than off the set: a position's distance from the
  * source is a fact about the room, so both sets of its files carry it.
@@ -453,9 +441,7 @@ function gainDbFor(rooms, dir, stem) {
     const found = setFor(rooms, dir);
     if (!found) return 0;
 
-    const match = /_(R\d+)$|\b(R\d+)$/.exec(stem);
-    const receiver = match && (match[1] || match[2]);
-    const entry = receiver && found.config.receivers[receiver];
+    const entry = found.config.receivers[receiverOf(stem)];
     return (entry && entry.gainDb) || 0;
 }
 
@@ -474,16 +460,16 @@ function writeTrims(rooms, suggested) {
 
     const round = (v) => (v === null || v === undefined ? 0 : Math.round(v * 10) / 10);
 
-    const sets = Object.entries(rooms).flatMap(([key, config]) => [
-        { key, source: config, originals: false },
-        ...(config.unnormalized
-            ? [{ key: key + '.unnormalized', source: config.unnormalized, originals: true }]
-            : []),
-    ]);
+    const hasLevels = (t) => t && t.ambisonic && Object.keys(t.ambisonic).length;
 
-    for (const { key, source, originals } of sets) {
+    // Only the recovered sets carry a trim; a church without one has no line
+    const sets = Object.entries(rooms)
+        .filter(([, config]) => config.unnormalized)
+        .map(([key, config]) => ({ key: key + '.unnormalized', source: config.unnormalized }));
+
+    for (const { key, source } of sets) {
         const trims = suggested[irDirKey(source.ir.dir)];
-        if (!trims) continue;
+        if (!hasLevels(trims)) continue;
 
         // Line-by-line rather than a pattern over the whole file: church names
         // carry commas, full stops and apostrophes, and escaping them into a
@@ -497,25 +483,14 @@ function writeTrims(rooms, suggested) {
         const nextChurch = lines.findIndex((l, i) => i > irLine && /^\s{4}\w+: \{/.test(l));
         if (trimLine < 0 || (nextChurch >= 0 && trimLine > nextChurch)) continue;
 
-        const binaural = trims.binaural === null || trims.binaural === undefined
-            ? 0 : round(trims.binaural);
-
-        // A recovered set calibrates the two decoded stages and only those:
-        // binaural plays from the published library along with the stereo it is
-        // matched to, so its figure belongs to that set's line, not this one.
-        // Writing it here would leave a number nothing reads, which is the kind
-        // that goes stale and then gets believed.
-        const levels = originals
-            ? `brir: ${round(trims.brir)}, ambisonic: ${round(trims.ambisonic)}`
-            : `binaural: ${binaural}, brir: ${round(trims.brir)}, ambisonic: ${round(trims.ambisonic)}`;
-
         // Everything up to the brace is kept as found, so a line is rewritten
-        // at whatever indent and alignment it already had. The two sets are
-        // nested differently and neither should be reformatted to match the
-        // other by a tool that was only asked to change some numbers.
+        // at whatever indent and alignment it already had — a tool asked only
+        // to change some numbers should not reformat the file around them.
         const prefix = lines[trimLine].slice(0, lines[trimLine].indexOf('{'));
-        lines[trimLine] = `${prefix}{ ${levels} },`;
-        written.push(`${key.padEnd(34)} ${lines[trimLine].trim()}`);
+        const levels = Object.entries(trims.ambisonic)
+            .map(([receiver, db]) => `${receiver}: ${round(db)}`).join(', ');
+        lines[trimLine] = `${prefix}{ ambisonic: { ${levels} } },`;
+        written.push(`${key.padEnd(34)} ${Object.keys(trims.ambisonic).length} position(s)`);
     }
 
     fs.writeFileSync(file, lines.join('\r\n'));
@@ -544,13 +519,13 @@ function parseArgs(argv) {
 }
 
 const USAGE = `
-Measure each render mode's loudness and derive the trim that matches it to stereo
+Measure the headphone render's loudness and derive the trim that matches it to stereo
 
-  node tools/measure-loudness.js [options] [<church dir> ...]
+  node tools/measure-loudness.js [options] [<set dir> ...]
 
   --source <file>    what to measure through (default ${DEFAULT_SOURCE})
   --seconds <n>      excerpt length (default ${DEFAULT_SECONDS})
-  --positions <n>    measure only the first n positions per church (0 = all)
+  --positions <n>    measure only the first n positions per set (0 = all)
   --write            update the trim values in Rooms.js
   --dry-run          report only (default)
   --help
@@ -578,37 +553,24 @@ function main() {
         console.warn('warning: Omnitone HRIRs not found, skipping the ambisonic mode');
     }
 
-    // The very files the app convolves against, so nothing is approximated
-    let speakers = null;
-    if (VIRTUAL_SPEAKER_HRIR.every(f => fs.existsSync(f))) {
-        speakers = VIRTUAL_SPEAKER_HRIR.map(hrirPair);
-    } else {
-        console.warn('warning: speaker HRIRs not found, skipping the binaural mode');
-    }
-
     console.log('Loudness match against stereo (ITU-R BS.1770 integrated LUFS)');
     console.log(`  source     ${options.source}, first ${(frames / src.sampleRate).toFixed(1)} s`);
-    console.log(`  mix        100% (dry at ${dryGainFor(MIX).toFixed(3)}), stage gains at unity`);
+    console.log(`  mix        100% (dry at ${dryGainFor(MIX).toFixed(3)}), the dry skips the decode`);
     console.log(`  ambisonic  ${omnitone ? "Omnitone's own decode — exact" : 'skipped'}`);
-    console.log(`  binaural   ${speakers
-        ? `the app's own SADIE ears at +-${VIRTUAL_SPEAKER_AZIMUTH} deg — exact`
-        : 'skipped'}`);
 
     const rooms = loadRooms();
 
-    // Defaulting to the whole library means both sets of it: a church whose
-    // originals were recovered has two calibrations, and refreshing one while
-    // leaving the other on last month's numbers is the failure this avoids.
-    const root = path.join(__dirname, '..', 'IR');
+    // The recovered sets only: nothing else is rendered through anything but
+    // stereo, so nothing else has a trim to derive. Each is still measured
+    // against its church's published stereo, via publishedDir below.
+    //
+    // From ROOMS rather than by walking IR/, since a folder no church points at
+    // has nowhere to put the answer.
     const dirs = options.dirs.length ? options.dirs
-        : [
-            ...fs.readdirSync(root).map(d => path.join(root, d))
-                .filter(d => fs.statSync(d).isDirectory()),
-            ...Object.values(rooms)
-                .filter(c => c.unnormalized)
-                .map(c => path.join(REPO_ROOT, c.unnormalized.ir.dir))
-                .filter(d => fs.existsSync(d)),
-        ];
+        : Object.values(rooms)
+            .filter(c => c.unnormalized)
+            .map(c => path.join(REPO_ROOT, c.unnormalized.ir.dir))
+            .filter(d => fs.existsSync(d));
 
     const perChurch = [];
     for (const dir of dirs) {
@@ -634,12 +596,26 @@ function main() {
             } catch (err) {
                 continue;
             }
-            const modes = renderModes(source, ir, { gainDb: gainDbFor(rooms, dir, stem), speakers, omnitone, sampleRate: src.sampleRate });
+            const shared = { gainDb: gainDbFor(rooms, dir, stem), omnitone, sampleRate: src.sampleRate };
+
+            // The two rooms alone: their gap is the trim, since the dry either
+            // side of it is already at parity
+            const rooms2 = renderModes(source, ir, { ...shared, dry: false });
+            const trim = (Number.isFinite(integratedLufs(rooms2.stereo, src.sampleRate)) &&
+                          rooms2.ambisonic)
+                ? integratedLufs(rooms2.stereo, src.sampleRate) -
+                  integratedLufs(rooms2.ambisonic, src.sampleRate)
+                : null;
+
+            // Then the stage as the app plays it, to report what that leaves
+            const modes = renderModes(source, ir, { ...shared, ambisonicTrimDb: trim || 0 });
             const lufs = {};
+            const peaks = {};
             for (const [name, pair] of Object.entries(modes)) {
                 lufs[name] = integratedLufs(pair, src.sampleRate);
+                peaks[name] = Math.max(...pair.map(peakOf));
             }
-            rows.push({ stem, lufs });
+            rows.push({ stem, receiver: receiverOf(stem), lufs, peaks, trim });
         }
 
         const label = labelFor(rooms, dir);
@@ -655,60 +631,79 @@ function main() {
     }
 }
 
-/** Mean of a set of dB figures, in the energy domain where they belong */
-function meanDb(values) {
-    const usable = values.filter(Number.isFinite);
-    if (!usable.length) return null;
-    const mean = usable.reduce((a, v) => a + Math.pow(10, v / 10), 0) / usable.length;
-    return 10 * Math.log10(mean);
+const MODES = ['stereo', 'ambisonic'];
+
+/** The trim one position wants: what it takes for its room to sit where stereo's does */
+function trimOf(row) {
+    return Number.isFinite(row.trim) ? row.trim : null;
 }
 
-const MODES = ['stereo', 'binaural', 'brir', 'ambisonic'];
+/**
+ * Peak of the stage as the app plays it, in dBFS — the trim is already in the
+ * render. Matching loudness says nothing about crest factor, and anything above
+ * 0 dBFS is clipped at the destination rather than merely loud.
+ */
+function trimmedPeakDb(row, mode = 'ambisonic') {
+    return row.peaks[mode] > 0 ? db(row.peaks[mode]) : null;
+}
 
 function reportChurch(label, rows) {
     console.log(`\n${label}`);
     if (!rows.length) { console.log('  nothing measurable here'); return; }
 
     console.log('  position                       ' +
-        MODES.map(m => m.padStart(10)).join('') + '      trims');
+        MODES.map(m => m.padStart(10)).join('') + '       trim      peak');
     for (const row of rows) {
         const cells = MODES.map(m => (Number.isFinite(row.lufs[m])
             ? row.lufs[m].toFixed(1) : '-').padStart(10)).join('');
-        const trims = MODES.slice(1).map(m => Number.isFinite(row.lufs[m])
-            ? (row.lufs.stereo - row.lufs[m]).toFixed(1) : '-').join(' / ');
-        console.log('  ' + row.stem.padEnd(29) + cells + '   ' + trims);
+        const trim = trimOf(row);
+        const peak = trimmedPeakDb(row);
+        console.log('  ' + row.stem.padEnd(29) + cells +
+            (trim === null ? '-' : trim.toFixed(1)).padStart(11) +
+            (peak === null ? '-' : peak.toFixed(1)).padStart(10) +
+            (peak !== null && peak > 0 ? '  CLIPS' : ''));
     }
 }
 
 function summarize(perChurch, options) {
     console.log(`\n${'─'.repeat(78)}`);
-    console.log('Per church, averaged over its positions. Trim = stereo LUFS - mode LUFS.\n');
-    console.log('  church                          binaural      brir  ambisonic');
+    console.log('Per position. Trim = the gap between the two rooms, dry muted.\n');
+    console.log('  church                              trims      spread');
 
     const suggested = {};
     for (const { dir, label, rows } of perChurch) {
-        const trimFor = (mode) => meanDb(rows
-            .filter(r => Number.isFinite(r.lufs[mode]) && Number.isFinite(r.lufs.stereo))
-            .map(r => r.lufs.stereo - r.lufs[mode]));
+        // Per receiver, not per church: stereo was normalized per position
+        // and the recovered set scaled as a whole, so the correction differs at
+        // every seat. See `trim` in Rooms.js.
+        const byReceiver = {};
+        for (const row of rows) {
+            const trim = trimOf(row);
+            if (row.receiver && trim !== null) byReceiver[row.receiver] = trim;
+        }
 
-        const trims = {
-            binaural: trimFor('binaural'),
-            brir: trimFor('brir'),
-            ambisonic: trimFor('ambisonic'),
-        };
         // Keyed by directory rather than by church: a church measured from both
         // its sets produces two rows, and they must not overwrite each other.
-        suggested[irDirKey(dir)] = trims;
+        suggested[irDirKey(dir)] = { ambisonic: byReceiver };
 
-        console.log('  ' + label.padEnd(30) +
-            ['binaural', 'brir', 'ambisonic']
-                .map(m => (trims[m] === null ? '-' : trims[m].toFixed(1)).padStart(10)).join(''));
+        const values = Object.values(byReceiver);
+        const spread = values.length
+            ? (Math.max(...values) - Math.min(...values)).toFixed(1) + ' dB' : '-';
+        console.log('  ' + label.padEnd(36) + String(values.length).padStart(5) +
+            spread.padStart(12));
+    }
+
+    const clipping = perChurch.flatMap(({ label, rows }) => rows
+        .filter(r => (trimmedPeakDb(r) ?? -Infinity) > 0)
+        .map(r => `${label} ${r.stem}`));
+    if (clipping.length) {
+        console.log(`\n  ${clipping.length} position(s) still peak above 0 dBFS once trimmed:`);
+        for (const where of clipping) console.log('    ' + where);
+        console.log('  Matching loudness does not bound peak; these want headroom of their own.');
     }
 
     console.log(`
-Every column runs the filters the app runs: the same SADIE ears across all three
-renders, and Omnitone's own decode for the ambisonic one. No part of this is an
-estimate any more.`);
+The ambisonic column runs Omnitone's own decode — the filters the browser runs,
+not a model of them — so no part of this is an estimate.`);
 
     if (!options.write) {
         console.log('\nNothing written. Pass --write to put these into Rooms.js.');
@@ -718,4 +713,4 @@ estimate any more.`);
 
 if (require.main === module) main();
 
-module.exports = { integratedLufs, biquad, renderModes, meanDb, K_SHELF, K_HIGHPASS };
+module.exports = { integratedLufs, biquad, renderModes, K_SHELF, K_HIGHPASS };

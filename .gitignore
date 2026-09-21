@@ -1,11 +1,8 @@
 node_modules/
 
 # Third-party HRTF data, fetched by hand — see HRIR/README.md.
-# Apache 2.0 and freely redistributable, but ~110 MB per subject and not ours
-# to carry: the tools take a path to it rather than expecting it in the tree.
+# Freely redistributable, but not ours to carry and large: the one tool that
+# reads it takes a path to it rather than expecting it in the tree. Nothing the
+# browser loads lives here, so the whole directory stays out.
 HRIR/**
 !HRIR/README.md
-# The two HRIRs the virtual-loudspeaker render convolves against are small and
-# the app fetches them at runtime, so unlike the rest of the set they ship.
-!HRIR/virtual-speaker-left.wav
-!HRIR/virtual-speaker-right.wav

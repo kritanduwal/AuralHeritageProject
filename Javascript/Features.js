@@ -1,55 +1,38 @@
 /**
  * Which optional playback features this visit has access to.
  *
- *   /                     stereo only — the published experience
- *   /binaural             adds the virtual-loudspeaker render and its toggle
- *   /ambisonic            adds the measured BRIR and live ambisonic renders,
- *                         and the head-tracking control that belongs to them
- *   /unnormalized         puts the un-normalized original captures behind the
- *                         two decoded renders, where a church has them. Stereo
- *                         and the virtual-loudspeaker render do not move.
+ * Nothing is gated today: / is the whole experience. Kept for the next research
+ * build. To put a feature behind an address again:
  *
- * A query string works everywhere the path form does — "?binaural&ambisonic" —
- * and needs no server routing, which makes it the reliable spelling on a host
- * that serves this directory statically. The path form needs the two routes in
- * server.js and the redirects in netlify.toml, both of which hand back
- * index.html without changing the URL the browser shows.
+ *   1. add its name to FEATURE_NAMES below
+ *   2. list the controls it reveals in FEATURE_CONTROLS (App.js), and mark any
+ *      help text with data-feature="<name>"
+ *   3. add "/<name>" to FEATURE_PATHS (server.js) and a redirect to netlify.toml
+ *
+ * Step 3 is only for the path form; "?<name>" needs no routing at all, which
+ * makes it the reliable spelling on a static host.
  *
  * Gating is presentation only. Nothing here disables engine code: a hidden mode
- * is one nobody can reach, not one that has been removed, so the audio graph
- * and its tests are identical either way.
+ * is one nobody can reach, not one that has been removed.
  *
  * @author Kritan Duwal
  */
 
-/** Feature names that can be switched on, and what each reveals */
-const FEATURE_NAMES = ['binaural', 'ambisonic', 'unnormalized'];
+/** Feature names that can be switched on, and what each reveals. None today. */
+const FEATURE_NAMES = [];
 
 /**
- * Features that carry others with them.
- *
- * /ambisonic is the full research build rather than a third thing alongside
- * /binaural: the measured renders are only worth reaching if they can be
- * compared against the modelled one, so asking for them asks for that too.
- *
- * /unnormalized sits above /ambisonic for the same reason one step further
- * along. Swapping in the original captures changes what every stage convolves,
- * but stereo and the virtual-loudspeaker render pass their impulse responses
- * through convolvers that normalize, which scales most of the difference back
- * out. The decoded stages are the ones that can actually show it, so a visit
- * asking for the originals is asking to hear those.
- *
- * Implication is transitive — see resolveImplied() — so this one line also
- * carries /binaural along behind /ambisonic rather than having to name it.
+ * Features that carry others with them, e.g. { full: ['basic'] }. Empty today;
+ * resolveImplied() resolves transitively, so a chain can be declared one link
+ * at a time.
  */
-const FEATURE_IMPLIES = { ambisonic: ['binaural'], unnormalized: ['ambisonic'] };
+const FEATURE_IMPLIES = {};
 
 /**
  * Reads the flags out of the address.
  *
- * Matches whole path segments rather than substrings so that a church whose
- * name happened to contain one of these words could never switch it on, and
- * accepts the query form with or without a value ("?binaural", "?binaural=1").
+ * Whole path segments rather than substrings, so a church name containing a
+ * flag's word cannot switch it on. The query form takes an optional value.
  */
 function readFeatures(location) {
     const segments = String(location.pathname || '').toLowerCase().split('/').filter(Boolean);
@@ -68,17 +51,10 @@ const FEATURES = readFeatures(typeof location === 'undefined' ? {} : location);
 
 /**
  * Every feature a set of named flags reaches, following implications as far as
- * they go.
+ * they go. Resolved one step deep instead, the far end of a chain would simply
+ * not appear — a gap whose only symptom is a missing button.
  *
- * Transitive rather than one step deep, so a chain can be declared one link at
- * a time. /unnormalized implies /ambisonic implies /binaural; resolved one step
- * at a time, asking for the originals would reveal the measured renders but not
- * the modelled one they are compared against — a gap with no symptom except a
- * missing button.
- *
- * Skipping what `reached` already holds is what stops a mutual implication from
- * looping. Nothing declares one today; the guard is so that adding one is a
- * design decision rather than a hang.
+ * Skipping what `reached` holds is what stops a mutual implication looping.
  */
 function resolveImplied(flags) {
     const reached = new Set();

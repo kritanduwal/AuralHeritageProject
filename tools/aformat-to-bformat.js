@@ -13,7 +13,7 @@
  * the app, and nothing in the app reads its output.
  *
  *   node tools/aformat-to-bformat.js --dry-run
- *   node tools/aformat-to-bformat.js "IR/Cane Ridge Meeting House, KY"
+ *   node tools/aformat-to-bformat.js "IR/Cane Ridge Meeting House, KY/Normalized"
  *
  * ── READ THIS BEFORE TRUSTING THE OUTPUT ─────────────────────────────────────
  *
@@ -568,6 +568,35 @@ function findPositions(dir) {
 }
 
 /**
+ * Every folder of impulse responses in the library.
+ *
+ * A church's audio sits one level down, in `Normalized` and — where recovered —
+ * `Not Normalized`, so the church folders themselves hold nothing.
+ */
+/**
+ * A set folder as it is worth printing: "<Church> / <Set>". The basename alone
+ * would print "Normalized" twelve times over.
+ */
+function setLabel(dir) {
+    const full = path.resolve(dir);
+    return `${path.basename(path.dirname(full))} / ${path.basename(full)}`;
+}
+
+function irSetDirs(root = path.join(__dirname, '..', 'IR')) {
+    const dirs = [];
+    for (const church of fs.readdirSync(root)) {
+        const churchDir = path.join(root, church);
+        if (!fs.statSync(churchDir).isDirectory()) continue;
+
+        for (const set of fs.readdirSync(churchDir)) {
+            const setDir = path.join(churchDir, set);
+            if (fs.statSync(setDir).isDirectory()) dirs.push(setDir);
+        }
+    }
+    return dirs;
+}
+
+/**
  * The four capsule channels of a position.
  *
  * The ambisonic block is the last four channels in every layout the library
@@ -796,7 +825,8 @@ A-format → B-format (AmbiX) converter for the NT-SF1 IRs in IR/
 
   node tools/aformat-to-bformat.js [options] [<dir> ...]
 
-  <dir>            church folder(s) to convert; default: every folder in IR/
+  <dir>            set folder(s) to convert, e.g. "IR/<Church>/Not Normalized";
+                   default: every set folder in IR/
   --out <dir>      write here instead of beside the sources
   --radius <m>     capsule radius for the correction (default ${CAPSULE_RADIUS_M})
   --rate <hz>      output sample rate (default ${DEFAULT_OUTPUT_RATE})
@@ -828,12 +858,7 @@ function main() {
         return;
     }
 
-    const root = path.join(__dirname, '..', 'IR');
-    const dirs = options.dirs.length
-        ? options.dirs
-        : fs.readdirSync(root)
-            .map(d => path.join(root, d))
-            .filter(d => fs.statSync(d).isDirectory());
+    const dirs = options.dirs.length ? options.dirs : irSetDirs();
 
     console.log(`A-format → B-format (AmbiX: ACN, SN3D)`);
     console.log(`  capsule order      ${CAPSULE_ORDER.join(', ')}   [verify against session notes]`);
@@ -847,7 +872,7 @@ function main() {
 
     const results = [];
     for (const dir of dirs) {
-        console.log(`\n${path.basename(dir)}`);
+        console.log(`\n${setLabel(dir)}`);
         const positions = findPositions(dir);
         if (!positions.size) {
             console.log('  no channel files found');
@@ -929,7 +954,7 @@ Before trusting any of this:
 if (require.main === module) main();
 
 module.exports = {
-    readWav, writeWav, matrixAtoB, designCorrection, convolve,
-    resample, rms, peak, db, fmtDb, fft, findPositions, ambisonicBlock,
+    readWav, matrixAtoB, designCorrection, convolve,
+    resample, peak, db, fft, findPositions, ambisonicBlock,
     CAPSULE_ORDER, CAPSULE_AXES, CAPSULE_RADIUS_M,
 };

@@ -15,7 +15,7 @@ const { createApp, ROOT, APP_FILES } = require('./helpers/harness.js');
 
 const app = createApp();
 const { ROOMS } = app.data;
-const { impulseResponseBase, panoramaPath } = app.g;
+const { impulseResponseBase, decodedResponseBase, panoramaPath } = app.g;
 
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const html = read('index.html');
@@ -124,13 +124,11 @@ const ruleFor = (selector) =>
     layoutCss.match(new RegExp('^' + selector + '\\s*\\{([^}]*)\\}', 'm'))[1];
 
 /** The playback controls, in the order they sit leftward from the corner */
-const CONTROL_ROW = ['#play', '#binaural', '#brir', '#ambisonic'];
+const CONTROL_ROW = ['#play', '#headphones'];
 
-/** The three render modes and the engine call each one makes */
+/** The render modes and the engine call each one makes */
 const MODE_TOGGLES = [
-    ['binaural', 'toggleBinaural'],
-    ['brir', 'toggleBrir'],
-    ['ambisonic', 'toggleAmbisonic'],
+    ['headphones', 'toggleAmbisonic'],
 ];
 
 test('every render mode has a button wired to the engine', () => {
@@ -145,15 +143,31 @@ test('every render mode has a button wired to the engine', () => {
     }
 });
 
-test('the modes needing offline-built files start disabled', () => {
-    // Most positions have neither a BRIR nor a B-format IR. A button that looks
-    // live until it is pressed is worse than one that says so up front.
-    for (const id of ['brir', 'ambisonic']) {
-        assert.match(html, new RegExp(`id="${id}"[^>]*\\sdisabled`),
-            `${id} should start disabled; the engine enables it once the files are found`);
-    }
-    assert.doesNotMatch(html, /id="binaural"[^>]*\sdisabled/,
-        'the modelled binaural render needs no extra files and is always available');
+test('the headphone toggle starts unavailable, and says so on hover', () => {
+    // A grey circle that says nothing reads as broken rather than absent
+    assert.match(html, /id="headphones"[^>]*aria-disabled="true"/,
+        'the engine marks it available once a church with originals is selected');
+    assert.match(html, /id="headphones"[^>]*title="Headphones: unavailable[^"]*impulse response/,
+        'the tooltip has to name what is missing, not just report that it is');
+});
+
+test('the unavailable toggle is not disabled outright, or its tooltip would be unreachable', () => {
+    // A disabled control receives no mouse events, which takes the title with
+    // it. aria-disabled reads the same to assistive technology but stays
+    // hoverable; setAmbisonicEnabled() refuses the press.
+    assert.doesNotMatch(html, /id="headphones"[^>]*\sdisabled[\s>]/,
+        'the disabled attribute would silence the explanation');
+    assert.match(read('Javascript/AudioEngine.js'),
+        /if \(enabled && !ambisonicAvailable\(\)\) return;/,
+        'so the engine must refuse the press itself');
+});
+
+test('the headphone toggle is named for what it is, not for how it works', () => {
+    // "Headphones" is what the control is called in the view and in the help.
+    // The decode behind it is an implementation detail a visitor never needs.
+    assert.match(html, /id="headphones"[^>]*title="Headphones:/);
+    assert.doesNotMatch(html, /title="(Binaural rendering|Measured binaural|Live ambisonic)/,
+        'the removed renders should leave no titles behind');
 });
 
 test('the playback controls sit in a row without overlapping', () => {
@@ -242,12 +256,13 @@ test('hovering a toggle never looks like engaging it', () => {
 });
 
 test('an unavailable mode does not answer the pointer as though it were live', () => {
-    // Two of the three modes are disabled on most positions. A greyed button
-    // that still lit up on hover would look pressable.
-    const disabled = ruleFor('\\.mode-toggle:disabled');
-    assert.match(disabled, /cursor:\s*not-allowed/);
-    assert.match(disabled, /opacity:/, 'a disabled mode has to look different from an off one');
-    assert.match(ruleFor('\\.mode-toggle:disabled:hover'), /background-color:\s*var\(--belmont-blue\)/,
+    // The render is unavailable at most churches. A greyed button that still
+    // lit up on hover would look pressable.
+    const unavailable = ruleFor('\\.mode-toggle\\[aria-disabled="true"\\]');
+    assert.match(unavailable, /cursor:\s*not-allowed/);
+    assert.match(unavailable, /opacity:/, 'an unavailable mode has to look different from an off one');
+    assert.match(ruleFor('\\.mode-toggle\\[aria-disabled="true"\\]:hover'),
+        /background-color:\s*var\(--belmont-blue\)/,
         'hovering a mode that does not exist here must not tint it');
 });
 
@@ -383,78 +398,59 @@ test('no application source references a file that no longer exists', () => {
     }
     assert.deepEqual(missing, []);
 });
-test('no church trim is left at a level the engine would refuse', () => {
-    // The engine ignores a value outside its bounds and falls back silently, so
-    // a church left there would play unmatched with nothing to show for it.
-    // Read the bounds off the engine rather than restating them, or the two can
-    // drift apart and this stops guarding anything.
-    const { STAGE_TRIM_MIN_DB, STAGE_TRIM_MAX_DB } = app.data;
 
-    const bad = [];
-    for (const key of roomKeys) {
-        for (const [stage, db] of Object.entries(ROOMS[key].trim)) {
-            if (typeof db !== 'number' || !Number.isFinite(db) ||
-                db < STAGE_TRIM_MIN_DB || db > STAGE_TRIM_MAX_DB) {
-                bad.push(`${key}.${stage} = ${JSON.stringify(db)}`);
-            }
-        }
-    }
-    assert.deepEqual(bad, [],
-        `trims must be finite numbers between ${STAGE_TRIM_MIN_DB} and ${STAGE_TRIM_MAX_DB} dB`);
-});
-
-test('each stage lands where the way it is built says it should', () => {
-    // The impulse-response convolvers normalize and the HRIR ones do not, so
-    // the two decoded stages carry the whole gain of the offline render while
-    // the virtual-loudspeaker one sits within a decibel or two of stereo. If
-    // that ordering ever inverts, a stage has stopped doing what it was built
-    // to do and the numbers are measuring something else.
-    for (const key of roomKeys) {
-        const { binaural, brir, ambisonic } = ROOMS[key].trim;
-        assert.ok(Math.abs(binaural) < 6,
-            `${key}: binaural at ${binaural} dB is too far from stereo to be that stage`);
-        assert.ok(brir < -10 && ambisonic < -10,
-            `${key}: the decoded stages should need heavy attenuation`);
-        assert.ok(ambisonic < brir,
-            `${key}: the ambisonic decode carries Omnitone's gain on top of the BRIR's`);
-    }
+test('a church carries a trim only where it has a stage to trim', () => {
+    // A stray church-level trim is a number nothing reads — the kind that goes
+    // stale and then gets believed
+    const stray = roomKeys.filter(key => ROOMS[key].trim);
+    assert.deepEqual(stray, [], 'trims belong to a recovered set, not to a church');
 });
 // ── the un-normalized originals ───────────────────────────────────────────
 
-const rawApp = createApp({ path: '/unnormalized' });
-const rawRooms = rawApp.data.ROOMS;
 const withOriginals = roomKeys.filter(key => ROOMS[key].unnormalized);
 
-test('a recovered church has the decoded files the flag sends it to', () => {
-    // Only the three the decoded stages read. Without them the flag silently
-    // drops back to stereo on the very stages it exists to show.
+test('a recovered church has the B-format the headphone render decodes', () => {
+    // Without it the button arms, then falls back to stereo on the first play —
+    // which looks like the render simply sounding no different
     assert.ok(withOriginals.length, 'no church has originals; this suite would prove nothing');
 
     const missing = [];
     for (const key of withOriginals) {
         for (const rid of receiversOf(key)) {
-            const base = rawApp.g.decodedResponseBase(rawRooms[key], rid);
-            for (const suffix of ['BRIR-L.wav', 'BRIR-R.wav', 'Bformat.wav']) {
-                if (!existsExactly(base + suffix)) missing.push(base + suffix);
-            }
+            const url = decodedResponseBase(ROOMS[key], rid) + 'Bformat.wav';
+            if (!existsExactly(url)) missing.push(url);
         }
     }
     assert.deepEqual(missing, [], 'originals referenced by ROOMS but not present');
 });
 
-test('the flag never moves the impulse response pair off the published library', () => {
-    // Stereo is the reference every other stage is trimmed against, so it has
-    // to be the same audio with the flag set as without it. A test rather than
-    // a comment because the two bases are one keystroke apart at the call site.
-    for (const key of roomKeys) {
+test('a church without originals offers no decoded base at all', () => {
+    // Those capsules were each peak-normalized, so a decode would be wrong
+    for (const key of roomKeys.filter(k => !ROOMS[k].unnormalized)) {
         for (const rid of receiversOf(key)) {
-            assert.equal(
-                rawApp.g.impulseResponseBase(rawRooms[key], rid),
-                impulseResponseBase(ROOMS[key], rid),
-                `${key} ${rid}: the stereo pair moved under /unnormalized`
-            );
+            assert.equal(decodedResponseBase(ROOMS[key], rid), '',
+                `${key} ${rid}: the headphone render must have nothing to play`);
         }
     }
+});
+
+test('the headphone render never moves the impulse response pair', () => {
+    // Stereo is the reference, so it stays on the published library everywhere.
+    // A test because the two bases are one keystroke apart at the call site.
+    for (const key of roomKeys) {
+        for (const rid of receiversOf(key)) {
+            assert.match(impulseResponseBase(ROOMS[key], rid), /\/Normalized\//,
+                `${key} ${rid}: stereo moved off the published library`);
+        }
+    }
+});
+
+test('nothing is left pointing at a BRIR, which no stage reads any more', () => {
+    const strays = [];
+    for (const file of ['Javascript/AudioEngine.js', 'Javascript/Rooms.js', 'index.html']) {
+        if (/BRIR/.test(read(file))) strays.push(file);
+    }
+    assert.deepEqual(strays, [], 'the measured binaural stage was removed');
 });
 
 test('the originals carry the same channel layout as the library they replace', () => {
@@ -471,15 +467,25 @@ test('the originals carry the same channel layout as the library they replace', 
     }
 });
 
+test('a recovered set states the one trim the render reads, and nothing else', () => {
+    // A key for a stage that no longer exists would be a level nothing applies.
+    for (const key of withOriginals) {
+        assert.deepEqual(Object.keys(ROOMS[key].unnormalized.trim), ['ambisonic'],
+            `${key}: the headphone render is the only stage a recovered set feeds`);
+    }
+});
+
 test('no originals trim is left at a level the engine would refuse', () => {
+    // The engine falls back silently on an out-of-bounds value, so a position
+    // left there plays unmatched. Bounds read off the engine, not restated.
     const { STAGE_TRIM_MIN_DB, STAGE_TRIM_MAX_DB } = app.data;
 
     const bad = [];
     for (const key of withOriginals) {
-        for (const [stage, db] of Object.entries(ROOMS[key].unnormalized.trim)) {
+        for (const [rid, db] of Object.entries(ROOMS[key].unnormalized.trim.ambisonic)) {
             if (typeof db !== 'number' || !Number.isFinite(db) ||
                 db < STAGE_TRIM_MIN_DB || db > STAGE_TRIM_MAX_DB) {
-                bad.push(`${key}.unnormalized.${stage} = ${JSON.stringify(db)}`);
+                bad.push(`${key}.unnormalized.trim.ambisonic.${rid} = ${JSON.stringify(db)}`);
             }
         }
     }
@@ -487,31 +493,39 @@ test('no originals trim is left at a level the engine would refuse', () => {
         `trims must be finite numbers between ${STAGE_TRIM_MIN_DB} and ${STAGE_TRIM_MAX_DB} dB`);
 });
 
-test('the originals land near stereo rather than far above it', () => {
-    // The published library's decoded stages need fifteen to twenty dB taken
-    // off, because its capsules were each normalized to full scale and the
-    // convolvers behind those two stages do not normalize. The originals are
-    // scaled as a set to a 0 dBFS peak instead, which lands them within a few
-    // dB of the stereo they are matched to.
-    //
-    // A loose band rather than an ordering: the gap between the two decoded
-    // stages is Omnitone's gain over a wet path that is much quieter in this
-    // set, which closes it to a few tenths of a dB — too fine to assert against
-    // a re-measurement. What would be a real fault is either stage drifting far
-    // from stereo, which is what this catches.
+test('every position of a recovered set carries its own trim', () => {
+    // The correction differs by more than 14 dB across one room, and a position
+    // with no entry falls back to 0 dB — which at the front rows clips
+    const missing = [];
     for (const key of withOriginals) {
-        for (const [stage, db] of Object.entries(ROOMS[key].unnormalized.trim)) {
-            assert.ok(Math.abs(db) < 10,
-                `${key}: ${stage} at ${db} dB is too far from stereo for a set-scaled decode`);
+        const levels = ROOMS[key].unnormalized.trim.ambisonic;
+        for (const rid of receiversOf(key)) {
+            if (!Number.isFinite(levels[rid])) missing.push(`${key}.${rid}`);
         }
     }
+    assert.deepEqual(missing, [], 'run tools/measure-loudness.js --write');
 });
 
-test('a recovered church is reachable by the flag that serves it', () => {
-    // The path form needs a route on both hosts; without them /unnormalized
-    // 404s and the query form is the only spelling that works.
-    assert.match(read('server.js'), /FEATURE_PATHS = \[[^\]]*'\/unnormalized'/);
-    assert.match(read('netlify.toml'), /from = "\/unnormalized"/);
+test('a trim table names only receivers the church actually has', () => {
+    // A key for a position that does not exist would hide a rename, not report it
+    const stray = [];
+    for (const key of withOriginals) {
+        const receivers = receiversOf(key);
+        for (const rid of Object.keys(ROOMS[key].unnormalized.trim.ambisonic)) {
+            if (!receivers.includes(rid)) stray.push(`${key}.${rid}`);
+        }
+    }
+    assert.deepEqual(stray, []);
+});
+
+test('the headphone render is part of the published experience', () => {
+    // It used to sit behind /ambisonic. A stale FEATURE_CONTROLS entry would
+    // hide the button from everybody; a style attribute would do it before any
+    // script ran. features.test.js checks the roster and routes agree.
+    assert.deepEqual(Object.keys(app.data.FEATURE_CONTROLS), [],
+        'a control listed here would be hidden from every visitor');
+    assert.doesNotMatch(html, /id="headphones"[^>]*style=/,
+        'the button must not ship pre-hidden');
 });
 
 test('every church declares which way its recording faces', () => {

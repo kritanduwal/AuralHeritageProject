@@ -200,9 +200,9 @@ input, button, select, textarea {
 }
 
 /* ── Render mode toggles ── */
-/* Three alternatives to plain stereo, in a row to the left of play. Appearance
-   is shared; each button's own rule carries only its geometry, which is what
-   assets.test.js checks for overlap and for a common centre line. */
+/* Alternatives to plain stereo, in a row to the left of play — one today.
+   Appearance is shared; each button's own rule carries only its geometry, which
+   assets.test.js checks for overlap and a common centre line. */
 .mode-toggle {
     position: fixed;
     z-index: 4;
@@ -227,10 +227,9 @@ input, button, select, textarea {
 
 /* Vertically centred on the play button: it is 80px tall at bottom: 20px, so
    its centre is 60px up, and a 56px button is centred there at bottom: 32px.
-   The horizontal steps are 56 + 12 apart, leaving a 12px gap between each. */
-#binaural  { width: 56px; height: 56px; bottom: 32px; right: 116px; }
-#brir      { width: 56px; height: 56px; bottom: 32px; right: 184px; }
-#ambisonic { width: 56px; height: 56px; bottom: 32px; right: 252px; }
+   A second toggle would sit 56 + 12 further in, leaving a 12px gap — the step
+   layoutModeToggles() reseats the row by. */
+#headphones { width: 56px; height: 56px; bottom: 32px; right: 116px; }
 
 /* Hover and engaged have to be different colours. The glyph does not change
    with the mode, so the fill is the only thing carrying the state — and your
@@ -252,14 +251,15 @@ input, button, select, textarea {
     background-color: var(--activecolor-hover);
 }
 
-/* Two of the three modes need files most positions do not carry. A greyed
-   button says the mode does not exist here, which is different from off. */
-.mode-toggle:disabled {
+/* A greyed button says the mode does not exist here, which is different from
+   off. Keyed to aria-disabled, not :disabled: a disabled control receives no
+   mouse events, so the tooltip explaining the greying would be unreachable. */
+.mode-toggle[aria-disabled="true"] {
     opacity: 0.4;
     cursor: not-allowed;
 }
 
-.mode-toggle:disabled:hover {
+.mode-toggle[aria-disabled="true"]:hover {
     background-color: var(--belmont-blue);
 }
 
@@ -288,8 +288,7 @@ input, button, select, textarea {
     transition: opacity 0.08s ease;
 }
 
-/* Only the live ambisonic decode can be rotated — the other three renders are
-   fixed-head, and a BRIR has already chosen which way the head was facing. */
+/* Only the decode can be rotated; stereo bakes its orientation in. */
 #tracking-control.unavailable {
     opacity: 0.4;
     cursor: not-allowed;

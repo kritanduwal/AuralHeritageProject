@@ -1,75 +1,47 @@
 # HRIR sets
 
-Head-related impulse responses, used by `tools/bformat-to-brir.js` to decode the
-B-format room impulse responses to binaural. Nothing in the web app reads this
-directory — it is an input to an offline step, and the BRIR files that step
-produces are what playback loads.
+Head-related impulse responses. **Nothing in the web app reads this directory** —
+the browser's headphone render decodes through Omnitone, which fetches its own
+filters from the CDN. What lives here is what the offline measuring tool needs.
 
-The audio here is **not committed**. It is third-party data, it is large, and it
-is freely downloadable; `.gitignore` keeps everything in this directory except
-this file. Fetch it yourself with the steps below.
+The audio is **not committed**. It is third-party data, it is large, and it is
+freely obtainable; `.gitignore` keeps everything in this directory except this
+file.
 
-## What is here
+## What `tools/measure-loudness.js` needs
 
 ```
 HRIR/
-└── D1/                          # SADIE II subject D1 — Neumann KU100 dummy head
-    ├── D1_HRIR_WAV/
-    │   ├── 44K_16bit/
-    │   ├── 48K_24bit/           # ← the one the tools use
-    │   └── 96K_24bit/
-    ├── D1_HRIR_SOFA/            # same data in AES69 SOFA; the tools do not read it
-    ├── D1_BRIR_WAV/             # York's own room BRIRs, unrelated to this project
-    ├── D1_DT990/                # headphone compensation for Beyerdynamic DT990
-    └── D1_Scans/                # anthropometric scans
+├── omnitone-foa-1.wav      # Omnitone's own first-order decode filters
+└── omnitone-foa-2.wav
 ```
 
-Use **48K_24bit**. The tools refuse to render when the HRIR set and the B-format
-disagree on sample rate rather than silently stretching one, and everything in
-`IR/` is 48 kHz.
+These are the two filter pairs Omnitone convolves a first-order soundfield
+against, extracted from the library the page loads. Reading them here is what
+makes the measurement exact rather than a model of the decode: the tool renders
+the headphone stage through the very filters the browser runs.
 
-## Fetching it
+Extract them from the Omnitone build the page uses — the WAVs are embedded in it
+as base64 — or capture them from a browser session. Without them the tool warns
+and skips the ambisonic column rather than guessing.
 
-The SADIE II Database comes from the AudioLab at the University of York and is
-released under Apache 2.0. Subject archives live on Zenodo:
+## The SADIE II database
+
+No longer required. It was an input to `tools/bformat-to-brir.js`, which baked
+offline BRIRs for the measured-binaural render; both that render and that tool
+have been removed, and the live decode carries its own HRTFs.
+
+If you want it anyway — for research alongside this library rather than for
+anything the code runs — subject archives live on Zenodo under Apache 2.0:
 
 | Subject | What it is | Archive |
 | --- | --- | --- |
 | D1 | Neumann KU100 dummy head | <https://zenodo.org/records/10886409/files/D1.zip> |
 | D2 | KEMAR dummy head | <https://zenodo.org/records/12092466/files/D2.zip> |
 
-```sh
-curl -L -o HRIR/D1.zip "https://zenodo.org/records/10886409/files/D1.zip?download=1"
-# then unzip into HRIR/
-```
-
-D1 is the better default for a public-facing render: a dummy head is nobody in
-particular, which is the point — an individual subject's HRTFs fit that person
-and are worse than a mannequin's for everyone else. D2 is the other mannequin,
-worth trying if D1 externalizes badly for you.
-
-Roughly 112 MB compressed, 333 MB extracted per subject.
-
-## Citation
-
-Required for academic use, per the database's terms:
+Citation is required for academic use, per the database's terms:
 
 > Armstrong, C., Thresh, L., Murphy, D., & Kearney, G. (2018). A Perceptual
 > Evaluation of Individual and Non-Individual HRTFs: A Case Study of the SADIE
 > II Database. *Applied Sciences*, 8(11), 2029.
 > <https://doi.org/10.3390/app8112029>
-
-## Before rendering with a set
-
-Run `--list` first. The angles are parsed out of the filenames, and a set whose
-convention differs from the default pattern will mirror or scramble the render
-without erroring:
-
-```sh
-node tools/bformat-to-brir.js --hrir HRIR/D1/D1_HRIR_WAV/48K_24bit --list
-```
-
-D1 names its files `azi_0,0_ele_-15,0.wav` — comma decimal separator, azimuth
-running 0–360° counterclockwise — which the default pattern reads correctly, and
-its 9201 measured directions answer every virtual loudspeaker to within 0.04°.
-A sparser set will say so in the per-position report.
