@@ -81,7 +81,16 @@
         <div class="control-section">
             <label class="control-label">Source File</label>
             <input type="button" id="srcselect" class="fileselect" value="Select Source File" onclick="selectSource()">
-            <label for="srcselect" id="srcselectlabel">Clarinet</label>
+
+            <!-- The loaded source on the left, the way back to the map on the
+                 right. The map button has nothing to do with choosing a source;
+                 it shares the line because that is where the room for it is. -->
+            <div id="source-file-row">
+                <label for="srcselect" id="srcselectlabel">Clarinet</label>
+                <button id="map-btn" onclick="openLanding()" title="Back to the map of all churches">
+                    <span class="material-icons">public</span> Map
+                </button>
+            </div>
         </div>
     </div>
 
@@ -92,12 +101,6 @@
         <button id="tab-main" class="tab-btn active" onclick="switchTab('main', this)">View</button>
         <button id="tab-about" class="tab-btn" onclick="switchTab('about', this)">About</button>
         <button id="tab-instructions" class="tab-btn" onclick="switchTab('instructions', this)">Instructions</button>
-
-        <!-- Reopens the landing. Not a tab: it covers the page rather than
-             swapping the panel below the row. -->
-        <button id="map-btn" onclick="openLanding()" title="Back to the map of all churches">
-            <span class="material-icons">public</span> Map
-        </button>
     </div>
 
     <!-- Content Area -->

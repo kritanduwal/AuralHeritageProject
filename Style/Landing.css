@@ -363,17 +363,42 @@
 }
 
 /* ── The way back ── */
-/* Sits at the end of the tab row rather than among the tabs: it reopens the
-   landing over the page instead of swapping the panel under the row. */
+/* Sits in the control bar under the source file picker rather than among the
+   tabs: it reopens the landing over the whole page instead of swapping the
+   panel under the tab row, so it never belonged in a row of panel switches.
+
+   Plain text, not a framed button. The filled blue above it is "Select Source
+   File"; anything boxed next to that reads as a second control of the same
+   weight, and this one does nothing to the audio. */
+/* Shares one line with the name of the loaded source: that name is short and
+   the column is as wide as the picker above it, so the right half of the line
+   is space the layout already had. #srcselectlabel lifts itself 5px to sit
+   close under the picker — the lift moves to the row, or it would pull the
+   label off the button's centre line. */
+#source-file-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: -5px;
+}
+
+#source-file-row #srcselectlabel {
+    margin-top: 0;
+    min-width: 0;
+}
+
 #map-btn {
-    margin-left: auto;
     display: flex;
     align-items: center;
     gap: 6px;
+    /* Never squeezed by a long source name — "Sermon – Dr. William Barber"
+       wraps instead */
+    flex-shrink: 0;
+    padding: 6px 0 6px 8px;
     background: none;
     border: none;
-    padding: 12px 8px 12px 16px;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     color: #666;
     cursor: pointer;
@@ -384,8 +409,14 @@
     color: var(--belmont-blue);
 }
 
-#map-btn .material-icons {
-    font-size: 20px;
+/* Layout.css paints every hovered .material-icons white, with !important, for
+   the round controls that sit on the dark view. This one sits on white, where
+   that rule would make the glyph vanish under the pointer — answering it needs
+   an !important of its own. */
+#map-btn .material-icons,
+#map-btn:hover .material-icons {
+    font-size: 24px;
+    color: inherit !important;
 }
 
 /* ── Narrow windows ── */
