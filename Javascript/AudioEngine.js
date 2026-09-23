@@ -356,21 +356,30 @@ function setSoundfieldOrientation(yawDegrees) {
 }
 
 /**
- * Reads the panorama camera and turns the soundfield to match.
+ * The rotation the view on screen calls for, or null where there is no view to
+ * read one from.
  *
  * Nothing is cached: the viewer is replaced on every panorama change, so
  * holding a reference would rotate to the angles of a view no longer on screen.
  */
-function updateSoundfieldRotation() {
-    if (!foaRenderer || typeof viewer === 'undefined' || !viewer) return;
+function currentSoundfieldRotation() {
+    if (typeof viewer === 'undefined' || !viewer) return null;
 
     try {
-        foaRenderer.setRotationMatrix4(
-            rotationMatrix4(viewer.getYaw() - soundfieldYaw, viewer.getPitch()));
+        return rotationMatrix4(viewer.getYaw() - soundfieldYaw, viewer.getPitch());
     } catch (err) {
         // A viewer torn down mid-frame throws rather than returning an angle
         console.error(err);
+        return null;
     }
+}
+
+/** Reads the panorama camera and turns the live soundfield to match */
+function updateSoundfieldRotation() {
+    if (!foaRenderer) return;
+
+    const rotation = currentSoundfieldRotation();
+    if (rotation) foaRenderer.setRotationMatrix4(rotation);
 }
 
 /**
@@ -810,8 +819,44 @@ async function playpause() {
 // ── Offline render (development aid) ──────────────────────────────────────
 
 /**
- * Renders the convolved output offline and downloads it as a WAV file, so the
- * result can be inspected without recording the browser's output.
+ * Samples Omnitone's own decode filters add past the end of the room's tail.
+ *
+ * Its first-order HRIRs are 256 taps; the allowance is rounded up rather than
+ * read off the filters, which the library keeps to itself. Only the headphone
+ * render pays it — stereo ends when the impulse response does.
+ */
+const FOA_DECODE_TAIL = 512;
+
+/**
+ * Builds a decoder for an offline render, or null if there is nothing to build
+ * one from.
+ *
+ * A renderer belongs to the context that made it, so the live one cannot be
+ * borrowed here and a second has to be initialized against the offline context.
+ * Its own singleton is deliberately not touched: caching this one would hand a
+ * dead context to the next play.
+ */
+async function offlineAmbisonicRenderer(offlineCtx) {
+    if (typeof Omnitone === 'undefined') return null;
+    try {
+        const renderer = Omnitone.createFOARenderer(offlineCtx, { channelMap: AMBIX_CHANNEL_MAP });
+        await renderer.initialize();
+        return renderer;
+    } catch (err) {
+        console.error(err);
+        return null;
+    }
+}
+
+/**
+ * Renders whichever stage is currently playing and downloads it as a WAV file,
+ * so the result can be inspected without recording the browser's output.
+ *
+ * The stage follows the Headphones button: the two are different renders of the
+ * same room rather than two encodings of one, so a file that always carried
+ * stereo could not be used to check the render actually being listened to. A
+ * headphone render that cannot be assembled falls back to stereo and says so,
+ * because a file is more use than a refusal when the point is to compare them.
  */
 async function downloadConvolvedAudio() {
     if (!sourceBuffer || !currentIr.base) {
@@ -824,9 +869,29 @@ async function downloadConvolvedAudio() {
         loadImpulseResponse(currentIr.base + "2.wav")
     ]);
 
-    // Room for the source plus the tail the stereo stage leaves behind
-    const frames = sourceBuffer.length + irLeft.length;
-    const offlineCtx = new OfflineAudioContext(2, frames, ctx.sampleRate);
+    // Decoded on the live context and handed to the offline one, as the stereo
+    // pair above already is: an AudioBuffer belongs to no context, only to a
+    // sample rate, and the render below is created at this one's.
+    const bformatChannels = ambisonicEnabled
+        ? await loadBformatChannels(ctx, currentIr.decodedBase)
+        : null;
+
+    // Room for the source plus the tail of whichever room is being rendered,
+    // and the decode filters on top where they are in circuit
+    const roomTail = bformatChannels
+        ? Math.max(irLeft.length, bformatChannels[0].length) + FOA_DECODE_TAIL
+        : irLeft.length;
+    const offlineCtx = new OfflineAudioContext(2, sourceBuffer.length + roomTail, ctx.sampleRate);
+
+    const ambisonicRenderer = bformatChannels
+        ? await offlineAmbisonicRenderer(offlineCtx)
+        : null;
+    const headphones = Boolean(bformatChannels && ambisonicRenderer);
+
+    if (ambisonicEnabled && !headphones) {
+        console.warn('downloadConvolvedAudio: the headphone render could not be assembled ' +
+            'for this position, so stereo was rendered instead.');
+    }
 
     const offlineSource = offlineCtx.createBufferSource();
     offlineSource.buffer = sourceBuffer;
@@ -835,12 +900,19 @@ async function downloadConvolvedAudio() {
         irRight,
         mix: convolutionMix,
         irGainDb: currentIr.gainDb,
-        // No headphone stage offline: an Omnitone renderer belongs to the
-        // context that made it, so the live one cannot be borrowed here.
-        ambisonic: false,
-        bformatChannels: null,
-        ambisonicRenderer: null,
+        ambisonic: headphones,
+        bformatChannels: headphones ? bformatChannels : null,
+        ambisonicRenderer: headphones ? ambisonicRenderer : null,
     });
+
+    // A render is one fixed orientation, so a soundfield that is being turned is
+    // frozen where the view has it rather than reset: the file should hold what
+    // was in the ears when it was asked for. Left alone otherwise, which is the
+    // identity the renderer starts at.
+    if (headphones && soundfieldTracking) {
+        const rotation = currentSoundfieldRotation();
+        if (rotation) ambisonicRenderer.setRotationMatrix4(rotation);
+    }
 
     offlineSource.start();
     const renderedBuffer = await offlineCtx.startRendering();
@@ -848,7 +920,9 @@ async function downloadConvolvedAudio() {
     const url = URL.createObjectURL(audioBufferToWav(renderedBuffer));
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'convolved-output.wav';
+    // Named for the stage, so the two renders of one position do not overwrite
+    // each other in the downloads folder — comparing them is the whole point
+    link.download = headphones ? 'convolved-output-headphones.wav' : 'convolved-output-stereo.wav';
     link.click();
     // Revoked on a later turn of the event loop so the download can start
     setTimeout(() => URL.revokeObjectURL(url), 0);

@@ -840,7 +840,15 @@ own proportions.
 - **`downloadConvolvedAudio()`** in `AudioEngine.js` renders the current selection
   offline and downloads it as a WAV — useful for checking a room's output without
   recording the browser. Call it from the console, or uncomment the call in
-  `startPlayback()`.
+  `startPlayback()`. It renders whichever stage the Headphones button has
+  selected, naming the file `convolved-output-stereo.wav` or
+  `convolved-output-headphones.wav` so the two renders of one position can be
+  compared side by side. The headphone render is decoded through a second
+  Omnitone renderer built against the offline context, since a renderer belongs
+  to the context that made it; where one cannot be assembled — no B-format at
+  that position, or Omnitone absent — it falls back to stereo and says so in the
+  console. A soundfield being turned by head tracking is frozen at the
+  orientation the view had when the render was asked for.
 
 ---
 
