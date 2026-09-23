@@ -54,18 +54,96 @@ function loadRooms() {
 
 // ── Configuration ─────────────────────────────────────────────────────────
 
-/** Source the app loads on startup, and so the one a visitor hears */
-const DEFAULT_SOURCE = 'Source Files/Clarinet.wav';
+/**
+ * What to measure through: every source the app offers, not only the one it
+ * loads on startup.
+ *
+ * THE TRIM IS NOT A PROPERTY OF THE ROOM ALONE. The two stages do not merely
+ * differ in level — the binaural decode colours what passes through it, so the
+ * ratio between them is frequency-dependent, and the correction a seat wants
+ * moves with the material played into it. Across this set the spread reaches
+ * 5 dB at one position.
+ *
+ * So a trim derived from one source matches that source and mistunes the rest,
+ * which is exactly what a single clarinet excerpt did: it left the headphone
+ * render 2.8 dB quiet at St Francis R1 on everything else, audible as the
+ * render dropping the moment the button is pressed.
+ *
+ * Averaging over all five is the best a single scalar can do. The per-source
+ * columns in the report are what it cannot do, and they are printed rather
+ * than hidden because that residual is the honest part of this measurement.
+ *
+ * Kept in step with BUNDLED_SOURCE_FILES in SettingsMenu.js, which is the list
+ * a visitor actually chooses from.
+ */
+const DEFAULT_SOURCES = [
+    'Source Files/Acoustic guitar.wav',
+    'Source Files/Chorus_New.wav',
+    'Source Files/Clarinet.wav',
+    'Source Files/Sermon_Dr. William Barber.wav',
+    'Source Files/Trumpet.wav',
+];
 
 /**
- * Seconds of source to measure.
+ * Seconds of each source to measure.
  *
- * Integrated loudness settles quickly on material this uniform, and every mode
- * is measured on the same excerpt, so what matters is that it is long enough
- * for the relative gate to have something to work with. Longer costs real time:
- * the convolutions are the whole expense here.
+ * Long enough that the answer has stopped moving. Clarinet at St Francis R1
+ * asks for -15.9 dB over 25 s and -15.8 dB over its whole 66 s, while its first
+ * 12 s claim -18.7 dB: a short excerpt does not cover enough of the register
+ * for a frequency-dependent ratio to settle, and the old default sampled a
+ * quiet opening phrase.
+ *
+ * Longer than this costs real time — the convolutions are the whole expense —
+ * and buys nothing measurable past about 25 s.
  */
-const DEFAULT_SECONDS = 12;
+const DEFAULT_SECONDS = 30;
+
+/**
+ * Seconds of pink noise for --pink. Shorter than a real source needs, because
+ * noise excites every band at once instead of waiting for the music to.
+ */
+const PINK_SECONDS = 10;
+
+/** The library is 48 kHz throughout, so a synthetic probe is generated at it */
+const PINK_RATE = 48000;
+
+/**
+ * Deterministic pink noise, as the --pink regression probe.
+ *
+ * Pink rather than a tone: a steady sine convolved with a room reads |H(f)| at
+ * one frequency, which in a reverberant space is a single sample of a dense
+ * modal pattern — and the two stages have different patterns. Moving a 1 kHz
+ * probe by 3% swings the answer it derives at St Francis R4 by 15.6 dB. Noise
+ * excites every band, so the ratio it reports is the broadband one.
+ *
+ * Seeded, so two runs over unchanged files agree to the decimal — which is the
+ * whole point of a regression check.
+ *
+ * Paul Kellet's filter, whose -3 dB/octave slope is also a fair stand-in for
+ * the long-term average spectrum of music.
+ */
+function pinkNoise(frames) {
+    let seed = 12345;
+    const random = () => {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+        return (seed / 0x3fffffff) - 1;
+    };
+
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    const out = new Float64Array(frames);
+    for (let i = 0; i < frames; i++) {
+        const w = random();
+        b0 = 0.99886 * b0 + w * 0.0555179;
+        b1 = 0.99332 * b1 + w * 0.0750759;
+        b2 = 0.96900 * b2 + w * 0.1538520;
+        b3 = 0.86650 * b3 + w * 0.3104856;
+        b4 = 0.55000 * b4 + w * 0.5329522;
+        b5 = -0.7616 * b5 - w * 0.0168980;
+        out[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362) * 0.08;
+        b6 = w * 0.115926;
+    }
+    return out;
+}
 
 /** The app's defaults: the slider at 100%, so the dry path sits at its floor */
 const MIX = 1.0;
@@ -240,8 +318,8 @@ function dryGainFor(mix) {
     return Math.min(1.0, Math.pow(DRY_GAIN_AT_FULL_WET, (10 * mix - 1) / 9));
 }
 
-function reductionToGain(reductionDb) {
-    return Math.pow(10, -reductionDb / 20);
+function gainFromDb(db) {
+    return Math.pow(10, db / 20);
 }
 
 /**
@@ -266,7 +344,7 @@ function renderModes(source, ir, options) {
     const conv = makeConvolver(outLength);
     const dryGain = dryGainFor(MIX);
     const trimmed = new Float64Array(frames);
-    const irTrim = reductionToGain(options.gainDb);
+    const irTrim = gainFromDb(options.gainDb);
     for (let i = 0; i < frames; i++) trimmed[i] = source[i] * irTrim;
 
     const wetSpectrum = conv.spectrum(trimmed);
@@ -295,7 +373,7 @@ function renderModes(source, ir, options) {
     // Live ambisonic: four channels, then Omnitone's own decode
     if (ir.bformat && options.omnitone) {
         // The trim rides on the wet path and nowhere else, as ambiWet carries it
-        const wet = MIX * Math.pow(10, (options.ambisonicTrimDb || 0) / 20);
+        const wet = MIX * gainFromDb(options.ambisonicTrimDb || 0);
         const ambi = ir.bformat.map(channel => {
             const c = convolve(channel);
             if (wet !== 1) for (let i = 0; i < c.length; i++) c[i] *= wet;
@@ -437,6 +515,14 @@ function receiverOf(stem) {
  * Read off the church rather than off the set: a position's distance from the
  * source is a fact about the room, so both sets of its files carry it.
  */
+/** The trim Rooms.js holds for a position today, or null where it has none */
+function storedTrimDb(rooms, dir, stem) {
+    const found = setFor(rooms, dir);
+    const trims = found && found.source.trim && found.source.trim.ambisonic;
+    const db = trims && trims[receiverOf(stem)];
+    return Number.isFinite(db) ? db : null;
+}
+
 function gainDbFor(rooms, dir, stem) {
     const found = setFor(rooms, dir);
     if (!found) return 0;
@@ -501,19 +587,34 @@ function writeTrims(rooms, suggested) {
 
 function parseArgs(argv) {
     const options = {
-        dirs: [], source: DEFAULT_SOURCE, seconds: DEFAULT_SECONDS,
-        write: false, positions: 0,
+        dirs: [], sources: [], seconds: null,
+        write: false, positions: 0, pink: false,
     };
     for (let i = 0; i < argv.length; i++) {
         const arg = argv[i];
-        if (arg === '--source') options.source = argv[++i];
+        if (arg === '--source') options.sources.push(argv[++i]);
         else if (arg === '--seconds') options.seconds = Number(argv[++i]);
         else if (arg === '--positions') options.positions = Number(argv[++i]);
+        else if (arg === '--pink') options.pink = true;
         else if (arg === '--write') options.write = true;
         else if (arg === '--dry-run') options.write = false;
         else if (arg === '--help' || arg === '-h') options.help = true;
         else if (arg.startsWith('--')) throw new Error(`unknown option ${arg}`);
         else options.dirs.push(arg);
+    }
+
+    // Repeatable, so a run can be narrowed to one source; empty means the set
+    // the app ships, which is what a calibration run wants.
+    if (!options.sources.length) options.sources = DEFAULT_SOURCES;
+    if (options.seconds === null) {
+        options.seconds = options.pink ? PINK_SECONDS : DEFAULT_SECONDS;
+    }
+
+    // A pink trim is a check, not a calibration: it matches the average of the
+    // real sources to about a decibel, but the number worth storing is the one
+    // measured on the material a visitor actually plays.
+    if (options.pink && options.write) {
+        throw new Error('--pink is a regression check; calibrate with the real sources');
     }
     return options;
 }
@@ -523,8 +624,12 @@ Measure the headphone render's loudness and derive the trim that matches it to s
 
   node tools/measure-loudness.js [options] [<set dir> ...]
 
-  --source <file>    what to measure through (default ${DEFAULT_SOURCE})
-  --seconds <n>      excerpt length (default ${DEFAULT_SECONDS})
+  --source <file>    what to measure through; repeatable
+                     (default: all ${DEFAULT_SOURCES.length} sources the app offers)
+  --seconds <n>      excerpt length per source (default ${DEFAULT_SECONDS}, or ${PINK_SECONDS} with --pink)
+  --pink             measure one deterministic pink-noise probe instead, and
+                     report each trim against the one stored in Rooms.js.
+                     Fast and repeatable; cannot be used with --write
   --positions <n>    measure only the first n positions per set (0 = all)
   --write            update the trim values in Rooms.js
   --dry-run          report only (default)
@@ -542,9 +647,25 @@ function main() {
     }
     if (options.help) { console.log(USAGE); return; }
 
-    const src = monoOf(options.source);
-    const frames = Math.min(src.data.length, Math.round(options.seconds * src.sampleRate));
-    const source = src.data.subarray(0, frames);
+    const sources = options.pink
+        ? [{
+            file: 'pink noise (seeded)',
+            label: 'pink',
+            data: pinkNoise(Math.round(options.seconds * PINK_RATE)),
+            sampleRate: PINK_RATE,
+            seconds: options.seconds,
+        }]
+        : options.sources.map((file) => {
+            const wav = monoOf(file);
+            const frames = Math.min(wav.data.length, Math.round(options.seconds * wav.sampleRate));
+            return {
+                file,
+                label: shortSourceLabel(file),
+                data: wav.data.subarray(0, frames),
+                sampleRate: wav.sampleRate,
+                seconds: frames / wav.sampleRate,
+            };
+        });
 
     let omnitone = null;
     if (OMNITONE_HRIR.every(f => fs.existsSync(f))) {
@@ -554,7 +675,11 @@ function main() {
     }
 
     console.log('Loudness match against stereo (ITU-R BS.1770 integrated LUFS)');
-    console.log(`  source     ${options.source}, first ${(frames / src.sampleRate).toFixed(1)} s`);
+    for (const [i, entry] of sources.entries()) {
+        const head = i === 0 ? (options.pink ? 'probe' : 'sources') : '';
+        const span = options.pink ? '' : 'first ';
+        console.log(`  ${head.padEnd(10)} ${entry.file}, ${span}${entry.seconds.toFixed(1)} s`);
+    }
     console.log(`  mix        100% (dry at ${dryGainFor(MIX).toFixed(3)}), the dry skips the decode`);
     console.log(`  ambisonic  ${omnitone ? "Omnitone's own decode — exact" : 'skipped'}`);
 
@@ -596,31 +721,58 @@ function main() {
             } catch (err) {
                 continue;
             }
-            const shared = { gainDb: gainDbFor(rooms, dir, stem), omnitone, sampleRate: src.sampleRate };
+            const shared = { gainDb: gainDbFor(rooms, dir, stem), omnitone };
 
-            // The two rooms alone: their gap is the trim, since the dry either
-            // side of it is already at parity
-            const rooms2 = renderModes(source, ir, { ...shared, dry: false });
-            const trim = (Number.isFinite(integratedLufs(rooms2.stereo, src.sampleRate)) &&
-                          rooms2.ambisonic)
-                ? integratedLufs(rooms2.stereo, src.sampleRate) -
-                  integratedLufs(rooms2.ambisonic, src.sampleRate)
-                : null;
-
-            // Then the stage as the app plays it, to report what that leaves
-            const modes = renderModes(source, ir, { ...shared, ambisonicTrimDb: trim || 0 });
-            const lufs = {};
-            const peaks = {};
-            for (const [name, pair] of Object.entries(modes)) {
-                lufs[name] = integratedLufs(pair, src.sampleRate);
-                peaks[name] = Math.max(...pair.map(peakOf));
+            // What each source asks for on its own: the two rooms alone, since
+            // the dry either side of them is already at parity. They disagree —
+            // see DEFAULT_SOURCES — so the answer is a set, not a number.
+            const wanted = [];
+            for (const entry of sources) {
+                const rooms2 = renderModes(entry.data, ir,
+                    { ...shared, sampleRate: entry.sampleRate, dry: false });
+                if (!rooms2.ambisonic) continue;
+                const stereoLufs = integratedLufs(rooms2.stereo, entry.sampleRate);
+                const ambiLufs = integratedLufs(rooms2.ambisonic, entry.sampleRate);
+                if (!Number.isFinite(stereoLufs) || !Number.isFinite(ambiLufs)) continue;
+                wanted.push({ label: entry.label, db: stereoLufs - ambiLufs });
             }
-            rows.push({ stem, receiver: receiverOf(stem), lufs, peaks, trim });
+
+            // The mean, because no source has a better claim than the others and
+            // a visitor picks among them freely. The median would shrug off an
+            // outlier, but five points is too few to tell an outlier apart from
+            // the spread this measurement genuinely has.
+            const trim = wanted.length
+                ? wanted.reduce((sum, w) => sum + w.db, 0) / wanted.length : null;
+
+            // Then every source back through the stage as the app would play it,
+            // carrying the one trim they all have to share. The residual and the
+            // peak come from here, measured rather than predicted: the loudness
+            // gate does not scale linearly with a gain, so what a source is left
+            // with is not exactly its distance from the mean.
+            let peak = 0;
+            const residuals = [];
+            for (const entry of sources) {
+                const modes = renderModes(entry.data, ir,
+                    { ...shared, sampleRate: entry.sampleRate, ambisonicTrimDb: trim || 0 });
+                if (!modes.ambisonic) continue;
+                // The headphone stage's own peak, not the louder of the two.
+                // The trim moves this one and leaves stereo exactly where it
+                // was, so folding stereo in here would flag an overshoot the
+                // trim cannot reach and send someone to retune the wrong number.
+                peak = Math.max(peak, ...modes.ambisonic.map(peakOf));
+                residuals.push(integratedLufs(modes.ambisonic, entry.sampleRate) -
+                               integratedLufs(modes.stereo, entry.sampleRate));
+            }
+
+            rows.push({
+                stem, receiver: receiverOf(stem), trim, wanted, residuals, peak,
+                stored: storedTrimDb(rooms, dir, stem),
+            });
         }
 
         const label = labelFor(rooms, dir);
         if (rows.length) perChurch.push({ dir, label, rows });
-        reportChurch(label, rows);
+        reportChurch(label, rows, sources, options);
     }
 
     const suggested = summarize(perChurch, options);
@@ -631,7 +783,13 @@ function main() {
     }
 }
 
-const MODES = ['stereo', 'ambisonic'];
+/**
+ * How a source is named in the report: the first word of its filename, which
+ * is what tells the five apart in a column eight characters wide.
+ */
+function shortSourceLabel(file) {
+    return path.basename(file, path.extname(file)).split(/[_ ]/)[0].slice(0, 8);
+}
 
 /** The trim one position wants: what it takes for its room to sit where stereo's does */
 function trimOf(row) {
@@ -643,23 +801,56 @@ function trimOf(row) {
  * render. Matching loudness says nothing about crest factor, and anything above
  * 0 dBFS is clipped at the destination rather than merely loud.
  */
-function trimmedPeakDb(row, mode = 'ambisonic') {
-    return row.peaks[mode] > 0 ? db(row.peaks[mode]) : null;
+function trimmedPeakDb(row) {
+    return row.peak > 0 ? db(row.peak) : null;
 }
 
-function reportChurch(label, rows) {
+/**
+ * The worst a source is left mistuned once the shared trim is applied, in dB.
+ *
+ * The number to read when deciding whether a scalar is enough here: it is the
+ * level step a visitor hears on the headphone button at whichever source suits
+ * this seat least.
+ */
+function worstResidual(row) {
+    if (!row.residuals || !row.residuals.length) return null;
+    const finite = row.residuals.filter(Number.isFinite);
+    if (!finite.length) return null;
+    return finite.reduce((worst, r) => (Math.abs(r) > Math.abs(worst) ? r : worst), 0);
+}
+
+/** How far this run's trim sits from the one Rooms.js holds, in dB */
+function driftOf(row) {
+    const trim = trimOf(row);
+    return trim === null || row.stored === null ? null : trim - row.stored;
+}
+
+const signed = (v) => (v >= 0 ? '+' : '') + v.toFixed(1);
+
+function reportChurch(label, rows, sources, options) {
     console.log(`\n${label}`);
     if (!rows.length) { console.log('  nothing measurable here'); return; }
 
-    console.log('  position                       ' +
-        MODES.map(m => m.padStart(10)).join('') + '       trim      peak');
+    // With one probe the residual is always zero, so the column that earns its
+    // place is the drift against what is stored — the thing a check is for.
+    console.log('  position                  ' +
+        sources.map(entry => entry.label.padStart(9)).join('') +
+        (options.pink ? '    stored     drift      peak'
+                      : '      trim     worst      peak'));
     for (const row of rows) {
-        const cells = MODES.map(m => (Number.isFinite(row.lufs[m])
-            ? row.lufs[m].toFixed(1) : '-').padStart(10)).join('');
-        const trim = trimOf(row);
+        const cells = sources.map((entry) => {
+            const hit = row.wanted.find(w => w.label === entry.label);
+            return (hit ? hit.db.toFixed(1) : '-').padStart(9);
+        }).join('');
         const peak = trimmedPeakDb(row);
-        console.log('  ' + row.stem.padEnd(29) + cells +
-            (trim === null ? '-' : trim.toFixed(1)).padStart(11) +
+        const drift = driftOf(row);
+        const worst = worstResidual(row);
+        const middle = options.pink
+            ? (row.stored === null ? '-' : row.stored.toFixed(1)).padStart(10) +
+              (drift === null ? '-' : signed(drift)).padStart(10)
+            : (trimOf(row) === null ? '-' : trimOf(row).toFixed(1)).padStart(10) +
+              (worst === null ? '-' : signed(worst)).padStart(10);
+        console.log('  ' + row.stem.padEnd(24) + cells + middle +
             (peak === null ? '-' : peak.toFixed(1)).padStart(10) +
             (peak !== null && peak > 0 ? '  CLIPS' : ''));
     }
@@ -667,8 +858,16 @@ function reportChurch(label, rows) {
 
 function summarize(perChurch, options) {
     console.log(`\n${'─'.repeat(78)}`);
-    console.log('Per position. Trim = the gap between the two rooms, dry muted.\n');
-    console.log('  church                              trims      spread');
+    if (options.pink) {
+        console.log('Pink-noise check. Drift = this run minus what Rooms.js holds.');
+        console.log('The probe tracks the five-source average to about a decibel, so');
+        console.log('a drift much past that means the files or the chain moved.\n');
+        console.log('  church                          positions           worst drift');
+    } else {
+        console.log('Per position. Trim = the gap between the two rooms, dry muted,');
+        console.log('averaged over every source; worst = what that average leaves behind.\n');
+        console.log('  church                              trims      spread     worst');
+    }
 
     const suggested = {};
     for (const { dir, label, rows } of perChurch) {
@@ -686,10 +885,30 @@ function summarize(perChurch, options) {
         suggested[irDirKey(dir)] = { ambisonic: byReceiver };
 
         const values = Object.values(byReceiver);
+
+        if (options.pink) {
+            const drift = rows.reduce((acc, row) => {
+                const d = driftOf(row);
+                return d !== null && Math.abs(d) > Math.abs(acc) ? d : acc;
+            }, 0);
+            console.log('  ' + label.padEnd(36) + String(values.length).padStart(5) +
+                (signed(drift) + ' dB').padStart(22));
+            continue;
+        }
+
         const spread = values.length
             ? (Math.max(...values) - Math.min(...values)).toFixed(1) + ' dB' : '-';
+
+        // Across the church, the largest step any one source is still left with.
+        // A scalar trim cannot go below this: it is the part of the mismatch
+        // that is spectral rather than a level, and only an EQ match would take
+        // it out. Printed so the decision to stop here stays an informed one.
+        const worst = rows.reduce((acc, row) => {
+            const r = worstResidual(row);
+            return r !== null && Math.abs(r) > Math.abs(acc) ? r : acc;
+        }, 0);
         console.log('  ' + label.padEnd(36) + String(values.length).padStart(5) +
-            spread.padStart(12));
+            spread.padStart(12) + (signed(worst) + ' dB').padStart(11));
     }
 
     const clipping = perChurch.flatMap(({ label, rows }) => rows
@@ -705,7 +924,9 @@ function summarize(perChurch, options) {
 The ambisonic column runs Omnitone's own decode — the filters the browser runs,
 not a model of them — so no part of this is an estimate.`);
 
-    if (!options.write) {
+    if (options.pink) {
+        console.log('\nNothing written: --pink checks the stored trims, it does not set them.');
+    } else if (!options.write) {
         console.log('\nNothing written. Pass --write to put these into Rooms.js.');
     }
     return suggested;

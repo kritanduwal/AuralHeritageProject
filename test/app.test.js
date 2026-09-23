@@ -19,7 +19,7 @@ test('compile points the audio engine at the selected position', async () => {
     await app.g.compile();
 
     assert.equal(app.state.currentIr.base, 'IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R7-');
-    assert.equal(app.state.currentIr.gainDb, 1.5, 'R7 carries a 1.5 dB trim');
+    assert.equal(app.state.currentIr.gainDb, -1.5, 'R7 carries a -1.5 dB trim');
 });
 
 test('compile defaults the trim to zero where a position has none', async () => {
@@ -108,7 +108,7 @@ test('compile restarts playback so a receiver switch takes effect immediately', 
 
     assert.equal(app.state.isPlaying, true, 'playback should still be running');
     assert.notEqual(app.state.activeGraph, firstGraph, 'it should be running through the new position');
-    assert.equal(app.state.currentIr.gainDb, 3, 'R5 carries a 3 dB trim');
+    assert.equal(app.state.currentIr.gainDb, -3, 'R5 carries a -3 dB trim');
 });
 
 test('compile leaves playback stopped if it was already stopped', async () => {
@@ -517,8 +517,8 @@ test('an uncalibrated set does not inherit the last one', () => {
         app.state.rcvpos = 'rpR1_MonasteryImmaculateConception';
         app.g.compile();
 
-        assert.equal(app.g.stageTrimDb('ambisonic', app.data.AMBISONIC_TRIM_DB),
-            app.data.AMBISONIC_TRIM_DB, 'a set with no trim must fall back, not keep -9');
+        assert.equal(app.g.stageTrimDb('ambisonic'), 0,
+            'a set with no trim must fall back, not keep -9');
     } finally {
         originals.trim = measured;
     }

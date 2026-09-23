@@ -140,12 +140,13 @@ test('reverb overtakes the direct sound just under 60% on the slider', () => {
     assert.ok(0.6 > dryGainFor(0.6), 'by 60% the wet path should lead');
 });
 
-test('reductionToGain converts a dB reduction to linear attenuation', () => {
-    const { reductionToGain } = createApp().g;
-    close(reductionToGain(0), 1);
-    close(reductionToGain(6), 0.5011872336, 1e-9);
-    close(reductionToGain(20), 0.1, 1e-12);
-    assert.ok(reductionToGain(4.5) < reductionToGain(3), 'a bigger reduction must be quieter');
+test('gainFromDb reads a signed level, so a negative one attenuates', () => {
+    const { gainFromDb } = createApp().g;
+    close(gainFromDb(0), 1);
+    close(gainFromDb(-6), 0.5011872336, 1e-9);
+    close(gainFromDb(-20), 0.1, 1e-12);
+    close(gainFromDb(6), 1.9952623150, 1e-9);
+    assert.ok(gainFromDb(-4.5) < gainFromDb(-3), 'a lower level must be quieter');
 });
 
 // ── graph wiring ──────────────────────────────────────────────────────────
@@ -204,11 +205,11 @@ test('the gain trim sits before the convolvers, where normalization cannot undo 
     // A ConvolverNode re-normalizes its buffer on assignment, so a trim baked
     // into the IR samples would be scaled straight back out. It has to be a node.
     const app = createApp();
-    const { irTrim, splitter, src, convolvers } = buildGraph(app, { irGainDb: 6 });
+    const { irTrim, splitter, src, convolvers } = buildGraph(app, { irGainDb: -6 });
 
     assert.ok(irTrim, 'nothing feeds the splitter');
     assert.equal(irTrim.kind, 'gain', 'the splitter should be fed by a gain node');
-    close(irTrim.gain.value, app.g.reductionToGain(6));
+    close(irTrim.gain.value, app.g.gainFromDb(-6));
 
     assert.ok(app.edgesFrom(src).some(e => e.to === irTrim), 'trim must tap the source');
     assert.ok(app.edgesFrom(irTrim).some(e => e.to === splitter), 'trim must feed the splitter');
@@ -223,15 +224,15 @@ test('the gain trim leaves the direct sound at full level', () => {
     const plain = buildGraph(app, { mix: 1, irGainDb: 0 });
     const dryPlain = plain.graph.dryGain.gain.value;
 
-    const trimmed = buildGraph(app, { mix: 1, irGainDb: 6 });
+    const trimmed = buildGraph(app, { mix: 1, irGainDb: -6 });
     assert.equal(trimmed.graph.dryGain.gain.value, dryPlain,
         'a per-position reverb trim must not touch the dry path');
 });
 
 test('a larger trim attenuates more', () => {
     const app = createApp();
-    const light = buildGraph(app, { irGainDb: 1 }).irTrim.gain.value;
-    const heavy = buildGraph(app, { irGainDb: 6 }).irTrim.gain.value;
+    const light = buildGraph(app, { irGainDb: -1 }).irTrim.gain.value;
+    const heavy = buildGraph(app, { irGainDb: -6 }).irTrim.gain.value;
     assert.ok(heavy < light);
     close(buildGraph(app, { irGainDb: 0 }).irTrim.gain.value, 1);
 });
@@ -452,8 +453,7 @@ test('the mode is remembered while stopped and applied on the next play', async 
     assert.equal(app.state.activeGraph, null);
 
     await app.g.startPlayback();
-    assert.equal(app.state.activeGraph.ambisonicOut.gain.value,
-        app.data.gainFromDb(app.data.AMBISONIC_TRIM_DB));
+    assert.equal(app.state.activeGraph.ambisonicOut.gain.value, 1);
     assert.equal(app.state.activeGraph.stereoOut.gain.value, 0);
 });
 
@@ -467,8 +467,7 @@ test('the mode survives the restart a receiver change causes', async () => {
     await app.g.playpause();
 
     assert.equal(app.state.ambisonicEnabled, true);
-    assert.equal(app.state.activeGraph.ambisonicOut.gain.value,
-        app.data.gainFromDb(app.data.AMBISONIC_TRIM_DB),
+    assert.equal(app.state.activeGraph.ambisonicOut.gain.value, 1,
         'the rebuilt graph must come back in the mode the visitor chose');
 });
 
@@ -678,8 +677,8 @@ test('a trim scales the room and leaves the dry alone', () => {
 
 test('the upstream trim and taper are untouched by the ambisonic stage', () => {
     const app = createApp();
-    const plain = buildGraph(app, { mix: 0.4, irGainDb: 6 });
-    const withStage = buildGraph(app, { mix: 0.4, irGainDb: 6, withBformat: true });
+    const plain = buildGraph(app, { mix: 0.4, irGainDb: -6 });
+    const withStage = buildGraph(app, { mix: 0.4, irGainDb: -6, withBformat: true });
 
     assert.equal(withStage.irTrim.gain.value, plain.irTrim.gain.value);
     assert.equal(withStage.graph.dryGain.gain.value, plain.graph.dryGain.gain.value);
@@ -694,7 +693,7 @@ test('the mix slider retunes the ambisonic stage along with the rest', async () 
 });
 
 test('the two modes are alternatives, not layers', async () => {
-    // engageMode() is the single place that resolves them
+    // applyOutputStage() is the single place that resolves them
     const app = await readyToPlay(withAmbisonic(createApp()));
     await app.g.startPlayback();
 
@@ -961,7 +960,7 @@ test('the mode can be armed before playback has started', async () => {
 
     app.g.setAmbisonicEnabled(true);
     await app.g.startPlayback();
-    assert.equal(app.state.activeGraph.ambisonicOut.gain.value, app.data.gainFromDb(app.data.AMBISONIC_TRIM_DB),
+    assert.equal(app.state.activeGraph.ambisonicOut.gain.value, 1,
         'the mode chosen while stopped should be the one that comes up');
 });
 
@@ -1168,8 +1167,10 @@ test('switching churches switches levels', () => {
 test('the fallback is 0 dB, so calibration starts from raw', () => {
     // A fallback already close to right is the hard case to calibrate against:
     // the ear has nothing to push away from
-    assert.equal(createApp().data.AMBISONIC_TRIM_DB, 0,
-        'AMBISONIC_TRIM_DB should leave an uncalibrated stage untouched');
+    const app = createApp();
+    app.g.setStageTrims({});
+    assert.equal(app.g.stageTrimDb('ambisonic'), 0,
+        'an uncalibrated stage should be left untouched');
 });
 
 
@@ -1317,12 +1318,12 @@ test('a second play never leaves two graphs feeding the destination', async () =
 });
 
 test('the selected position’s trim is carried into the graph', async () => {
-    const app = await readyToPlay(createApp(), 4.5);
+    const app = await readyToPlay(createApp(), -4.5);
     await app.g.startPlayback();
 
     const splitter = app.nodes.filter(n => n.kind === 'splitter').at(-1);
     const trim = app.edgesTo(splitter)[0].from;
-    close(trim.gain.value, app.g.reductionToGain(4.5));
+    close(trim.gain.value, app.g.gainFromDb(-4.5));
 });
 
 test('play refuses to start before a source file has decoded', async () => {

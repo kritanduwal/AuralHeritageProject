@@ -15,27 +15,20 @@ Belmont University. Supervised by Dr. Doyuen Ko.
 
 ## Running it locally
 
-Any static file server works, because the site is plain HTML, CSS and JavaScript
-with no build step.
-
-**With Node** (adds a source-file listing endpoint):
+Any static file server works — the site is plain HTML, CSS and JavaScript with no
+build step.
 
 ```bash
-npm install
-npm start                      # http://localhost:8000
-```
-
-**With Python** (no dependencies):
-
-```bash
-python3 -m http.server 8000    # http://localhost:8000/index.html
+npm install && npm start       # http://localhost:8000, adds /api/source-files
+python3 -m http.server 8000    # no dependencies
 ```
 
 The only difference is the source file picker. Under Node, `server.js` exposes
 `/api/source-files` and the picker lists whatever is actually in `Source Files/`.
 Under Python — and on the deployed site — that endpoint does not exist, so the
-picker falls back to the hardcoded `BUNDLED_SOURCE_FILES` list in `SettingsMenu.js`.
-Either way, **Browse other files…** can play any WAV or MP3 from your own machine.
+picker falls back to the hardcoded `BUNDLED_SOURCE_FILES` list in
+`SettingsMenu.js`. Either way, **Browse other files…** can play any WAV or MP3
+from your own machine.
 
 Deployment is Netlify, configured by `netlify.toml` to publish the repository root
 as-is with no build command.
@@ -101,8 +94,7 @@ matching entry in `ROOMS`, and:
 
 1. tells the audio engine which impulse response to use,
 2. checks that the recording exists (a `HEAD` request — no audio is downloaded),
-3. enables or disables the play button and colours the S/R markers
-   <span style="color:#00f47f">green</span> or <span style="color:crimson">red</span>,
+3. enables or disables the play button and colours the S/R markers green or red,
 4. swaps the panorama and points the camera at that position's angles,
 5. restarts playback if audio was already running, so the new room takes effect
    immediately.
@@ -130,84 +122,74 @@ has started. A slow response can never overwrite a later choice.
 | `Style/Landing.css` | The landing overlay, its map pane, list and pins |
 | `server.js` | Static server plus the `/api/source-files` listing |
 
-`Rooms.js` is the single source of truth for playback behaviour. It replaced twelve
-near-identical `CompileSelection<Church>()` functions that differed only in their
-string literals and camera angles.
+`Rooms.js` is the single source of truth for playback behaviour: churches differ
+only in data, never in code.
 
 ### The landing map
 
 The page opens on a map of the United States with a pin on every church, over the
 top of the app rather than as a fourth tab. Choosing a church — from a pin or from
-the list beside the map — closes the landing, switches to the **View** tab, sets the
-dropdown, and calls `switchRoom()`. That is the whole of it: the landing has no
-private route into playback, so a church reached from the map is in exactly the
-state it would be in had the dropdown been used.
-
-`Map` at the end of the tab row reopens it; `Skip the map` and `Escape` close it
-without choosing, which leaves the same empty selection the page has always
-started in. Reopening never disturbs the current selection.
-
-**Choosing a church is animated.** The chosen pin lights up, the map zooms at it,
-and the sheet fades and swells past the viewer — the two movements have to go the
-same direction or they fight, which is why the sheet grows rather than shrinks.
-
-The church is selected *before* the landing starts leaving, which is the opposite
-of how it reads. The panorama fetch and the impulse-response probe are a wait that
-happens anyway, against elements already laid out at full size behind the overlay,
-so the animation is spent on it rather than added in front of it. By the time the
-sheet is gone the panorama is usually already aimed.
-
-`LANDING_EXIT_MS` in `Landing.js` and the transition on `#landing.landing--leaving`
-are the same duration and `landing.test.js` checks they stay that way: a stylesheet
-that outlasts the timer is cut off mid-fade, and one that finishes early leaves an
-invisible sheet over the page. The sheet drops `pointer-events` for the whole exit,
-so the page underneath is live immediately rather than swallowing the first click.
-
-The map is put back where the dive started **as the landing leaves**, not when it
-returns — nothing is on screen to see the snap, and the tiles for that view are
-then requested while nobody is looking. Restoring on the way in instead showed a
-blank grey pane, because a dive ends at a zoom no tile was ever fetched for. It
-returns to the view the visitor left, not to the country: someone who zoomed into
-a city and picked a church there expects that city back.
-
-A visitor who has asked for reduced motion gets none of this — the landing cuts,
-the map does not dive — and ends in exactly the same place. The stylesheet stands
-the animations down as well, for a preference changed while the page is open.
+the list beside the map — closes the landing, switches to the **View** tab, sets
+the dropdown and calls `switchRoom()`. The landing has no private route into
+playback, so a church reached from the map ends up in exactly the state the
+dropdown would have left it in. `Map` at the end of the tab row reopens it; `Skip
+the map` and `Escape` close it without choosing. Reopening never disturbs the
+current selection.
 
 **It ships open.** `<div id="landing" class="open">` is in the markup and
-`initLanding()` only fills it in, so there is no moment on load where the app is on
-screen before the script that covers it has run.
+`initLanding()` only fills it in, so there is no moment on load where the app is
+on screen before the script that covers it has run.
 
-**The list is the other half of the map, not a fallback for it.** Five of the twelve
-churches are in Nashville, within a mile of each other; at the zoom that shows the
-country they are one pin no matter how the map is drawn. The pins close that gap
-from their side too: a city holding more than one church shows a single counted pin
-below `CITY_SPLIT_ZOOM`, and opening it flies to a zoom fitted to that city's
-churches — floored at the split, so the click that frames them is also the one that
-makes them separately clickable.
+**Choosing a church is animated:** the pin lights, the map zooms at it, and the
+sheet fades and swells past the viewer — it grows rather than shrinks so the two
+movements go the same direction instead of fighting. Two details are deliberate
+and read backwards: the church is selected *before* the landing starts leaving, so
+the panorama fetch and the IR probe run behind the overlay and the animation is
+spent on a wait that happens anyway; and the map is put back where the dive
+started **as the landing leaves**, not when it returns, so the snap is off screen
+and the tiles for that view are fetched while nobody is looking. It returns to the
+view the visitor left, not to the country.
+
+`LANDING_EXIT_MS` in `Landing.js` and the transition on
+`#landing.landing--leaving` are the same duration and `landing.test.js` checks
+they stay that way: a stylesheet that outlasts the timer is cut off mid-fade, one
+that finishes early leaves an invisible sheet over the page. The sheet drops
+`pointer-events` for the whole exit, so the page underneath is live immediately
+rather than swallowing the first click. A visitor who has asked for reduced motion
+gets none of this and ends in the same place.
+
+**The list is the other half of the map, not a fallback for it.** Five of the
+twelve churches are in Nashville, within a mile of each other; at the zoom that
+shows the country they are one pin no matter how the map is drawn. The pins close
+that gap from their side too: a city holding more than one church shows a single
+counted pin below `CITY_SPLIT_ZOOM`, and opening it flies to a zoom fitted to that
+city's churches — floored at the split, so the click that frames them is also the
+one that makes them separately clickable.
 
 **Coordinates** live in `ChurchData.js` as `coords: { lat, lon }`. They were read
 off the addresses rather than surveyed, so they are good to the block and not to
 the door. `landing.test.js` checks that every church in `ROOMS` has one, that they
 are inside the United States, that no two are identical, and that each sits within
-25 km of the city its own address names — which is what catches a transposed digit.
+25 km of the city its own address names — which is what catches a transposed
+digit. The city and state a church is listed under are parsed back out of
+`address`, which already carries them in one consistent `…, City, ST ZIP` shape;
+storing them twice would let the copies drift.
 
-The city and state a church is listed under are parsed back out of `address`, which
-already carries them in one consistent `…, City, ST ZIP` shape. Storing them twice
-would let the copies drift.
-
-**Leaflet and its tiles are CDN dependencies**, pinned by version like pannellum and
-omnitone. Tiles come from OpenStreetMap, which needs no key — the grey basemaps that
-would suit the palette better all want an account now, and a tile server that wants a
-key it is not given stamps that across every tile rather than failing. If Leaflet
-itself does not load, `buildLandingMap()` says so in the map's place and the list
-beside it carries the whole landing; an empty grey rectangle would read as a map
-still loading.
+**Leaflet and its tiles are CDN dependencies**, pinned by version like pannellum
+and omnitone. Tiles come from OpenStreetMap, which needs no key — the grey
+basemaps that would suit the palette better all want an account now, and a tile
+server that wants a key it is not given stamps that across every tile rather than
+failing. If Leaflet itself does not load, `buildLandingMap()` says so in the map's
+place and the list beside it carries the whole landing; an empty grey rectangle
+would read as a map still loading.
 
 > **Known, pre-existing:** the page overflows horizontally below about 550px. The
-> app bar's two logos and the control bar set that floor and always have; the
-> landing has its own stacked layout under 860px and demands no more than 390px on
-> its own, but it sits inside the same viewport as everything else.
+> app
+> bar's two logos and the control bar set that floor and always have; the landing
+> has
+> its own stacked layout under 860px and demands no more than 390px on its own,
+> but it
+> sits inside the same viewport as everything else.
 
 ### The impulse response library
 
@@ -244,24 +226,21 @@ are archived for research use and are not loaded by the browser. The `-1` / `-2`
 suffix is appended by `AudioEngine.js`; `ROOMS` stores only the base path up to
 the trailing `-`.
 
-Two things about the archived channels are worth recording, because they are not
-apparent from the file names and they are what rules out an ambisonic render
-(see [Why not an ambisonic decode](#why-not-an-ambisonic-decode)): the 4-channel ambisonic block is
-the **raw A-format** output of the NT-SF1 rather than B-format, and **every file
-in `Normalized/` is peak-normalized on its own**, so relationships between
-channels are gone. The stereo pair tolerates that because the two front omnis are
-near symmetric; a decode built from linear combinations of four capsules would
-not.
+Two properties of the archived ambisonic channels are not apparent from the file
+names and are what rules out an ambisonic render: the 4-channel block is the **raw
+A-format** output of the NT-SF1 rather than B-format, and **every file in
+`Normalized/` is peak-normalized on its own**, so relationships between channels
+are gone. See [Why not an ambisonic decode](#why-not-an-ambisonic-decode).
 
-That is what the second folder is for. Where the un-normalized originals have
-been recovered they sit in `IR/<Church>/Not Normalized/` alongside the published
-set, and are the only files the [Headphones](#headphones) render will decode.
-See [The originals](#the-originals-where-they-have-been-recovered).
+That is what the second folder is for. Where the un-normalized originals have been
+recovered they sit in `IR/<Church>/Not Normalized/` alongside the published set,
+and are the only files the [Headphones](#headphones) render will decode. See [The
+originals](#the-originals-where-they-have-been-recovered).
 
 Prefixes rarely match the folder name (`Cane Ridge Meeting House, KY` holds files
-named `Cane Ridge KY_…`), which is why `ir.dir` and `ir.prefix` are separate fields.
-Basilica St. Francis R8 breaks the pattern entirely and carries an explicit
-`irName` override.
+named `Cane Ridge KY_…`), which is why `ir.dir` and `ir.prefix` are separate
+fields. Basilica St. Francis R8 breaks the pattern entirely and carries an
+explicit `irName` override.
 
 ---
 
@@ -326,12 +305,10 @@ first 10% of the slider, then drops it linearly in dB to −9.1 dB at 100%:
 | 90% | 0.90 | −0.9 dB | 0.393 | −8.1 dB | +7.2 dB |
 | 100% | 1.00 | 0.0 dB | 0.350 | −9.1 dB | +9.1 dB |
 
-Two things worth reading off that table:
-
-- At **0%** the wet path is silent and you hear the bare source file. This is the
-  reference point for A/B-ing a room against dry audio.
-- The crossover — where reverb first exceeds direct sound — sits just under **60%**.
-  Below it you hear a source in a room; above it the room dominates.
+At **0%** the wet path is silent and you hear the bare source file — the reference
+point for A/B-ing a room against dry audio. The crossover, where reverb first
+exceeds direct sound, sits just under **60%**: below it you hear a source in a
+room, above it the room dominates.
 
 Moving the slider during playback does not rebuild anything. `setConvolutionMix()`
 ramps the three live gain nodes over 50 ms, which is fast enough to feel immediate
@@ -342,49 +319,42 @@ and slow enough to avoid zipper noise.
 Rooms were measured with the same rig, but a receiver 90 ft from the speaker in a
 long adobe mission does not produce a reverb of comparable loudness to one 12 ft
 away. Left alone, distant positions come back disproportionately loud relative to
-the dry source. `ROOMS` therefore carries an optional per-receiver reduction in dB:
+the dry source. `ROOMS` therefore carries an optional per-receiver level in dB:
 
 ```js
 StAugustineIsleta: {
     receivers: {
-        R1: {},                 // as recorded
-        R2: { gainDb: 1.5 },    // −1.5 dB
-        R3: { gainDb: 3   },
-        R4: { gainDb: 4.5 },
-        R5: { gainDb: 6   }     // −6 dB, the furthest position at 90 ft
+        R1: {},                  // as recorded
+        R2: { gainDb: -1.5 },
+        R3: { gainDb:   -3 },
+        R4: { gainDb: -4.5 },
+        R5: { gainDb:   -6 }     // the furthest position, at 90 ft
     }
 }
 ```
 
 Trims currently exist for the Kentucky, Indiana and New Mexico churches, generally
-increasing with distance from the source. Rooms and receivers with no `gainDb` play
-back exactly as recorded. `gainDb` is a *reduction*, so a positive number makes that
-position quieter: `gain = 10 ^ (−gainDb / 20)`.
+falling with distance from the source. Rooms and receivers with no `gainDb` play
+back exactly as recorded.
 
-| `gainDb` | Linear gain |
-| ---: | ---: |
-| 1 | ×0.891 |
-| 1.5 | ×0.841 |
-| 2.5 | ×0.750 |
-| 3 | ×0.708 |
-| 4.5 | ×0.596 |
-| 6 | ×0.501 |
+`gainDb` is a **signed level, not a reduction**: negative is quieter, so `gain =
+10 ^ (gainDb / 20)`. It reads the same way as `trim.ambisonic` under
+[Headphones](#headphones). Every entry today is negative, since the job is always
+to hold a distant position back.
 
-**Where the trim is applied matters.** A `ConvolverNode` equal-power normalizes its
-impulse response at the moment `buffer` is assigned. Scaling the IR samples before
-handing them over therefore accomplishes nothing — normalization scales the gain
-straight back out, and the trim is silently discarded.
-
-So the reduction is applied as a `GainNode` (`irTrim`) on the signal *entering* the
-convolvers instead. Convolution is linear, so scaling the input scales the reverb by
-exactly the same amount, and because the dry path taps the source before that node,
-the direct sound is left at full level. The result is that raising a trim lowers the
-reverb of that position relative to the source, which is the intent.
+**Where the trim is applied matters.** A `ConvolverNode` equal-power normalizes
+its impulse response at the moment `buffer` is assigned, so scaling the IR samples
+before handing them over accomplishes nothing — normalization scales the gain
+straight back out. The level is applied instead as a `GainNode` (`irTrim`) on the
+signal *entering* the convolvers. Convolution is linear, so scaling the input
+scales the reverb by exactly the same amount, and because the dry path taps the
+source before that node the direct sound is left at full level: lowering a trim
+lowers that position's reverb relative to the source, which is the intent.
 
 ### Putting both layers together
 
 ```
-wet output = mix × 10^(−gainDb/20) × convolve(source, IR)
+wet output = mix × 10^(gainDb/20) × convolve(source, IR)
 dry output = min(1, 0.35^((10·mix − 1)/9)) × source
 ```
 
@@ -400,11 +370,12 @@ changes, so the two modes are the same auralization heard two ways.
 
 ```
    dryGain ──────► merger L + R ─┐
-   wetGainLeft ──► merger L      ├─► stereoOut ──────────────────┐
-   wetGainRight ─► merger R      ┘                               │
-                                                                 ├──► output ──► out
-   dryGain ──────► ambiMerger W + X ─┐                           │
-   splitter ─► 4 convolvers ─────────┴─ ambiWet ─► FOA ─► ambiOut┘
+   wetGainLeft ──► merger L      ├─► stereoOut ────────────┐
+   wetGainRight ─► merger R      ┘                         │
+                                                           ├──► output ──► out
+   dryGain ─────────────────────► ambiDryMerger L + R ─┐   │
+   splitter ─► ambiWet ─► 4 convolvers ─► ambiMerger    ├─► ambiOut ─┘
+                                    └─► ambiBus ─► FOA ─┘
 ```
 
 **Stereo** sends each side to its own headphone channel. Everything in the left
@@ -417,8 +388,8 @@ soundfield, and hands it to Omnitone to decode to binaural in the browser. Every
 direction in the recorded soundfield reaches *both* ears with the delay, level
 difference and spectral shaping a head introduces — the cue stereo cannot supply,
 and what puts the church around you rather than inside your head. The dry signal
-is encoded as a plane wave from straight ahead, landing on `W` and `X`, which is
-where a source in front belongs.
+bypasses the decoder entirely and goes straight to the stage output; see
+[Level](#level).
 
 Decoding live rather than baking the result offline costs four convolvers and a
 renderer. What it buys is that the soundfield stays *rotatable* right up to the
@@ -435,70 +406,68 @@ rebuilding would restart the source and lose its place in the loop. Toggling
 crossfades over 20 ms. The mode is engine state, so it survives the stop/start a
 receiver change performs.
 
-That 20 ms is a floor, not a taste: it cannot be zero, because a gain that steps
-in a single sample is a click, and it should not fall below the few milliseconds
-of convolution latency the decode adds over the stereo stage, or the fade would
-duck both stages at once and punch a hole in the sound. The button's CSS
-`transition` is held to the same standard — the fill is the only report the
-toggle makes, so a slow colour settle is heard as a slow switch.
+That 20 ms is a floor, not a taste: a gain that steps in a single sample is a
+click, and it must not fall below the few milliseconds of convolution latency the
+decode adds over the stereo stage, or the fade would duck both stages at once and
+punch a hole in the sound. The button's CSS `transition` is held to the same
+standard — the fill is the only report the toggle makes, so a slow colour settle
+is heard as a slow switch.
 
-The crossfade is anchored before it is drawn — `rampGain()` cancels the
-parameter's timeline and pins its current value at the current time before
-scheduling the ramp. `linearRampToValueAtTime()` on its own interpolates from
-the *previous automation event*, so the second toggle would draw its line from
-where the first one ended, however long ago that was. Scheduling it makes the
-gain jump nearly the whole way in one sample and then creep out the remainder,
-which is heard as a click on every toggle after the first. The mix slider is
-automated through the same helper for the same reason.
+The crossfade is anchored before it is drawn: `rampGain()` cancels the parameter's
+timeline and pins its current value at the current time before scheduling the
+ramp. `linearRampToValueAtTime()` on its own interpolates from the *previous
+automation event*, so the second toggle would draw its line from wherever the
+first one ended, jumping nearly the whole way in one sample and then creeping out
+the remainder — heard as a click on every toggle after the first. The mix slider
+uses the same helper for the same reason.
 
 Use headphones. Over loudspeakers the effect is lost, because the room you are
 sitting in filters the sound a second time.
 
 ### Level
 
-The four B-format convolvers deliberately do **not** normalize: the offline
-decode set their absolute level, and their level *relative to each other* is the
+The four B-format convolvers deliberately do **not** normalize: the offline decode
+set their absolute level, and their level *relative to each other* is the
 soundfield itself, so equal-power normalization would flatten the directions out.
 The stereo stage's convolvers do normalize. The two therefore arrive at quite
-different levels, and by an amount that depends on how the recovered set was
-scaled rather than on anything about the room.
+different levels, by an amount that depends on how the recovered set was scaled
+rather than on anything about the room.
 
-`trim.ambisonic` on the recovered set is what closes the gap. It replaces
-`AMBISONIC_TRIM_DB` outright — it is the level the stage runs at, not an
-adjustment to one — and it is bounded at −40 and +12 dB so that a typo cannot
-deafen anybody.
+`trim.ambisonic` on the recovered set is what closes the gap. It is the level the
+stage runs at rather than an adjustment to one, bounded at −40 and +12 dB so that
+a typo cannot deafen anybody. A position with no entry falls back to 0 dB and so
+plays untrimmed, which `assets.test.js` exists to prevent.
 
 **It scales the decoded room and nothing else.** The dry path is the identical
 signal in both stages — it skips the decoder entirely and goes straight to the
 stage output, centred, exactly as the stereo stage sends it. So the mix slider
-means one thing on either side of the button: the same proportion of dry to
-wet, by the same law, and at 0% the two stages are bit-for-bit the same signal.
+means one thing on either side of the button, and at 0% the two stages are
+bit-for-bit the same signal.
 
 Two things had to change for that. The trim used to scale the whole stage, dry
-included, so calibrating a church pulled its centre image down by however much
-the trim took off — as much as 17.6 dB at Basilica St. Francis's front row,
-whose render read as hollow in the middle as a result. And the dry used to be
-encoded as a plane wave from the front, which is the textbook thing to do and
-bought nothing: `W` and `X` reach both ears alike, so the decode handed back a
-signal that was still exactly mono, 5.7 dB down and smeared over 253 samples of
-HRTF colouring. That colouring was the whole audible difference between the two
-stages with the room dialled out.
+included, so calibrating a church pulled its centre image down by however much the
+trim took off — as much as 17.6 dB at Basilica St. Francis's front row, whose
+render read as hollow in the middle as a result. And the dry used to be encoded as
+a plane wave from the front, which is the textbook thing to do and bought nothing:
+`W` and `X` reach both ears alike, so the decode handed back a signal that was
+still exactly mono, 5.7 dB down and smeared over 253 samples of HRTF colouring —
+which was the whole audible difference between the two stages with the room
+dialled out.
 
-Measured as interaural cross-correlation over the first 80 ms, the standard
-proxy for how solid a centre image is:
+Measured as interaural cross-correlation over the first 80 ms, the standard proxy
+for how solid a centre image is:
 
-| Church | Stereo | Trim on the whole stage | Trim on the wet | …and the dry undecoded |
-| --- | --- | --- | --- | --- |
-| Basilica St. Francis | 0.653 | 0.572 | 0.756 | **0.810** |
-| Monastery Immaculate Conception | 0.510 | 0.746 | 0.791 | **0.778** |
-| St Augustine Isleta | 0.757 | 0.663 | 0.868 | **0.846** |
+| Church | Stereo | Trim on the whole stage | Now |
+| --- | --- | --- | --- |
+| Basilica St. Francis | 0.653 | 0.572 | **0.810** |
+| Monastery Immaculate Conception | 0.510 | 0.746 | **0.778** |
+| St Augustine Isleta | 0.757 | 0.663 | **0.846** |
 
-All three now hold the centre more firmly than their own stereo does.
-
-One consequence worth knowing: the dry no longer rotates with head tracking,
-because it is no longer part of the soundfield. That is the right reading of
-what it is — a dry/wet bypass rather than the room's direct sound, which the
-impulse response carries already — but it does mean the room turns around it.
+All three now hold the centre more firmly than their own stereo does. One
+consequence is worth knowing: the dry no longer rotates with head tracking,
+because it is no longer part of the soundfield. That is the right reading of what
+it is — a dry/wet bypass rather than the room's direct sound, which the impulse
+response carries already — but it does mean the room turns around it.
 
 **It is stated per receiver, not per church**, and the spread inside one room is
 large:
@@ -509,17 +478,16 @@ large:
 | St Augustine Isleta | −16.6 dB (R1) | −5.2 dB (R4) | 11.5 dB |
 | Monastery Immaculate Conception | −5.1 dB (R1) | +4.4 dB (R4) | 9.5 dB |
 
-That is not noise in the measurement. It is the two sets disagreeing about what
+That is not noise in the measurement; it is the two sets disagreeing about what
 distance does. Every published capsule was peak-normalized on its own, so a
 position's stereo IR sits at full scale however far back it was recorded —
 **stereo does not get quieter as you move away from the source.** The recovered
-set was scaled by a single factor for the whole church, so it keeps the real
-level relationships between seats and does get quieter. The gap between the two
-therefore grows with distance.
-
-One figure per church cannot close a gap that changes by 14 dB across the room.
-Averaging leaves the front rows loud enough to clip and the back rows nearly
-inaudible — which is exactly what it did before these were measured per position.
+set was scaled by a single factor for the whole church, so it keeps the real level
+relationships between seats and does get quieter. The gap therefore grows with
+distance, and one figure per church cannot close a gap that changes by 14 dB
+across the room: averaging leaves the front rows loud enough to clip and the back
+rows nearly inaudible, which is exactly what it did before these were measured per
+position.
 
 Correcting it here rather than in the files is deliberate. Rescaling each
 position's B-format would destroy the between-seat relationships that make the
@@ -527,19 +495,35 @@ recovered set worth having in the first place. The files stay a faithful
 measurement; this is a listening calibration against a reference that was itself
 normalized per position.
 
-Measured, not guessed: `tools/measure-loudness.js` renders both stages through
-the same chain the engine builds — Omnitone's own filters for the decode — and
-matches their ITU-R BS.1770 integrated loudness, position by position. It
-renders each position twice: once with the dry muted, to measure the two rooms
-against each other and derive the trim, and once as the app plays it. Run it
-with `--write` to refresh the table. It also reports each position's peak and
-flags anything above 0 dBFS, because matching loudness bounds neither peak nor
-crest factor.
+Measured, not guessed: `tools/measure-loudness.js` renders both stages through the
+same chain the engine builds — Omnitone's own filters for the decode — and matches
+their ITU-R BS.1770 integrated loudness, position by position. Each position is
+rendered twice per source: once with the dry muted, to measure the two rooms
+against each other and derive the trim, and once as the app plays it. Run it with
+`--write` to refresh the table; a full run takes about ten minutes. It also
+reports each position's peak and flags anything above 0 dBFS, because matching
+loudness bounds neither peak nor crest factor. `--pink` measures one seeded
+pink-noise probe instead — a minute for the whole library — and prints each
+position's drift against the trim already stored, tracking the five-source average
+to about a decibel. It refuses `--write`: it is a check, not a calibration. (A
+steady tone would be the obvious probe and is the wrong one. It reads `|H(f)|` at
+a single frequency, which in a reverberant space is one sample of a dense modal
+pattern, and the two stages have different patterns: moving a 1 kHz probe by 3%
+swings the trim it derives at St Francis R4 from −7.1 dB to +3.8 to −11.8.)
 
-Matching the rooms rather than the totals leaves the two stages within 0.6 dB
-of each other on average and 1.2 dB at worst, since they sum dry against wet
-with slightly different coherence. That residual is the price of the slider
-meaning the same thing in both, which is the trade worth making.
+**The trim is not a property of the room alone.** The decode colours what passes
+through it, so the ratio between the two stages is frequency-dependent, and the
+correction a seat wants moves with the material played into it — across the five
+sources the app offers, the spread reaches 5 dB at one position. Calibrated on
+twelve seconds of clarinet, this table left the headphone render 2.8 dB quiet at
+Basilica St. Francis R1 on everything else, audible as the render dropping the
+moment the button is pressed; the measurement that vouched for it had been taken
+on the same twelve seconds it was derived from, so it could only ever agree with
+itself. So every source the app offers is measured and the stored trim is their
+mean, leaving the two stages within 1.3 dB of each other on average and 2.7 dB at
+worst — the worst being the least-suited source at the least-suited seat, not a
+typical listen. What remains is spectral rather than a level: a scalar cannot
+reach it, and only matching the two stages across frequency would.
 
 Stereo has no trim. It is the reference the render is matched against, which is
 what makes the comparison mean anything.
@@ -593,9 +577,9 @@ against them: no channel peaks at full scale, and `aformat-to-bformat.js` says s
 rather than printing its `STOP`.
 
 The arithmetic agrees. Decoded, the directional channels sit at −5 to −8 dB
-against `W`, near the −4.8 dB a diffuse tail should give, where the same
-positions decoded from the published library scatter to −11, −15, −20 dB — the
-signature of four capsules each rescaled by its own unknown factor.
+against `W`, near the −4.8 dB a diffuse tail should give, where the same positions
+decoded from the published library scatter to −11, −15, −20 dB — the signature of
+four capsules each rescaled by its own unknown factor.
 
 These three are the churches whose headphone button works. The other nine play
 stereo only.
@@ -607,22 +591,20 @@ stereo only.
 | Stereo | IR channels 1 and 2 | `Normalized/`, at every church |
 | Headphones | `-Bformat.wav` | `Not Normalized/`, where recovered |
 
-Stereo convolves channels 1 and 2 through `ConvolverNode`s that equal-power
-normalize, which would scale the recovered level relationships straight back out.
-All that would survive swapping its files is the incidental difference between
-two takes of one measurement — a different length, a different L/R balance — and
-that difference would land on the very reference the other stage is trimmed
-against. So stereo stays on the published library everywhere, and the comparison
-between the two stages means something.
+Stereo stays on the published library everywhere, including at the three churches
+with originals. Its `ConvolverNode`s equal-power normalize, which would scale the
+recovered level relationships straight back out; all that would survive the swap
+is the incidental difference between two takes of one measurement — a different
+length, a different L/R balance — and that difference would land on the very
+reference the other stage is trimmed against.
 
 `AudioEngine.js` therefore carries two path prefixes, `currentIr.base` and
 `currentIr.decodedBase`. The second is the empty string at a church with no
 recovered set, which is what leaves its button dead rather than arming it for a
-file that is not there.
-
-The published library keeps only its capsules now. The `-Bformat.wav` and
-`-BRIR-*.wav` files once derived from it are gone: nothing reads them, and what
-they encoded was never the soundfield that was measured.
+file that is not there. The published library keeps only its capsules now: the
+`-Bformat.wav` and `-BRIR-*.wav` files once derived from it are gone, since
+nothing reads them and what they encoded was never the soundfield that was
+measured.
 
 Two more things are worth knowing before reading much into what you hear:
 
@@ -634,7 +616,6 @@ Two more things are worth knowing before reading much into what you hear:
   every position**, bringing the loudest sample in the church to 0 dBFS. This is
   the opposite of the per-channel normalization above: every ratio inside the set,
   between capsules and between positions alike, comes out exactly as it went in.
-  The only thing it changes is where the set as a whole sits.
 - **Which leaves one judgment call.** That absolute level sets how loud the
   measured reverb is against the direct sound, and 0 dBFS is a convention rather
   than a measurement — recovering the true ratio would need the source level at
@@ -656,44 +637,37 @@ unnormalized: {
 
 **`soundfieldYaw` is the one non-obvious part** of the entry.
 
+**`soundfieldYaw` is the one non-obvious part** of the entry.
+
 ### Why the originals need their own `soundfieldYaw`
 
 A church's published `soundfieldYaw` looks like a measurement and is not one. It
-was [found by ear](#the-impulse-response-library) against a decode whose directions
-are invalid, so it records whatever offset made a broken soundfield sit least
-wrong — not where the array was facing. A set that decodes correctly cannot
+was [found by ear](#the-impulse-response-library) against a decode whose
+directions are invalid, so it records whatever offset made a broken soundfield sit
+least wrong — not where the array was facing. A set that decodes correctly cannot
 inherit it.
 
-Monastery Immaculate Conception is the case in point. Taking the active intensity
-vector `W·[X, Y, Z]` over the direct sound, the two sets disagree completely about
-where the source is:
-
-| Set | Direct-sound azimuth, by position | Elevation |
-| --- | --- | --- |
-| Published | −88°, −86°, −98°, −88°, −32°, −129° | ≈ +55° |
-| Originals | −40°, −39°, −39°, −39°, −39°, −39° | ≈ −39° |
-
-The published figures scatter over 97° and put the source *above* the array; the
-originals agree to within a degree across all six positions. That consistency is
-the decode working.
-
-It also means the array's front and the panorama's already agree, so the church's
-`soundfieldYaw: 180` is half a turn too far for this set. That is not a cosmetic
-error: it renders the source **behind** the listener, and behind you the lateral
-motion runs backwards — drag the view left and the source moves further left
-instead of handing over to the right ear. Hence `soundfieldYaw: 0` on the
-originals, stated rather than omitted.
-
-The other two recovered sets measure the same way, which is what one would hope
-from the same microphone on the same wiring:
+Taking the active intensity vector `W·[X, Y, Z]` over the direct sound:
 
 | Set | Direct-sound azimuth, by position |
 | --- | --- |
-| Monastery Immaculate Conception | −40°, −39°, −39°, −39°, −39°, −39° |
-| Basilica St. Francis | −43°, −42°, −40°, −41°, −40°, −41°, −41°, −39° |
-| St Augustine Isleta | −40°, −41°, −41°, −41°, −41° |
+| Monastery IC — **published** | −88°, −86°, −98°, −88°, −32°, −129° (elevation ≈ +55°) |
+| Monastery IC — originals | −40°, −39°, −39°, −39°, −39°, −39° (elevation ≈ −39°) |
+| Basilica St. Francis — originals | −43°, −42°, −40°, −41°, −40°, −41°, −41°, −39° |
+| St Augustine Isleta — originals | −40°, −41°, −41°, −41°, −41° |
 
-All three therefore carry `soundfieldYaw: 0`, confirmed by ear.
+The published figures scatter over 97° and put the source *above* the array. All
+three recovered sets agree to within a few degrees across every position, which is
+what one would hope from the same microphone on the same wiring, and is the decode
+working.
+
+It also means the array's front and the panorama's already agree, so Monastery
+IC's church-level `soundfieldYaw: 180` is half a turn too far for its recovered
+set. That is not a cosmetic error: it renders the source **behind** the listener,
+and behind you the lateral motion runs backwards — drag the view left and the
+source moves further left instead of handing over to the right ear. All three
+recovered sets therefore carry `soundfieldYaw: 0`, stated rather than omitted, and
+confirmed by ear.
 
 `soundfieldYawOf()` in `Rooms.js` resolves it, falling back to the church where a
 recovered set agrees. The measurement narrows the answer to one of two; only
@@ -709,10 +683,10 @@ cannot do that; on-axis to one capsule is worth about 9.5 dB even for the direct
 sound, and the tail should be flatter still.
 
 That imbalance, not the room, is likely what puts the measured direction at −39°
-azimuth and −39° elevation — a direction which is within a few degrees of the
-`FRD` capsule axis itself, `(1, −1, −1)`. Two candidates, and the files cannot
-distinguish them: the capsules were recorded at unequal gain, or `CAPSULE_ORDER`
-in `aformat-to-bformat.js` does not match how this session was wired. Resolving it
+azimuth and −39° elevation — within a few degrees of the `FRD` capsule axis
+itself, `(1, −1, −1)`. Two candidates, and the files cannot distinguish them: the
+capsules were recorded at unequal gain, or `CAPSULE_ORDER` in
+`aformat-to-bformat.js` does not match how this session was wired. Resolving it
 needs the session notes, which is exactly what that script's header warns about.
 Nothing here compensates for it, because compensating on a guess would bake a
 second unknown into the output.
@@ -722,44 +696,34 @@ second unknown into the output.
 ## Feature flags
 
 **Nothing is gated today.** Every render the app can produce ships to every
-visitor, so `/` is the whole experience and `FEATURE_NAMES` is empty.
-
-The mechanism is kept, because the next research build will want it and because
-the shape is easy to get subtly wrong. It reads optional features out of the
-address, so a build can be shared without a separate deployment. To put one
-behind a flag again, three declarations:
+visitor, so `/` is the whole experience and `FEATURE_NAMES` is empty. The
+mechanism is kept because the next research build will want it and because the
+shape is easy to get subtly wrong. It reads optional features out of the address,
+so a build can be shared without a separate deployment. To put one behind a flag
+again, three declarations:
 
 ```js
-// Javascript/Features.js
-const FEATURE_NAMES = ['demo'];          // 1. declare the flag
-
-// Javascript/App.js
-const FEATURE_CONTROLS = {
-    demo: ['some-button'],               // 2. name what it reveals
-};
-
-// server.js
-const FEATURE_PATHS = ['/demo'];         // 3. route the path form
+const FEATURE_NAMES    = ['demo'];                    // 1. Features.js — declare it
+const FEATURE_CONTROLS = { demo: ['some-button'] };   // 2. App.js — what it reveals
+const FEATURE_PATHS    = ['/demo'];                   // 3. server.js — the path form
 ```
 
 Step 2 also covers prose: any element marked `data-feature="demo"` is hidden from
 a visit that did not ask, so instructions never describe a control that is not
 there. Step 3 needs a matching `[[redirects]]` block in `netlify.toml`, and is
 only for the path form — a query string works with no routing at all (`?demo`),
-which makes it the reliable spelling on a static host. Both hand back
-`index.html` without changing the address the browser shows.
+which makes it the reliable spelling on a static host. Both hand back `index.html`
+without changing the address the browser shows.
 
-Three properties are worth knowing before relying on it, all of them held by
+Three properties are worth knowing before relying on it, all held by
 `test/features.test.js`, which declares flags of its own so the mechanism stays
-covered while the roster is empty:
-
-- **Whole segments only.** A church folder or query value that happens to contain
-  a flag's name never switches it on.
-- **Implication is transitive.** `FEATURE_IMPLIES` lets a wider flag name only the
-  one below it and still reach the whole chain. Resolved one step deep, the far
-  end of a chain simply would not appear, and the symptom is a missing button.
-- **A mutual implication resolves rather than hanging.** Nothing declares one; the
-  guard is so that adding one is a design decision rather than a frozen tab.
+covered while the roster is empty. **Whole segments only:** a church folder or
+query value that merely contains a flag's name never switches it on. **Implication
+is transitive:** `FEATURE_IMPLIES` lets a wider flag name only the one below it
+and still reach the whole chain, where resolving one step deep would drop the far
+end and the symptom is a missing button. **A mutual implication resolves rather
+than hanging:** nothing declares one, but the guard makes adding one a design
+decision rather than a frozen tab.
 
 Gating is presentation only. Nothing in `Features.js` disables engine code: a
 hidden mode is one nobody can reach, not one that has been removed, so the audio
@@ -841,22 +805,18 @@ rather than falling back to stereo in the browser.
 
 ### Church Info cover photos
 
-The Church Info modal opens with a cover photo of the church, named by the
-`cover` field in `ChurchData.js`:
+The Church Info modal opens with a cover photo of the church, named by the `cover`
+field in `ChurchData.js`. It holds a full path rather than deriving one, because
+the photos differ in extension (`.jpg` and `.jpeg`) and paths are case-sensitive
+once deployed:
 
 ```js
-CaneRidgeMeetingHouse: {
-    name: "Cane Ridge Meeting House",
-    cover: "Images/Cane Ridge Meeting House, KY/Info cover.jpeg",
-    …
-}
+cover: "Images/Cane Ridge Meeting House, KY/Info cover.jpeg",
 ```
 
-The field holds a full path rather than deriving one, because the photos differ
-in extension (`.jpg` and `.jpeg`) and paths are case-sensitive once deployed.
-The photo is shown whole, never cropped. `width` and `height` stay `auto` while
-`max-width` and `max-height` cap the size, so the browser scales each cover on
-its own proportions.
+The photo is shown whole, never cropped: `width` and `height` stay `auto` while
+`max-width` and `max-height` cap the size, so the browser scales each cover on its
+own proportions.
 
 ## Implementation notes
 
@@ -878,7 +838,7 @@ its own proportions.
 - **Known data gap.** `First Presbyterian Church, KY` R9 has 5 of 6 channels. This
   does not affect the web app, which uses channels 1 and 2.
 - **`downloadConvolvedAudio()`** in `AudioEngine.js` renders the current selection
-  offline and downloads it as a WAV. Useful for checking a room's output without
+  offline and downloads it as a WAV — useful for checking a room's output without
   recording the browser. Call it from the console, or uncomment the call in
   `startPlayback()`.
 

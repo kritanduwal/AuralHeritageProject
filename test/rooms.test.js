@@ -202,13 +202,13 @@ test('receivers are numbered from R1 with no gaps', () => {
     }
 });
 
-test('gainDb is a positive reduction where present, and absent otherwise', () => {
+test('gainDb is a negative level where present, and absent otherwise', () => {
     for (const [key, cfg] of rooms) {
         for (const [rid, r] of Object.entries(cfg.receivers)) {
             if (!('gainDb' in r)) continue;
             assert.equal(typeof r.gainDb, 'number', `${key} ${rid}: gainDb must be a number`);
-            assert.ok(r.gainDb > 0, `${key} ${rid}: gainDb is a reduction, so it must be > 0`);
-            assert.ok(r.gainDb <= 24, `${key} ${rid}: gainDb ${r.gainDb} is implausibly large`);
+            assert.ok(r.gainDb < 0, `${key} ${rid}: gainDb is a level, so an attenuation is < 0`);
+            assert.ok(r.gainDb >= -24, `${key} ${rid}: gainDb ${r.gainDb} is implausibly large`);
         }
     }
 });
@@ -219,8 +219,8 @@ test('trimmed rooms keep reverb quieter as positions get further from the source
         const trims = Object.entries(ROOMS[key].receivers)
             .filter(([rid]) => ['R1', 'R2', 'R3', 'R4'].includes(rid))
             .map(([, r]) => r.gainDb || 0);
-        const sorted = [...trims].sort((a, b) => a - b);
-        assert.deepEqual(trims, sorted, `${key}: R1..R4 trims should not decrease with distance`);
+        const sorted = [...trims].sort((a, b) => b - a);
+        assert.deepEqual(trims, sorted, `${key}: R1..R4 levels should not rise with distance`);
     }
 });
 
