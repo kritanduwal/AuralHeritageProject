@@ -82,15 +82,7 @@
             <label class="control-label">Source File</label>
             <input type="button" id="srcselect" class="fileselect" value="Select Source File" onclick="selectSource()">
 
-            <!-- The loaded source on the left, the way back to the map on the
-                 right. The map button has nothing to do with choosing a source;
-                 it shares the line because that is where the room for it is. -->
-            <div id="source-file-row">
-                <label for="srcselect" id="srcselectlabel">Clarinet</label>
-                <button id="map-btn" onclick="openLanding()" title="Back to the map of all churches">
-                    <span class="material-icons">public</span> Map
-                </button>
-            </div>
+            <label for="srcselect" id="srcselectlabel">Clarinet</label>
         </div>
     </div>
 
@@ -101,6 +93,13 @@
         <button id="tab-main" class="tab-btn active" onclick="switchTab('main', this)">View</button>
         <button id="tab-about" class="tab-btn" onclick="switchTab('about', this)">About</button>
         <button id="tab-instructions" class="tab-btn" onclick="switchTab('instructions', this)">Instructions</button>
+
+        <!-- Reopens the landing. Not a tab: it covers the page rather than
+             swapping the panel below the row, so it carries an icon and never
+             takes the active underline. -->
+        <button id="map-btn" onclick="openLanding()" title="Back to the map of all churches">
+            <span class="material-icons">public</span> Map
+        </button>
     </div>
 
     <!-- Content Area -->
@@ -431,7 +430,7 @@
                         <strong>Start on the Map</strong> - The site opens on a map of the United States with a pin on every
                         church. Click a pin, or a church in the list beside the map, to step inside it. Cities holding
                         several churches show a single pin with a count &mdash; click it to zoom in on them. You can return
-                        to the map at any time with <strong>Map</strong> at the right of the tab row.
+                        to the map at any time with <strong>Map</strong> at the end of the tab row, beside Instructions.
                     </li>
                     <li>
                         <strong>Select a Church</strong> - Use the "Select Church" dropdown in the control bar to choose a
