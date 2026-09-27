@@ -91,7 +91,7 @@ test('two positions of one church get two levels', () => {
 
 test('a church with no recovered set has no trim to state', () => {
     // It has no stage but stereo, and stereo is the reference — never trimmed.
-    assert.deepEqual(Object.keys(app.g.stageTrimsOf(ROOMS.CaneRidgeMeetingHouse, 'R1')), []);
+    assert.deepEqual(Object.keys(app.g.stageTrimsOf(ROOMS.HolyTrinityEpiscopalChurch, 'R1')), []);
 });
 
 test('a position missing from the table is left to the engine constant', () => {

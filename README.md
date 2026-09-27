@@ -396,7 +396,7 @@ renderer. What it buys is that the soundfield stays *rotatable* right up to the
 ears — see [Head tracking](#head-tracking) — which nothing precomputed can offer.
 
 **It is only available where a church's un-normalized originals were recovered,**
-which today is three of the twelve. See
+which today is seven of the twelve. See
 [Why not an ambisonic decode](#why-not-an-ambisonic-decode): a decode of the
 published library would be confidently wrong, and offering it would be worse than
 offering nothing, because nothing about it sounds broken.
@@ -477,6 +477,16 @@ large:
 | Basilica St. Francis | −18.7 dB (R1) | −4.0 dB (R4) | 14.7 dB |
 | St Augustine Isleta | −16.6 dB (R1) | −5.2 dB (R4) | 11.5 dB |
 | Monastery Immaculate Conception | −5.1 dB (R1) | +4.4 dB (R4) | 9.5 dB |
+| Cane Ridge Meeting House | −12.2 dB (R1) | +6.1 dB (R5) | 18.3 dB |
+| Our Lady of Guadalupe | −13.7 dB (R1) | −8.4 dB (R6) | 5.3 dB |
+| Church Street UMC | −7.1 dB (R1) | +1.9 dB (R4) | 9.0 dB |
+| First Presbyterian KY | −6.1 dB (R1) | −0.1 dB (R6) | 6.0 dB |
+
+Cane Ridge's spread is not distance. R5 and R6 want about +6 dB where every seat
+around them wants −2 to −12, so their originals arrive some 15 dB below the rest
+of the set — most likely a separate take at a different sweep level. The trim
+still matches their loudness to stereo, but the level relationship between those
+two seats and the others is not a measured one.
 
 That is not noise in the measurement; it is the two sets disagreeing about what
 distance does. Every published capsule was peak-normalized on its own, so a
@@ -570,8 +580,10 @@ been recovered, and is simply unavailable at the rest.
 
 ### The originals, where they have been recovered
 
-For three churches they have been — **Monastery Immaculate Conception**,
-**Basilica St. Francis** and **St Augustine Isleta**. Each keeps its raw captures
+For seven churches they have been — **Monastery Immaculate Conception**,
+**Basilica St. Francis**, **St Augustine Isleta**, **Cane Ridge Meeting House**,
+**First Presbyterian Church, KY**, **Our Lady of Guadalupe** and **Church Street
+United Methodist Church**. Each keeps its raw captures
 in `IR/<Church>/Not Normalized/`, and the second objection above does not hold
 against them: no channel peaks at full scale, and `aformat-to-bformat.js` says so
 rather than printing its `STOP`.
@@ -581,7 +593,7 @@ against `W`, near the −4.8 dB a diffuse tail should give, where the same posit
 decoded from the published library scatter to −11, −15, −20 dB — the signature of
 four capsules each rescaled by its own unknown factor.
 
-These three are the churches whose headphone button works. The other nine play
+These seven are the churches whose headphone button works. The other five play
 stereo only.
 
 ### Which files each stage reads
@@ -591,8 +603,8 @@ stereo only.
 | Stereo | IR channels 1 and 2 | `Normalized/`, at every church |
 | Headphones | `-Bformat.wav` | `Not Normalized/`, where recovered |
 
-Stereo stays on the published library everywhere, including at the three churches
-with originals. Its `ConvolverNode`s equal-power normalize, which would scale the
+Stereo stays on the published library everywhere, including at the churches with
+originals. Its `ConvolverNode`s equal-power normalize, which would scale the
 recovered level relationships straight back out; all that would survive the swap
 is the incidental difference between two takes of one measurement — a different
 length, a different L/R balance — and that difference would land on the very
@@ -655,19 +667,31 @@ Taking the active intensity vector `W·[X, Y, Z]` over the direct sound:
 | Monastery IC — originals | −40°, −39°, −39°, −39°, −39°, −39° (elevation ≈ −39°) |
 | Basilica St. Francis — originals | −43°, −42°, −40°, −41°, −40°, −41°, −41°, −39° |
 | St Augustine Isleta — originals | −40°, −41°, −41°, −41°, −41° |
+| Cane Ridge — originals | −40°, −40°, −40°, −40°, −41°, −40°, −39°, −40°, −35° |
+| First Presbyterian KY — originals | −42°, −42°, −40°, −41°, −41°, −41°, −41°, −42°, −44° |
+| Our Lady of Guadalupe — originals | −37°, −40°, −41°, −41°, −40°, **136°** |
+| Church Street UMC — originals | −41°, −42°, −34°, −34° |
 
-The published figures scatter over 97° and put the source *above* the array. All
-three recovered sets agree to within a few degrees across every position, which is
-what one would hope from the same microphone on the same wiring, and is the decode
-working.
+The published figures scatter over 97° and put the source *above* the array. The
+recovered sets agree to within a few degrees across every position, which is what
+one would hope from the same microphone on the same wiring, and is the decode
+working. The one exception is Our Lady of Guadalupe R6, which reads half a turn
+from its own church even at the first arrival; it is unexplained, and a single
+`soundfieldYaw` per set cannot correct one position.
+
+Read the azimuth at the *first arrival*, not at the loudest sample. At the Cane
+Ridge balcony and First Presbyterian R6 the loudest peak is a floor reflection a
+few milliseconds later, arriving from below and behind (≈ 130°, −80°), which a
+peak-based reading mistakes for the source.
 
 It also means the array's front and the panorama's already agree, so Monastery
 IC's church-level `soundfieldYaw: 180` is half a turn too far for its recovered
 set. That is not a cosmetic error: it renders the source **behind** the listener,
 and behind you the lateral motion runs backwards — drag the view left and the
-source moves further left instead of handing over to the right ear. All three
-recovered sets therefore carry `soundfieldYaw: 0`, stated rather than omitted, and
-confirmed by ear.
+source moves further left instead of handing over to the right ear. Every
+recovered set therefore carries `soundfieldYaw: 0`, stated rather than omitted.
+The first three were confirmed by ear; the four added since rest on the
+measurement alone until they are.
 
 `soundfieldYawOf()` in `Rooms.js` resolves it, falling back to the church where a
 recovered set agrees. The measurement narrows the answer to one of two; only

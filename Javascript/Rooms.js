@@ -110,6 +110,13 @@ const ROOMS = {
         ir:       { dir: "IR/Church Street United Methodist Church, Knoxville/Normalized", prefix: "Church Street United" },
         panorama: { dir: "Images/Church Street United Methodist Church, Knoxville", prefix: "Church Street United Methodist Church", ext: ".jpg" },
         soundfieldYaw: 180,
+        unnormalized: {
+            ir:   { dir: "IR/Church Street United Methodist Church, Knoxville/Not Normalized", prefix: "Church Street United" },
+            trim: { ambisonic: { R1: -7.1, R2: -1.8, R3: -0.4, R4: 1.9 } },
+            // Direct sound at -34 to -42° across all four, as the recovered
+            // sets elsewhere; the half turn would put the source behind.
+            soundfieldYaw: 0,
+        },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0 },
@@ -122,6 +129,13 @@ const ROOMS = {
         ir:       { dir: "IR/Cane Ridge Meeting House, KY/Normalized", prefix: "Cane Ridge KY" },
         panorama: { dir: "Images/Cane Ridge Meeting House, KY", prefix: "Cane Ridge Meeting House, KY", ext: ".jpg" },
         soundfieldYaw: 180,
+        unnormalized: {
+            ir:   { dir: "IR/Cane Ridge Meeting House, KY/Not Normalized", prefix: "Cane Ridge KY" },
+            trim: { ambisonic: { R1: -12.2, R2: -9.5, R3: -8.8, R4: -9.4, R5: 6.1, R6: 5.9, R7: -6.3, R8: -2.1, R9: -3.5 } },
+            // Direct sound at -35 to -41° across all nine, taken at the first
+            // arrival: the balcony's loudest peak is the floor reflection.
+            soundfieldYaw: 0,
+        },
         receivers: {
             R1: { pitch:   0, yaw: 4 },
             R2: { pitch:   0, yaw: 0 },
@@ -139,6 +153,12 @@ const ROOMS = {
         ir:       { dir: "IR/First Presbyterian Church, KY/Normalized", prefix: "FPC KY" },
         panorama: { dir: "Images/First Presbyterian Church, KY", prefix: "First Presbyterian Church, KY", ext: ".jpg" },
         soundfieldYaw: 180,
+        unnormalized: {
+            ir:   { dir: "IR/First Presbyterian Church, KY/Not Normalized", prefix: "FPC KY" },
+            trim: { ambisonic: { R1: -6.1, R2: -3.7, R3: -2.5, R4: -4, R5: -1.2, R6: -0.1, R7: -4.7, R8: -2.2, R9: -1.8 } },
+            // Direct sound at -40 to -44° across all nine, as above.
+            soundfieldYaw: 0,
+        },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0, gainDb: -1.5 },
@@ -202,6 +222,13 @@ const ROOMS = {
         ir:       { dir: "IR/Our Lady of Guadalupe, NM/Normalized", prefix: "Guadalupe_SantaFe" },
         panorama: { dir: "Images/Our Lady of Guadalupe, NM", prefix: "Guadalupe_SantaFe", ext: ".JPG" },
         soundfieldYaw: 180,
+        unnormalized: {
+            ir:   { dir: "IR/Our Lady of Guadalupe, NM/Not Normalized", prefix: "Guadalupe_SantaFe" },
+            trim: { ambisonic: { R1: -13.7, R2: -10.7, R3: -11, R4: -9.6, R5: -9.9, R6: -8.4 } },
+            // Direct sound at -37 to -41° at R1–R5. R6 reads 136° even at the
+            // first arrival, half a turn from the rest; not confirmed by ear.
+            soundfieldYaw: 0,
+        },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0, gainDb: -1.5 },

@@ -35,11 +35,11 @@ test('compile hands the engine the B-format only where there is one to decode', 
     assert.equal(recovered.state.currentIr.decodedBase,
         'IR/St Augustine Isleta, NM/Not Normalized/St Augustine_Isleta_R5-');
 
-    const published = select(createApp(), 'CaneRidgeMeetingHouse', 'R1');
+    const published = select(createApp(), 'HolyTrinityEpiscopalChurch', 'R1');
     await published.g.compile();
     assert.equal(published.state.currentIr.decodedBase, '');
     assert.equal(published.state.currentIr.base,
-        'IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-',
+        'IR/Holy Trinity Episcopal Church/Normalized/Holy Trinity Church_R1-',
         'stereo still plays the published library');
 });
 
@@ -477,7 +477,7 @@ test('selecting a church without originals disarms the headphone button', () => 
     app.g.setAmbisonicEnabled(true);
     assert.equal(app.el('headphones').classList.contains('active'), true);
 
-    select('CaneRidgeMeetingHouse');
+    select('HolyTrinityEpiscopalChurch');
     assert.equal(app.el('headphones')['aria-disabled'], 'true');
     assert.equal(app.el('headphones').classList.contains('active'), false,
         'the button must not report a mode this church cannot play');
@@ -495,8 +495,8 @@ test('a church with no recovered set arrives with no calibration at all', () => 
     app.state.rcvpos = 'rpR1_MonasteryImmaculateConception';
     app.g.compile();
 
-    app.state.room = 'CaneRidgeMeetingHouse';
-    app.state.rcvpos = 'rpR1_CaneRidgeMeetingHouse';
+    app.state.room = 'HolyTrinityEpiscopalChurch';
+    app.state.rcvpos = 'rpR1_HolyTrinityEpiscopalChurch';
     app.g.compile();
 
     assert.deepEqual(JSON.parse(JSON.stringify(app.state.stageTrims)), {});
