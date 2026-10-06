@@ -147,7 +147,7 @@ test('the headphone toggle starts unavailable, and says so on hover', () => {
     // A grey circle that says nothing reads as broken rather than absent
     assert.match(html, /id="headphones"[^>]*aria-disabled="true"/,
         'the engine marks it available once a church with originals is selected');
-    assert.match(html, /id="headphones"[^>]*title="Headphones: unavailable[^"]*impulse response/,
+    assert.match(html, /id="headphones"[^>]*title="Headphones: unavailable[^"]*recordings/,
         'the tooltip has to name what is missing, not just report that it is');
 });
 

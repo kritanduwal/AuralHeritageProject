@@ -1220,7 +1220,7 @@ test('the button is dead at a church with nothing to decode, before any play', a
     app.g.refreshModeButtons();
     assert.equal(app.el('headphones')['aria-disabled'], 'true');
     assert.equal(app.el('headphones').title, app.data.HEADPHONES_TITLE_UNAVAILABLE);
-    assert.match(app.el('headphones').title, /impulse response/,
+    assert.match(app.el('headphones').title, /recordings/,
         'the tooltip is the only place that can say why, so it must say what');
 });
 
@@ -1526,6 +1526,7 @@ test('play starts a looping source and shows the pause icon', async () => {
     assert.equal(app.state.source.started, true);
     assert.equal(app.state.source.loop, true, 'the source should loop');
     assert.equal(app.el('play').textContent, 'pause_circle_filled');
+    assert.equal(app.el('play').title, app.data.PLAY_TITLE_PAUSE);
     assert.ok(app.el('play').classList.contains('playing'));
 });
 
@@ -1551,6 +1552,7 @@ test('pause stops the source and releases the graph', async () => {
     assert.ok(app.edges.some(e => e.from === output && e.disconnected),
         'the output must be unhooked or every past graph stays pinned to the destination');
     assert.equal(app.el('play').textContent, 'play_circle_filled');
+    assert.equal(app.el('play').title, app.data.PLAY_TITLE_PLAY);
 });
 
 test('a second play never leaves two graphs feeding the destination', async () => {
