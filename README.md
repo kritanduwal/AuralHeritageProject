@@ -51,7 +51,7 @@ rather than copies of them.
 | `test/audio.test.js` | Mix law, graph wiring, output stage selection, soundfield rotation, IR caching, playback lifecycle, WAV encoding |
 | `test/app.test.js` | `compile()`, the stale-selection guard, viewer lifetime, error banner |
 | `test/settings.test.js` | Church switching and the source file picker |
-| `test/assets.test.js` | Every path in `ROOMS`, the markup and the CSS resolve to real files; the playback controls do not overlap |
+| `test/assets.test.js` | Every path in `ROOMS`, the markup and the CSS resolve to real files; the playback controls do not overlap; the rules that keep the page inside a narrow window are still there |
 | `test/landing.test.js` | The landing map: church coordinates, the pins and how they split by zoom, the list, entering a church from either, and the animation that takes the landing away |
 | `test/helpers/harness.js` | The sandbox the other files use |
 
@@ -127,18 +127,13 @@ only in data, never in code.
 
 ### The landing map
 
-The page opens on a map of the United States with a pin on every church, over the
-top of the app rather than as a fourth tab. Choosing a church — from a pin or from
-the list beside the map — closes the landing, switches to the **View** tab, sets
-the dropdown and calls `switchRoom()`. The landing has no private route into
-playback, so a church reached from the map ends up in exactly the state the
-dropdown would have left it in. `Map` at the end of the tab row reopens it; `Skip
-the map` and `Escape` close it without choosing. Reopening never disturbs the
-current selection.
-
-**It ships open.** `<div id="landing" class="open">` is in the markup and
-`initLanding()` only fills it in, so there is no moment on load where the app is
-on screen before the script that covers it has run.
+The page opens on a map of the United States with a pin on every church.
+Choosing a church — from a pin or from the list beside the map — closes the 
+landing, switches to the **View** tab, sets the dropdown and calls `switchRoom()`.
+The landing has no private route into playback, so a church reached from the map 
+ends up in exactly the state the dropdown would have left it in. `Map` at the end
+of the tab row reopens it; `Skip the map` and `Escape` close it without choosing.
+Reopening never disturbs the current selection.
 
 **Choosing a church is animated:** the pin lights, the map zooms at it, and the
 sheet fades and swells past the viewer — it grows rather than shrinks so the two
@@ -183,13 +178,19 @@ failing. If Leaflet itself does not load, `buildLandingMap()` says so in the map
 place and the list beside it carries the whole landing; an empty grey rectangle
 would read as a map still loading.
 
-> **Known, pre-existing:** the page overflows horizontally below about 550px. The
-> app
-> bar's two logos and the control bar set that floor and always have; the landing
-> has
-> its own stacked layout under 860px and demands no more than 390px on its own,
-> but it
-> sits inside the same viewport as everything else.
+**Narrow windows.** The landing stacks its list under its map below 860px. The
+page behind it has its own block at the end of `Layout.css` for 640px and under:
+the app bar puts its title over its two logos, which shrink and may wrap; the tab
+row and the panels give up their side padding. Before that block the two logos
+were about 370px that would not shrink beside a title that would not go under
+them, which set a floor of some 550px for the whole page — landing included,
+since it sits in the same viewport. Nothing overflows horizontally now from 320px
+up, on the landing or any of the three tabs.
+
+A floorplan overlay is a fixed-size drawing with its markers placed in px, so it
+does not shrink. It is bounded by the view instead and scrolls inside it where a
+marker would otherwise fall outside, so every receiver stays reachable; on the
+narrowest phones the edge of a wide drawing is cut off rather than scaled.
 
 ### The impulse response library
 
@@ -197,7 +198,7 @@ would read as a map still loading.
 
 ```
 IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R7-1.wav
-                                └─ set ──┘ └── prefix ──┘ │   └── channel
+                                └─ set ──┘ └── prefix ──┘ │ └── channel
                                                           └── receiver position
 ```
 
@@ -209,8 +210,7 @@ IR/<Church>/Not Normalized/
 ```
 
 Both hold the same positions under the same file names, which is why they are
-separate folders rather than one. A church that has only ever been published has
-the single `Normalized` folder; nothing outside it is optional.
+separate folders rather than one.
 
 Each receiver position was captured on a multichannel array, so several channels
 exist per position:
@@ -220,27 +220,9 @@ exist per position:
 | Tennessee | 8 | Front L/R, Rear L/R, 4-channel ambisonic centre |
 | Kentucky, Indiana, New Mexico | 6 | Front L/R, 4-channel ambisonic centre |
 
-**The web app uses channels 1 and 2 only** — the front left/right pair — as the
-left and right ear of a stereo auralization, in both output stages. Channels 3–8
-are archived for research use and are not loaded by the browser. The `-1` / `-2`
-suffix is appended by `AudioEngine.js`; `ROOMS` stores only the base path up to
-the trailing `-`.
-
-Two properties of the archived ambisonic channels are not apparent from the file
-names and are what rules out an ambisonic render: the 4-channel block is the **raw
-A-format** output of the NT-SF1 rather than B-format, and **every file in
-`Normalized/` is peak-normalized on its own**, so relationships between channels
-are gone. See [Why not an ambisonic decode](#why-not-an-ambisonic-decode).
-
-That is what the second folder is for. Where the un-normalized originals have been
-recovered they sit in `IR/<Church>/Not Normalized/` alongside the published set,
-and are the only files the [Headphones](#headphones) render will decode. See [The
-originals](#the-originals-where-they-have-been-recovered).
-
-Prefixes rarely match the folder name (`Cane Ridge Meeting House, KY` holds files
-named `Cane Ridge KY_…`), which is why `ir.dir` and `ir.prefix` are separate
-fields. Basilica St. Francis R8 breaks the pattern entirely and carries an
-explicit `irName` override.
+**Channels 1 and 2** — the front left/right pair — are used as the left and right
+of a stereo auralization. Channels 3 and 4 are back left/right pair for the Tennessee 
+churches. The last 4 channels for every church are the A-format output of the NT-SF1.
 
 ---
 
@@ -261,7 +243,7 @@ the room). Both land on the same stereo output:
    source ──────┤                                          ┌───────▼───────┐
                 │                                          │  output stage │──► out
                 │   ┌─ convolver L ─── wetGainLeft ────────►   L       R   │
-                └───┤   (IR ch. 1)      (= mix)             └───────▲───────┘
+                └───┤   (IR ch. 1)      (= mix)            └───────▲───────┘
                 irTrim                                              │
                 (per-position)                                      │
                     └─ splitter ─ convolver R ─── wetGainRight ─────┘
@@ -274,10 +256,6 @@ source in front of you.
 
 Those three signals are what the *output stage* renders, and there are two to
 choose from — see [Headphones](#headphones).
-
-The `splitter` is a one-output `ChannelSplitter`, which keeps channel 0 only. A
-stereo source file is therefore convolved as mono, rather than folding both of its
-channels into both ears.
 
 ### Layer 1 — the Room Reverberation slider (`mix`)
 
@@ -395,7 +373,7 @@ Decoding live rather than baking the result offline costs four convolvers and a
 renderer. What it buys is that the soundfield stays *rotatable* right up to the
 ears — see [Head tracking](#head-tracking) — which nothing precomputed can offer.
 
-**It is only available where a church's un-normalized originals were recovered,**
+**It is only available where a church's un-normalized originals are available,**
 which today is seven of the twelve. See
 [Why not an ambisonic decode](#why-not-an-ambisonic-decode): a decode of the
 published library would be confidently wrong, and offering it would be worse than
@@ -459,11 +437,21 @@ for how solid a centre image is:
 
 | Church | Stereo | Trim on the whole stage | Now |
 | --- | --- | --- | --- |
-| Basilica St. Francis | 0.653 | 0.572 | **0.810** |
-| Monastery Immaculate Conception | 0.510 | 0.746 | **0.778** |
-| St Augustine Isleta | 0.757 | 0.663 | **0.846** |
+| Basilica St. Francis | 0.653 | 0.572 | **0.787** |
+| Monastery Immaculate Conception | 0.510 | 0.746 | **0.779** |
+| St Augustine Isleta | 0.757 | 0.663 | **0.851** |
+| Cane Ridge Meeting House | 0.650 | — | **0.826** |
+| First Presbyterian KY | 0.541 | — | **0.777** |
+| Our Lady of Guadalupe | 0.697 | — | **0.832** |
+| Church Street UMC | 0.638 | — | **0.852** |
 
-All three now hold the centre more firmly than their own stereo does. One
+Each figure is an impulse played through the stage as the app plays it — slider
+at 100%, dry included, that position's trims applied — correlated between the
+ears over the 80 ms from the impulse, at lags up to ±1 ms, and averaged over the
+church's receivers. The four churches recovered since were never rendered with
+the trim on the whole stage, so that column has nothing to say about them.
+
+All seven now hold the centre more firmly than their own stereo does. One
 consequence is worth knowing: the dry no longer rotates with head tracking,
 because it is no longer part of the soundfield. That is the right reading of what
 it is — a dry/wet bypass rather than the room's direct sound, which the impulse
@@ -491,7 +479,7 @@ two seats and the others is not a measured one.
 That is not noise in the measurement; it is the two sets disagreeing about what
 distance does. Every published capsule was peak-normalized on its own, so a
 position's stereo IR sits at full scale however far back it was recorded —
-**stereo does not get quieter as you move away from the source.** The recovered
+**stereo does not get quieter as you move away from the source.** The unnormalized
 set was scaled by a single factor for the whole church, so it keeps the real level
 relationships between seats and does get quieter. The gap therefore grows with
 distance, and one figure per church cannot close a gap that changes by 14 dB
@@ -646,8 +634,6 @@ unnormalized: {
     soundfieldYaw: 0,                    // see below
 },
 ```
-
-**`soundfieldYaw` is the one non-obvious part** of the entry.
 
 **`soundfieldYaw` is the one non-obvious part** of the entry.
 
@@ -883,7 +869,18 @@ Audio Engineering Technology, Belmont University
 
 **Graduate Research Assistants** — Kritan Duwal, Lee Smith, Sihyeon Park, Omar Urrutia
 
-Panoramas by [pannellum](https://pannellum.org/). All photographs and audio
+**Open-source software** — three libraries do work this project did not have to:
+
+- [pannellum](https://pannellum.org/) shows the 360° photographs, so you can look
+  around inside each church.
+- [Omnitone](https://googlechrome.github.io/omnitone/) turns the surround
+  recording of each room into sound for two ears, which is what makes the
+  headphone mode feel like standing in the church.
+- [Leaflet](https://leafletjs.com/) draws the opening map of the churches, on map
+  imagery from [OpenStreetMap](https://www.openstreetmap.org/copyright)
+  contributors.
+
+All photographs and audio
 recordings were captured by the research team with the express consent of the
 participating churches. Distribution, reproduction, or commercial sale of this data,
 in whole or in part, is prohibited without prior written permission.

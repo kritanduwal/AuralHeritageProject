@@ -542,3 +542,25 @@ test('every church declares which way its recording faces', () => {
     }
     assert.deepEqual(bad, [], 'soundfieldYaw must be a number of degrees when present');
 });
+
+test('nothing in the page holds a width a phone cannot give it', () => {
+    // No browser here, so this cannot measure the page; it holds the three
+    // rules whose absence set the old 550px floor. The app bar's lockups are
+    // about 370px side by side and have to be allowed onto a second row, and
+    // a floorplan is a fixed-size drawing that has to be bounded by the view.
+    const narrow = layoutCss.match(/@media \(max-width: (\d+)px\)\s*\{\s*(?:\/\*[\s\S]*?\*\/\s*)?#appbar\s*\{[\s\S]*$/);
+    assert.ok(narrow, 'Layout.css needs a narrow-window block that restacks #appbar');
+    assert.ok(Number(narrow[1]) >= 600, 'the app bar overflows below about 600px as a single row');
+    assert.match(narrow[0], /\.appbar-logos\s*\{[^}]*flex-wrap:\s*wrap/,
+        'the logos must be allowed to wrap');
+
+    const overlay = layoutCss.match(/^\.ui\s*\{([^}]*)\}/m)[1];
+    assert.match(overlay, /max-width:\s*calc\(100% - \d+px\)/,
+        'a floorplan wider than the view must stay inside it');
+    assert.match(overlay, /overflow:\s*auto/);
+
+    for (const track of layoutCss.matchAll(/minmax\(([^,]+),\s*1fr\)/g)) {
+        assert.match(track[1], /min\(/,
+            `a grid column with a fixed minimum of ${track[1].trim()} overflows a panel narrower than that`);
+    }
+});

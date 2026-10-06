@@ -146,3 +146,12 @@
     font-size: 12px;
     margin-top: -5px;
 }
+
+/* Narrow windows: the same breakpoint as Layout.css. The sections are already
+   one to a row here, so the side padding is all there is to give back. */
+@media (max-width: 640px) {
+    #controls-container {
+        padding: 12px 16px;
+        row-gap: 14px;
+    }
+}
