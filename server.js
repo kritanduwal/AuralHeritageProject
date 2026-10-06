@@ -24,10 +24,10 @@ app.use(express.static(path.join(__dirname)));
  * read the path of. Listed explicitly rather than matched by pattern so an
  * unknown path still 404s — hence registering nothing when the list is empty.
  *
- * Empty today. A flag added to FEATURE_NAMES wants its path here and a
- * matching redirect in netlify.toml.
+ * A flag added to FEATURE_NAMES wants its path here and a matching redirect
+ * in netlify.toml.
  */
-const FEATURE_PATHS = [];
+const FEATURE_PATHS = ['/5'];
 
 if (FEATURE_PATHS.length) {
     app.get(FEATURE_PATHS, (req, res) => {

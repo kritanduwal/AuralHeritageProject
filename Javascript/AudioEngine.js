@@ -5,7 +5,8 @@
  * using the impulse response recorded at the selected receiver position. The
  * result leaves by one of two output stages: a stereo pair, or the live
  * ambisonic decode the Headphones button engages. See "Reverb ratios" and
- * "Headphones" in README.md.
+ * "Headphones" in README.md. A third, for loudspeakers, exists only behind the
+ * /5 flag and lives in SpeakerOutput.js.
  *
  * @author Ben Jordan, Kritan Duwal
  */
@@ -233,6 +234,8 @@ function setAmbisonicEnabled(enabled) {
     if (enabled && !ambisonicAvailable()) return;
 
     ambisonicEnabled = enabled;
+    // Alternatives, not layers; see setSpeakersEnabled()
+    if (enabled) speakersEnabled = false;
 
     refreshModeButtons();
     applyOutputStage();
@@ -278,6 +281,7 @@ function updateAmbisonicButton() {
 function refreshModeButtons() {
     updateAmbisonicButton();
     updateTrackingControl();
+    updateSpeakersControl();
 }
 
 // ── Soundfield rotation ───────────────────────────────────────────────────
@@ -482,9 +486,13 @@ function applyOutputStage() {
     if (!activeGraph) return;
 
     const headphones = onHeadphoneStage(activeGraph);
-    rampGain(activeGraph.stereoOut.gain, headphones ? 0 : 1, STAGE_CROSSFADE);
+    const speakers = onSpeakerStage(activeGraph);
+    rampGain(activeGraph.stereoOut.gain, headphones || speakers ? 0 : 1, STAGE_CROSSFADE);
     if (activeGraph.ambisonicOut) {
         rampGain(activeGraph.ambisonicOut.gain, headphones ? 1 : 0, STAGE_CROSSFADE);
+    }
+    if (activeGraph.speakerOut) {
+        rampGain(activeGraph.speakerOut.gain, speakers ? 1 : 0, STAGE_CROSSFADE);
     }
 }
 
@@ -510,8 +518,12 @@ function applyOutputStage() {
  * slider means one thing on either side of the button. Both stages are built
  * whenever the files allow and the unused one silenced: tearing the graph down
  * to change stage would restart the source.
+ *
+ * `speakerOutput` asks for the loudspeaker stage as well, which taps the same
+ * four convolvers; see speakerStageRequest() in SpeakerOutput.js. Left out, the
+ * graph is the one drawn above.
  */
-function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irGainDb, ambisonic, bformatChannels, ambisonicRenderer }) {
+function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irGainDb, ambisonic, bformatChannels, ambisonicRenderer, speakerOutput }) {
     const convolverLeft = audioCtx.createConvolver();
     convolverLeft.buffer = irLeft;
     const convolverRight = audioCtx.createConvolver();
@@ -561,6 +573,7 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
     let ambiWet = null;
     let ambiDryMerger = null;
     let ambiBus = null;
+    let speakerStage = null;
 
     if (bformatChannels && ambisonicRenderer) {
         ambiMerger = audioCtx.createChannelMerger(AMBISONIC_CHANNELS);
@@ -572,6 +585,7 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
         ambiWet.gain.value = ambisonicWetGain(mix);
         splitter.connect(ambiWet, 0);
 
+        const ambiConvolvers = [];
         for (let ch = 0; ch < AMBISONIC_CHANNELS; ch++) {
             const convolver = audioCtx.createConvolver();
             // Their level relative to each other is the soundfield itself, so
@@ -581,6 +595,7 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
             convolver.buffer = bformatChannels[ch];
             ambiWet.connect(convolver);
             convolver.connect(ambiMerger, 0, ch);
+            ambiConvolvers.push(convolver);
         }
 
         // Ambisonic channels are not speaker feeds, so the stream is declared
@@ -606,11 +621,28 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
         ambiDryMerger.connect(ambisonicOut);
 
         ambisonicOut.connect(output);
+
+        if (speakerOutput) {
+            speakerStage = buildSpeakerStage(audioCtx, {
+                convolvers: ambiConvolvers,
+                dryGain,
+                outputs: speakerOutput.outputs,
+                routing: speakerOutput.routing,
+            });
+            speakerStage.speakerOut.connect(output);
+
+            // The stage arrives wider than the stereo ones it is summed with.
+            // Discrete keeps those on the first two outputs, where a speaker
+            // layout would be free to spread them.
+            output.channelInterpretation = 'discrete';
+        }
     }
 
     const headphones = ambisonic && Boolean(ambisonicOut);
-    stereoOut.gain.value = headphones ? 0 : 1;
+    const speakers = !headphones && Boolean(speakerStage) && speakerOutput.live;
+    stereoOut.gain.value = headphones || speakers ? 0 : 1;
     if (ambisonicOut) ambisonicOut.gain.value = headphones ? 1 : 0;
+    if (speakerStage) speakerStage.speakerOut.gain.value = speakers ? 1 : 0;
 
     output.connect(audioCtx.destination);
 
@@ -618,6 +650,9 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
         dryGain, wetGainLeft, wetGainRight, irTrim, stereoOut,
         ambisonicOut, ambiMerger, ambiWet, ambiDryMerger, ambiBus,
         ambisonicRenderer: ambisonicRenderer || null,
+        speakerOut: speakerStage && speakerStage.speakerOut,
+        speakerMerger: speakerStage && speakerStage.speakerMerger,
+        speakerFeeds: speakerStage && speakerStage.speakerFeeds,
         output,
     };
 }
@@ -769,6 +804,7 @@ async function startPlayback() {
         ambisonic: ambisonicEnabled,
         bformatChannels,
         ambisonicRenderer,
+        speakerOutput: speakerStageRequest(),
     });
 
     source.start();
@@ -778,6 +814,7 @@ async function startPlayback() {
     // been looked for, which is here rather than at selection time
     updateAmbisonicButton();
     updateTrackingControl();
+    updateSpeakersControl();
     syncSoundfieldTracking();
 }
 

@@ -17,7 +17,7 @@ const vm = require('vm');
 const ROOT = path.join(__dirname, '..', '..');
 
 /** In the order index.html loads them */
-const APP_FILES = ['Features.js', 'ChurchData.js', 'Rooms.js', 'App.js', 'AudioEngine.js', 'SettingsMenu.js', 'Landing.js'];
+const APP_FILES = ['Features.js', 'ChurchData.js', 'Rooms.js', 'App.js', 'AudioEngine.js', 'SpeakerOutput.js', 'SettingsMenu.js', 'Landing.js'];
 
 const EPILOGUE = `
 ;globalThis.__state = {
@@ -38,6 +38,9 @@ const EPILOGUE = `
     get foaRenderer()     { return foaRenderer; },
     get bformatMissing()  { return bformatMissing; },
     get stageTrims()      { return stageTrims; },
+    get speakersEnabled() { return speakersEnabled; },
+    get speakerRouting()  { return speakerRouting; },
+    get speakerSolo()     { return speakerSolo; },
     get FEATURES()        { return FEATURES; },
     get landingMap()      { return landingMap; },
     get landingLayers()   { return landingLayers; },
@@ -65,6 +68,9 @@ const EPILOGUE = `
     LANDING_EXIT_MS, LANDING_DIVE_STEP, LANDING_DIVE_MAX_ZOOM,
     LANDING_TILES, LANDING_TILE_ATTRIBUTION,
     placeOf, landingChurches, landingCities, landingStates, cityLabelOf,
+    SPEAKER_FEATURE, SPEAKERS, SPEAKER_COUNT, SPEAKER_DIRECTIVITY, SPEAKER_DECODE_GAIN,
+    SPEAKER_ROUTING_KEY, SPEAKER_SOLO_GLIDE,
+    SPEAKERS_TITLE_ON, SPEAKERS_TITLE_OFF, SPEAKERS_TITLE_UNAVAILABLE,
 };
 `;
 
@@ -184,7 +190,12 @@ function createApp(options = {}) {
         sampleRate: 48000,
         state: 'suspended',
         resumeCalls: 0,
-        destination: makeNode('destination', label),
+        // Two outputs unless a test attaches a wider interface with `outputs`
+        destination: Object.assign(makeNode('destination', label), {
+            channelCount: 2,
+            maxChannelCount: options.outputs ?? 2,
+            channelInterpretation: 'speakers',
+        }),
         createBufferSource: () => makeNode('source', label),
         createConvolver: () => makeNode('convolver', label),
         createGain: () => makeNode('gain', label),

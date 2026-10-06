@@ -209,7 +209,8 @@ input, button, select, textarea {
 }
 
 /* ── Render mode toggles ── */
-/* Alternatives to plain stereo, in a row to the left of play — one today.
+/* Alternatives to plain stereo, in a row to the left of play — the second
+   only behind /5.
    Appearance is shared; each button's own rule carries only its geometry, which
    assets.test.js checks for overlap and a common centre line. */
 .mode-toggle {
@@ -239,6 +240,7 @@ input, button, select, textarea {
    A second toggle would sit 56 + 12 further in, leaving a 12px gap — the step
    layoutModeToggles() reseats the row by. */
 #headphones { width: 56px; height: 56px; bottom: 32px; right: 116px; }
+#speakers { width: 56px; height: 56px; bottom: 32px; right: 184px; }
 
 /* Hover and engaged have to be different colours. The glyph does not change
    with the mode, so the fill is the only thing carrying the state — and your
@@ -307,6 +309,72 @@ input, button, select, textarea {
     accent-color: var(--activecolor);
     cursor: inherit;
     margin: 0;
+}
+
+/* ── Speaker routing panel ── */
+/* Stacked above the head-tracking control, which is 31px tall at bottom: 108px.
+   Shown by class rather than by style: feature gating clears the inline
+   display of a control it reveals, which would otherwise open the panel. */
+#speaker-routing {
+    display: none;
+    position: fixed;
+    z-index: 4;
+    bottom: 150px;
+    right: 24px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background-color: var(--belmont-blue);
+    color: var(--text-color-white);
+    box-shadow: var(--card-shadow);
+    font-family: var(--font), sans-serif;
+    font-size: 13px;
+    pointer-events: auto;
+}
+
+#speaker-routing.open {
+    display: block;
+}
+
+#speaker-routing-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.speaker-route {
+    display: grid;
+    grid-template-columns: 104px auto auto;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.speaker-route select,
+.speaker-solo {
+    font-size: 13px;
+    padding: 3px 6px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.speaker-solo {
+    background-color: var(--belmont-blue-hover);
+    color: var(--text-color-white);
+}
+
+/* Lifted on hover and filled only when engaged, for the reason the mode
+   toggles keep the two apart: the pointer is still here after a click */
+.speaker-solo:hover {
+    background-color: #2a5cc0;
+}
+
+.speaker-solo.active {
+    background-color: var(--activecolor);
+    color: var(--text-color);
+}
+
+.speaker-solo.active:hover {
+    background-color: var(--activecolor-hover);
 }
 
 .material-icons:hover {

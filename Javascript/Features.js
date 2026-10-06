@@ -1,8 +1,8 @@
 /**
  * Which optional playback features this visit has access to.
  *
- * Nothing is gated today: / is the whole experience. Kept for the next research
- * build. To put a feature behind an address again:
+ * One is gated today: /5, loudspeaker playback of the B-format. To put another
+ * feature behind an address:
  *
  *   1. add its name to FEATURE_NAMES below
  *   2. list the controls it reveals in FEATURE_CONTROLS (App.js), and mark any
@@ -12,14 +12,20 @@
  * Step 3 is only for the path form; "?<name>" needs no routing at all, which
  * makes it the reliable spelling on a static host.
  *
- * Gating is presentation only. Nothing here disables engine code: a hidden mode
- * is one nobody can reach, not one that has been removed.
+ * Gating here is presentation only. Nothing in this file disables engine code:
+ * a hidden mode is one nobody can reach, not one that has been removed. A
+ * feature that should not run unasked has to check featureEnabled() itself, as
+ * SpeakerOutput.js does before it opens the audio device wider than stereo.
  *
  * @author Kritan Duwal
  */
 
-/** Feature names that can be switched on, and what each reveals. None today. */
-const FEATURE_NAMES = [];
+/**
+ * Feature names that can be switched on, and what each reveals.
+ *
+ *   5 — the Speakers toggle and its output routing (SpeakerOutput.js)
+ */
+const FEATURE_NAMES = ['5'];
 
 /**
  * Features that carry others with them, e.g. { full: ['basic'] }. Empty today;

@@ -52,6 +52,7 @@ rather than copies of them.
 | `test/app.test.js` | `compile()`, the stale-selection guard, viewer lifetime, error banner |
 | `test/settings.test.js` | Church switching and the source file picker |
 | `test/assets.test.js` | Every path in `ROOMS`, the markup and the CSS resolve to real files; the playback controls do not overlap; the rules that keep the page inside a narrow window are still there |
+| `test/speakers.test.js` | The loudspeaker stage behind `/5`: the decode, routing each speaker to a device output, soloing one speaker, and that a plain visit gets none of it |
 | `test/landing.test.js` | The landing map: church coordinates, the pins and how they split by zoom, the list, entering a church from either, and the animation that takes the landing away |
 | `test/helpers/harness.js` | The sandbox the other files use |
 
@@ -113,6 +114,7 @@ has started. A slow response can never overwrite a later choice.
 | `Javascript/ChurchData.js` | **Data.** History, dimensions, distances and coordinates. Reference only — nothing here reaches playback |
 | `Javascript/App.js` | Page state, panorama viewer, `compile()`, error banner, tabs, modals |
 | `Javascript/AudioEngine.js` | Web Audio graph, IR loading and caching, playback, the headphone output stage and its soundfield rotation |
+| `Javascript/SpeakerOutput.js` | Behind `/5`: the loudspeaker output stage, its decode, and the routing of each speaker to an output of the audio interface |
 | `Javascript/SettingsMenu.js` | Church dropdown, source file picker |
 | `Javascript/Landing.js` | The opening map of the collection and the church list beside it |
 | `Style/Root.css` | Colour variables, marker button styles |
@@ -705,12 +707,10 @@ second unknown into the output.
 
 ## Feature flags
 
-**Nothing is gated today.** Every render the app can produce ships to every
-visitor, so `/` is the whole experience and `FEATURE_NAMES` is empty. The
-mechanism is kept because the next research build will want it and because the
-shape is easy to get subtly wrong. It reads optional features out of the address,
-so a build can be shared without a separate deployment. To put one behind a flag
-again, three declarations:
+**One feature is gated today: `/5`**, loudspeaker playback of the B-format — see
+[Speakers](#speakers-behind-5). Everything else ships to every visitor. The
+mechanism reads optional features out of the address, so a build can be shared
+without a separate deployment. To put another behind a flag, three declarations:
 
 ```js
 const FEATURE_NAMES    = ['demo'];                    // 1. Features.js — declare it
@@ -727,7 +727,7 @@ without changing the address the browser shows.
 
 Three properties are worth knowing before relying on it, all held by
 `test/features.test.js`, which declares flags of its own so the mechanism stays
-covered while the roster is empty. **Whole segments only:** a church folder or
+covered whatever the roster holds. **Whole segments only:** a church folder or
 query value that merely contains a flag's name never switches it on. **Implication
 is transitive:** `FEATURE_IMPLIES` lets a wider flag name only the one below it
 and still reach the whole chain, where resolving one step deep would drop the far
@@ -735,9 +735,70 @@ end and the symptom is a missing button. **A mutual implication resolves rather
 than hanging:** nothing declares one, but the guard makes adding one a design
 decision rather than a frozen tab.
 
-Gating is presentation only. Nothing in `Features.js` disables engine code: a
-hidden mode is one nobody can reach, not one that has been removed, so the audio
-graph and its tests are identical either way.
+Gating in `Features.js` is presentation only. Nothing there disables engine
+code: a hidden mode is one nobody can reach, not one that has been removed. `/5`
+is the exception and makes it for itself — its stage needs the audio device
+opened wider than stereo, so `SpeakerOutput.js` checks `featureEnabled()` before
+it builds anything, and without the flag the audio graph is node for node the one
+it was before the feature existed.
+
+### Speakers (behind `/5`)
+
+At `/5` (or `?5` on a host that cannot route paths) a third toggle appears left
+of Headphones. It is a third **output stage**: the same four B-format convolvers
+the headphone render decodes, decoded instead to five loudspeakers.
+
+```
+   convolver W ─┐
+   convolver Y ─┼─ one gain each, per speaker ─► feed ×5 ─► speakerMerger ─► speakerOut ─► output
+   convolver X ─┘                                 ▲           (one input per
+   dryGain ───────────────────────────────────────┘ L, R       device output)
+```
+
+**The layout** is ITU 5.0 — left and right at ±30°, centre at 0°, surrounds at
+±110° — held in the `SPEAKERS` table. The decode is derived from those angles,
+so a different rig is a different table and nothing else.
+
+**The decode** aims a virtual microphone at each speaker:
+`g·(W + √2·(X·cos θ + Y·sin θ))`. √2 is the max-rE weighting for a horizontal
+ring; the textbook 2 sharpens the image at one seat and puts loud out-of-phase
+feeds opposite every source. `Z` is dropped, since every speaker is at ear
+height. Five speakers bunched toward the front are not a regular ring, so this
+is a sampling decode and not an optimised one: the front is denser than the
+back, as it is in any 5.0 mix.
+
+**The routing** is the part that depends on the hardware. The panel that opens
+with the mode lists each speaker beside a dropdown of the outputs the device
+offers; `setSpeakerRoute()` moves a feed to another input of the merger while
+playing. Choosing an output another speaker holds swaps the two rather than
+summing them. The default assumes surround order (L R C LFE Ls Rs) on six
+outputs or more and plain order on exactly five. It is kept in `localStorage`,
+and a saved routing naming outputs the current device does not have is ignored.
+**Solo** leaves one speaker playing its own feed and silences the other four, to
+check a routing by ear with the signal it will actually carry; it starts playback
+if nothing is running, and is released when the mode is switched off.
+
+**The device.** A page can only reach the outputs the browser reports as
+`destination.maxChannelCount`. That is the system's default output device as the
+operating system has it configured — on Windows, an interface left in a stereo
+speaker configuration reports two however many sockets it has. With fewer than
+five the toggle is greyed out and its tooltip says how many were found.
+
+Things to know before relying on it:
+
+- **The level is not calibrated.** The stage shares the headphone render's
+  `trim.ambisonic`, which carries the large seat-to-seat correction, but its
+  own decode gain is a convention (the five feeds carry the power of `W` in a
+  diffuse field). Nothing has measured it against stereo the way
+  `tools/measure-loudness.js` measured the headphone render.
+- **The dry goes to left and right**, at the level the stereo stage sends it,
+  so the mix slider means the same thing and at 0% the two stages are the same
+  signal on the same two speakers.
+- **Head tracking does not apply.** The listener turns their own head.
+- **It needs the headphone stage to exist**, because it taps that stage's
+  convolvers: same seven churches, and Omnitone has to have loaded.
+- **The offline render does not carry it.** `downloadConvolvedAudio()` writes
+  stereo while Speakers is on.
 
 ---
 
