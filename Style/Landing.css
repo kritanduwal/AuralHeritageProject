@@ -153,12 +153,28 @@
 }
 
 /* ── The church list ── */
+/* A brighter blue than the page, at enough alpha to read as its own colour but
+   not so much that it covers the gradient: the landing runs from near-black to
+   mid blue across the diagonal, and the panel goes on lightening with it rather
+   than hiding its stretch of it. That is the whole reason this is a veil and
+   not a plate.
+
+   Which also means the panel has no single colour, so the levels inside it are
+   set for its brightest corner — see #landing-count and .landing-item-place.
+   Composited over #1a4a9e it lands near #1f5fb8, where white body text still
+   holds 6.2:1 but anything dimmed much below full white does not.
+
+   The cap is the collection's warm note, --buttoncolor2, the same gold the
+   source markers carry. It is the one thing on this panel that is not blue, and
+   it only works while the group headings answer it — see .landing-group below.
+   A gold edge over blue headings reads as a stray stripe. */
 #landing-aside {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(38, 125, 220, 0.42);
+    border: 1px solid rgba(120, 185, 255, 0.55);
+    border-top: 3px solid var(--buttoncolor2);
     border-radius: 8px;
     overflow: hidden;
 }
@@ -171,7 +187,10 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: rgba(255, 255, 255, 0.72);
+    /* Lifted from 0.72, which the panel carried while it was a white veil. On
+       the blue it is a dimmed white on a light ground, and the dimmer it is the
+       less of the panel it has left to stand against. */
+    color: rgba(255, 255, 255, 0.86);
 }
 
 #landing-list {
@@ -204,7 +223,12 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: var(--buttoncolor1);
+    /* Answers the cap on #landing-aside. Note this is the one level on the
+       panel that is not clear of AA everywhere: against the gradient's bright
+       corner the gold falls to 3.65:1, so the last heading or two in a long
+       list sit under 4.5:1. #fadfa6 clears it, at the cost of reading closer
+       to cream than to gold. */
+    color: var(--buttoncolor2);
 }
 
 .landing-group:first-child {
@@ -229,7 +253,10 @@
 .landing-item:hover,
 .landing-item:focus-visible {
     background-color: rgba(255, 255, 255, 0.1);
-    border-left-color: var(--activecolor);
+    /* Brass rather than --activecolor: the green is this app's "engaged", and
+       nothing is engaged by pointing at a church. The rail belongs to the panel
+       it runs down. */
+    border-left-color: var(--buttoncolor2);
     outline: none;
 }
 
@@ -241,7 +268,10 @@
 
 .landing-item-place {
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.62);
+    /* Lifted from 0.62 with the count header above it. At 12px this is the
+       smallest text in the panel and the first thing the brighter fill costs:
+       0.62 falls to 3.4:1 where the gradient is lightest, 0.82 holds 4.7:1. */
+    color: rgba(255, 255, 255, 0.82);
 }
 
 /* ── Footer ── */
@@ -363,42 +393,25 @@
 }
 
 /* ── The way back ── */
-/* Sits in the control bar under the source file picker rather than among the
-   tabs: it reopens the landing over the whole page instead of swapping the
-   panel under the tab row, so it never belonged in a row of panel switches.
-
-   Plain text, not a framed button. The filled blue above it is "Select Source
-   File"; anything boxed next to that reads as a second control of the same
-   weight, and this one does nothing to the audio. */
-/* Shares one line with the name of the loaded source: that name is short and
-   the column is as wide as the picker above it, so the right half of the line
-   is space the layout already had. #srcselectlabel lifts itself 5px to sit
-   close under the picker — the lift moves to the row, or it would pull the
-   label off the button's centre line. */
-#source-file-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: -5px;
-}
-
-#source-file-row #srcselectlabel {
-    margin-top: 0;
-    min-width: 0;
-}
-
+/* Sits at the end of the tab row, one tab's width past Instructions rather
+   than pushed to the far edge: beside the tabs it reads as another place to
+   go, which is what it is. It is not a tab itself — it reopens the landing
+   over the whole page instead of swapping the panel under the row — so it
+   never takes the active underline, and the icon is what tells the two kinds
+   apart at a glance. */
 #map-btn {
     display: flex;
     align-items: center;
     gap: 6px;
-    /* Never squeezed by a long source name — "Sermon – Dr. William Barber"
-       wraps instead */
-    flex-shrink: 0;
-    padding: 6px 0 6px 8px;
     background: none;
+    /* The padding and the transparent border copy .tab-btn, so this label sits
+       on the tabs' own baseline rather than 2px below it. The border stays
+       transparent: there is no panel here for the row to mark as active. */
     border: none;
-    font-size: 16px;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    padding: 12px 24px;
+    font-size: 14px;
     font-weight: 700;
     color: #666;
     cursor: pointer;
@@ -409,13 +422,13 @@
     color: var(--belmont-blue);
 }
 
-/* Layout.css paints every hovered .material-icons white, with !important, for
-   the round controls that sit on the dark view. This one sits on white, where
-   that rule would make the glyph vanish under the pointer — answering it needs
-   an !important of its own. */
+/* Layout.css paints every hovered .material-icons --maincolor, with
+   !important, for the round controls that sit on the dark view. --maincolor is
+   also the tab row's own background, so that rule would make this glyph vanish
+   under the pointer — answering it needs an !important of its own. */
 #map-btn .material-icons,
 #map-btn:hover .material-icons {
-    font-size: 24px;
+    font-size: 20px;
     color: inherit !important;
 }
 

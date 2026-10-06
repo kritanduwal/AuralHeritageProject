@@ -140,12 +140,13 @@ test('reverb overtakes the direct sound just under 60% on the slider', () => {
     assert.ok(0.6 > dryGainFor(0.6), 'by 60% the wet path should lead');
 });
 
-test('reductionToGain converts a dB reduction to linear attenuation', () => {
-    const { reductionToGain } = createApp().g;
-    close(reductionToGain(0), 1);
-    close(reductionToGain(6), 0.5011872336, 1e-9);
-    close(reductionToGain(20), 0.1, 1e-12);
-    assert.ok(reductionToGain(4.5) < reductionToGain(3), 'a bigger reduction must be quieter');
+test('gainFromDb reads a signed level, so a negative one attenuates', () => {
+    const { gainFromDb } = createApp().g;
+    close(gainFromDb(0), 1);
+    close(gainFromDb(-6), 0.5011872336, 1e-9);
+    close(gainFromDb(-20), 0.1, 1e-12);
+    close(gainFromDb(6), 1.9952623150, 1e-9);
+    assert.ok(gainFromDb(-4.5) < gainFromDb(-3), 'a lower level must be quieter');
 });
 
 // ── graph wiring ──────────────────────────────────────────────────────────
@@ -204,11 +205,11 @@ test('the gain trim sits before the convolvers, where normalization cannot undo 
     // A ConvolverNode re-normalizes its buffer on assignment, so a trim baked
     // into the IR samples would be scaled straight back out. It has to be a node.
     const app = createApp();
-    const { irTrim, splitter, src, convolvers } = buildGraph(app, { irGainDb: 6 });
+    const { irTrim, splitter, src, convolvers } = buildGraph(app, { irGainDb: -6 });
 
     assert.ok(irTrim, 'nothing feeds the splitter');
     assert.equal(irTrim.kind, 'gain', 'the splitter should be fed by a gain node');
-    close(irTrim.gain.value, app.g.reductionToGain(6));
+    close(irTrim.gain.value, app.g.gainFromDb(-6));
 
     assert.ok(app.edgesFrom(src).some(e => e.to === irTrim), 'trim must tap the source');
     assert.ok(app.edgesFrom(irTrim).some(e => e.to === splitter), 'trim must feed the splitter');
@@ -223,15 +224,15 @@ test('the gain trim leaves the direct sound at full level', () => {
     const plain = buildGraph(app, { mix: 1, irGainDb: 0 });
     const dryPlain = plain.graph.dryGain.gain.value;
 
-    const trimmed = buildGraph(app, { mix: 1, irGainDb: 6 });
+    const trimmed = buildGraph(app, { mix: 1, irGainDb: -6 });
     assert.equal(trimmed.graph.dryGain.gain.value, dryPlain,
         'a per-position reverb trim must not touch the dry path');
 });
 
 test('a larger trim attenuates more', () => {
     const app = createApp();
-    const light = buildGraph(app, { irGainDb: 1 }).irTrim.gain.value;
-    const heavy = buildGraph(app, { irGainDb: 6 }).irTrim.gain.value;
+    const light = buildGraph(app, { irGainDb: -1 }).irTrim.gain.value;
+    const heavy = buildGraph(app, { irGainDb: -6 }).irTrim.gain.value;
     assert.ok(heavy < light);
     close(buildGraph(app, { irGainDb: 0 }).irTrim.gain.value, 1);
 });
@@ -445,6 +446,114 @@ test('the toggle switches back off again', async () => {
     assert.equal(app.state.activeGraph.ambisonicOut.gain.value, 0);
 });
 
+/**
+ * The round trip, asserted on the path itself rather than on the faders.
+ *
+ * Both stages are fed by one dry copy and one convolved copy, so a stage
+ * switch that reached back into that shared work would retune stereo as a side
+ * effect of a mode nobody is listening to any more. The faders are the only
+ * thing the mode is allowed to move.
+ */
+function sharedPath(app) {
+    const g = app.state.activeGraph;
+    const convolvers = app.nodes.filter(n => n.kind === 'convolver');
+    return {
+        irTrim: g.irTrim.gain.value,
+        dryGain: g.dryGain.gain.value,
+        wetLeft: g.wetGainLeft.gain.value,
+        wetRight: g.wetGainRight.gain.value,
+        // Identity and contents of the pair stereo convolves, not just a count:
+        // a convolver handed the same buffer again renormalizes it
+        convolvers: convolvers.slice(0, 2).map(c => [c.nodeId, c.buffer]),
+        nodes: app.nodes.length,
+        edges: [g.irTrim, g.dryGain, g.wetGainLeft, g.wetGainRight, g.stereoOut, g.output]
+            .map(n => app.edgesFrom(n).length),
+    };
+}
+
+test('the round trip back to stereo returns to the very path it left', async () => {
+    const app = await readyToPlay(withAmbisonic(createApp()), -4.5);
+    app.g.setStageTrims({ ambisonic: -16.3 });
+    app.g.setConvolutionMix(0.62);
+    await app.g.startPlayback();
+
+    const graph = app.state.activeGraph;
+    const source = app.state.source;
+    const before = sharedPath(app);
+
+    app.g.toggleAmbisonic();          // stereo to headphones
+    app.ctx.currentTime = 30;
+    app.g.toggleAmbisonic();          // and back
+
+    assert.deepEqual(sharedPath(app), before,
+        'the dry, the trim, the wet gains and the convolver pair must all come back untouched');
+    assert.equal(app.state.activeGraph, graph, 'the graph must be the one that was playing');
+    assert.equal(app.state.source, source, 'and the source must never have left its place in the loop');
+    assert.equal(source.stopped, false);
+});
+
+test('the stage switch writes automation to the faders and nowhere else', async () => {
+    // The snapshot above compares where the path landed; this compares what was
+    // scheduled. A gain that ends where it started can still have been swept
+    // there and back, which is audible even though the snapshot matches.
+    const app = await readyToPlay(withAmbisonic(createApp()), -4.5);
+    await app.g.startPlayback();
+    const g = app.state.activeGraph;
+
+    app.g.toggleAmbisonic();
+    app.ctx.currentTime = 30;
+    app.g.toggleAmbisonic();
+
+    const shared = [['irTrim', g.irTrim], ['dryGain', g.dryGain],
+                    ['wetGainLeft', g.wetGainLeft], ['wetGainRight', g.wetGainRight],
+                    ['ambiWet', g.ambiWet], ['output', g.output]];
+    for (const [name, node] of shared) {
+        assert.deepEqual(node.gain._events, [],
+            `${name} is shared by both stages; the mode must not automate it`);
+    }
+
+    assert.equal(g.stereoOut.gain._events.length, 6, 'two glides, three calls each');
+    assert.equal(g.ambisonicOut.gain._events.length, 6);
+});
+
+test('a convolver is never handed its buffer again once the graph is running', async () => {
+    // Assignment is what normalizes, so re-assigning even the same buffer
+    // rescales the stereo room although the file never changed
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+
+    const pair = app.nodes.filter(n => n.kind === 'convolver').slice(0, 2);
+    const buffers = pair.map(c => c.buffer);
+    assert.ok(buffers.every(Boolean), 'the pair should have been loaded at build time');
+
+    app.g.toggleAmbisonic();
+    app.g.setConvolutionMix(0.4);
+    app.g.toggleAmbisonic();
+
+    assert.deepEqual(pair.map(c => c.buffer), buffers,
+        'the impulse response pair must survive the round trip unreassigned');
+});
+
+test('a mix moved on headphones is already right when stereo takes over', async () => {
+    // The slider retunes both stages whichever one is audible, so coming back
+    // needs no catch-up glide that would be heard as the room swelling
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    const g = app.state.activeGraph;
+
+    app.g.toggleAmbisonic();
+    app.ctx.currentTime = 30;
+    app.g.setConvolutionMix(0.3);     // moved while nobody is listening to stereo
+    app.ctx.currentTime = 60;
+    app.g.toggleAmbisonic();
+
+    assert.equal(g.wetGainLeft.gain.value, 0.3);
+    assert.equal(g.wetGainRight.gain.value, 0.3);
+    close(g.dryGain.gain.value, app.g.dryGainFor(0.3), 1e-12);
+    assert.deepEqual(g.stereoOut.gain._events.slice(-3).map(e => e[0]), ['cancel', 'set', 'ramp'],
+        'the only thing the return should schedule is the fader itself');
+});
+
 test('the mode is remembered while stopped and applied on the next play', async () => {
     const app = await readyToPlay(withAmbisonic(createApp()));
 
@@ -452,8 +561,7 @@ test('the mode is remembered while stopped and applied on the next play', async 
     assert.equal(app.state.activeGraph, null);
 
     await app.g.startPlayback();
-    assert.equal(app.state.activeGraph.ambisonicOut.gain.value,
-        app.data.gainFromDb(app.data.AMBISONIC_TRIM_DB));
+    assert.equal(app.state.activeGraph.ambisonicOut.gain.value, 1);
     assert.equal(app.state.activeGraph.stereoOut.gain.value, 0);
 });
 
@@ -467,8 +575,7 @@ test('the mode survives the restart a receiver change causes', async () => {
     await app.g.playpause();
 
     assert.equal(app.state.ambisonicEnabled, true);
-    assert.equal(app.state.activeGraph.ambisonicOut.gain.value,
-        app.data.gainFromDb(app.data.AMBISONIC_TRIM_DB),
+    assert.equal(app.state.activeGraph.ambisonicOut.gain.value, 1,
         'the rebuilt graph must come back in the mode the visitor chose');
 });
 
@@ -488,19 +595,161 @@ test('the toggle button reports the mode it is in', async () => {
     assert.equal(btn.title, app.data.HEADPHONES_TITLE_OFF);
 });
 
-test('the offline render falls back to stereo, since the decoder cannot travel', async () => {
-    // An Omnitone renderer belongs to the context that made it, so the live one
-    // cannot be borrowed offline — stereo rather than silence
+/** The elements the download builds, so the file it names can be read off them */
+function captureDownload(app) {
+    const made = [];
+    const create = app.g.document.createElement;
+    app.g.document.createElement = (tag) => {
+        const el = create(tag);
+        made.push(el);
+        return el;
+    };
+    return made;
+}
+
+const offlineConvolvers = (app) =>
+    app.nodes.filter(n => n.kind === 'convolver' && n.ctxLabel === 'offline');
+const offlineRenderer = (app) =>
+    app.foaRenderers.find(r => r.context.label === 'offline');
+
+/**
+ * The two stage faders of the offline graph, walked back from the destination.
+ *
+ * Which stage was *built* is not the question the file answers — both are, when
+ * the files allow. Which one was faded up is what ends up in the WAV.
+ */
+function offlineStages(app) {
+    const offline = app.contexts.find(c => c.label === 'offline');
+    const output = app.edgesTo(offline.destination)[0].from;
+    const renderer = offlineRenderer(app);
+    const ambisonicOut = renderer ? app.edgesFrom(renderer.output)[0].to : null;
+    const stereoOut = app.edgesTo(output).map(e => e.from).find(n => n !== ambisonicOut);
+    return { stereoOut, ambisonicOut };
+}
+
+test('the offline render carries stereo while stereo is the stage playing', async () => {
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    const files = captureDownload(app);
+
+    await app.g.downloadConvolvedAudio();
+
+    assert.ok(app.contexts.find(c => c.label === 'offline'), 'no offline render happened');
+    assert.equal(offlineConvolvers(app).length, 2, 'the IR pair and nothing else');
+    assert.equal(offlineRenderer(app), undefined, 'a decoder nothing routes through is wasted work');
+    assert.equal(offlineStages(app).stereoOut.gain.value, 1,
+        'stereo has to be the stage actually faded up, not merely the one built');
+    assert.equal(files.at(-1).download, 'convolved-output-stereo.wav');
+});
+
+test('the offline render follows the headphone button', async () => {
+    // The two stages are different renders of one room, not two encodings of
+    // it, so a file that always carried stereo could not be used to check the
+    // render actually being listened to
     const app = await readyToPlay(withAmbisonic(createApp()));
     await app.g.startPlayback();
     app.g.toggleAmbisonic();
+    const files = captureDownload(app);
+
     await app.g.downloadConvolvedAudio();
 
-    const offline = app.contexts.find(c => c.label === 'offline');
-    assert.ok(offline, 'no offline render happened');
+    assert.equal(offlineConvolvers(app).length, 2 + app.data.AMBISONIC_CHANNELS,
+        'the IR pair, and one convolver per AmbiX channel');
+    assert.ok(offlineRenderer(app), 'the B-format has to reach a decoder to be heard');
 
-    const convolvers = app.nodes.filter(n => n.kind === 'convolver' && n.ctxLabel === 'offline');
-    assert.equal(convolvers.length, 2, 'the IR pair and nothing else');
+    const { stereoOut, ambisonicOut } = offlineStages(app);
+    assert.equal(ambisonicOut.gain.value, 1, 'the decode is what the file should carry');
+    assert.equal(stereoOut.gain.value, 0,
+        'building both stages and rendering the wrong one is silent failure: the file' +
+        ' looks right and holds stereo');
+    assert.equal(files.at(-1).download, 'convolved-output-headphones.wav',
+        'the two renders of a position must not overwrite each other');
+});
+
+test('the offline decoder is built for its own context, not borrowed from the live one', async () => {
+    // A renderer belongs to the context that made it; the live singleton also
+    // has to survive, or the next play decodes through a context that is gone
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    app.g.toggleAmbisonic();
+    const live = app.state.foaRenderer;
+
+    await app.g.downloadConvolvedAudio();
+
+    const rendered = offlineRenderer(app);
+    assert.ok(rendered && rendered !== live, 'the offline render needs a decoder of its own');
+    assert.equal(rendered.initialized, true, 'an uninitialized decoder renders silence');
+    assert.equal(app.state.foaRenderer, live, 'the live singleton must not be replaced');
+    assert.equal(live.context.label, 'live');
+});
+
+test('a headphone render the position cannot supply falls back to stereo', async () => {
+    const app = await readyToPlay(withoutDerived(createApp()));
+    await app.g.startPlayback();
+    app.state.ambisonicEnabled = true;   // chosen elsewhere, unavailable here
+    const files = captureDownload(app);
+
+    await app.g.downloadConvolvedAudio();
+
+    assert.equal(offlineConvolvers(app).length, 2, 'stereo rather than silence');
+    assert.equal(offlineStages(app).stereoOut.gain.value, 1);
+    assert.equal(files.at(-1).download, 'convolved-output-stereo.wav',
+        'the name has to report what was actually rendered');
+});
+
+test('a decoder that fails to initialize costs the mode, not the file', async () => {
+    const app = await readyToPlay(withAmbisonic(createApp({ omnitoneFails: true })));
+    await app.g.startPlayback();
+    app.state.ambisonicEnabled = true;
+
+    await app.g.downloadConvolvedAudio();
+
+    assert.equal(offlineConvolvers(app).length, 2);
+    assert.equal(app.objectUrls.created.length, 1, 'a file is more use than a refusal');
+});
+
+test('a headphone render leaves room for the decode filters as well as the tail', async () => {
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    await app.g.downloadConvolvedAudio();
+    const stereoFrames = app.contexts.find(c => c.label === 'offline').length;
+
+    const other = await readyToPlay(withAmbisonic(createApp()));
+    await other.g.startPlayback();
+    other.g.toggleAmbisonic();
+    await other.g.downloadConvolvedAudio();
+    const headphoneFrames = other.contexts.find(c => c.label === 'offline').length;
+
+    assert.ok(headphoneFrames > stereoFrames,
+        'the decode rings on past the room, so its tail needs more room than stereo');
+});
+
+test('a soundfield being turned is frozen where the view has it', async () => {
+    // A file holds one orientation, so it should be the one that was in the
+    // ears when it was asked for rather than a reset to forward
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    app.g.setAmbisonicEnabled(true);
+    app.g.setSoundfieldTracking(true);
+    app.viewer.yaw = 120;
+
+    await app.g.downloadConvolvedAudio();
+
+    assert.deepEqual(plain(offlineRenderer(app).rotations.at(-1)),
+        plain(app.data.rotationMatrix4(120, 0)),
+        'the render must face where the listener was facing');
+});
+
+test('a soundfield that is not tracking is rendered facing forward', async () => {
+    const app = await readyToPlay(withAmbisonic(createApp()));
+    await app.g.startPlayback();
+    app.g.setAmbisonicEnabled(true);
+    app.viewer.yaw = 120;
+
+    await app.g.downloadConvolvedAudio();
+
+    assert.deepEqual(offlineRenderer(app).rotations, [],
+        'the renderer starts forward, so tracking off should leave it alone');
 });
 
 // ── live ambisonic rendering (Omnitone) ───────────────────────────────────
@@ -678,8 +927,8 @@ test('a trim scales the room and leaves the dry alone', () => {
 
 test('the upstream trim and taper are untouched by the ambisonic stage', () => {
     const app = createApp();
-    const plain = buildGraph(app, { mix: 0.4, irGainDb: 6 });
-    const withStage = buildGraph(app, { mix: 0.4, irGainDb: 6, withBformat: true });
+    const plain = buildGraph(app, { mix: 0.4, irGainDb: -6 });
+    const withStage = buildGraph(app, { mix: 0.4, irGainDb: -6, withBformat: true });
 
     assert.equal(withStage.irTrim.gain.value, plain.irTrim.gain.value);
     assert.equal(withStage.graph.dryGain.gain.value, plain.graph.dryGain.gain.value);
@@ -694,7 +943,7 @@ test('the mix slider retunes the ambisonic stage along with the rest', async () 
 });
 
 test('the two modes are alternatives, not layers', async () => {
-    // engageMode() is the single place that resolves them
+    // applyOutputStage() is the single place that resolves them
     const app = await readyToPlay(withAmbisonic(createApp()));
     await app.g.startPlayback();
 
@@ -961,7 +1210,7 @@ test('the mode can be armed before playback has started', async () => {
 
     app.g.setAmbisonicEnabled(true);
     await app.g.startPlayback();
-    assert.equal(app.state.activeGraph.ambisonicOut.gain.value, app.data.gainFromDb(app.data.AMBISONIC_TRIM_DB),
+    assert.equal(app.state.activeGraph.ambisonicOut.gain.value, 1,
         'the mode chosen while stopped should be the one that comes up');
 });
 
@@ -1168,8 +1417,10 @@ test('switching churches switches levels', () => {
 test('the fallback is 0 dB, so calibration starts from raw', () => {
     // A fallback already close to right is the hard case to calibrate against:
     // the ear has nothing to push away from
-    assert.equal(createApp().data.AMBISONIC_TRIM_DB, 0,
-        'AMBISONIC_TRIM_DB should leave an uncalibrated stage untouched');
+    const app = createApp();
+    app.g.setStageTrims({});
+    assert.equal(app.g.stageTrimDb('ambisonic'), 0,
+        'an uncalibrated stage should be left untouched');
 });
 
 
@@ -1317,12 +1568,12 @@ test('a second play never leaves two graphs feeding the destination', async () =
 });
 
 test('the selected position’s trim is carried into the graph', async () => {
-    const app = await readyToPlay(createApp(), 4.5);
+    const app = await readyToPlay(createApp(), -4.5);
     await app.g.startPlayback();
 
     const splitter = app.nodes.filter(n => n.kind === 'splitter').at(-1);
     const trim = app.edgesTo(splitter)[0].from;
-    close(trim.gain.value, app.g.reductionToGain(4.5));
+    close(trim.gain.value, app.g.gainFromDb(-4.5));
 });
 
 test('play refuses to start before a source file has decoded', async () => {

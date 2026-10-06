@@ -3,82 +3,45 @@
  * live, where the camera should point at each receiver, and how much each
  * receiver's reverb needs trimming.
  *
- * Everything that used to differ between the twelve CompileSelection* functions
- * is a value in this table. compile() in App.js reads it; nothing here touches
- * the DOM.
+ * compile() in App.js reads it; nothing here touches the DOM.
  *
  * @author Kritan Duwal
  */
 
 /**
- * ir.dir + "/" + (receiver.irName || ir.prefix + "_" + receiverId) + "-"
- *     gives the base path of an IR pair; AudioEngine appends "1.wav" / "2.wav".
+ * What the path helpers at the foot of this file do not already spell out:
  *
- *         IR/<Church>/Normalized/        the published library, always present
- *         IR/<Church>/Not Normalized/    the original captures, where recovered
- *
- *     Two folders because the sets hold the same measurement at two levellings,
- *     under identical file names.
- * panorama.dir + "/" + panorama.prefix + "_" + receiverId + panorama.ext
- *     gives the 360 photo. Extensions are case-sensitive once deployed, so they
- *     are spelled here exactly as the files are named on disk.
+ * panorama.ext
+ *     case-sensitive once deployed, so spelled as the file is named on disk.
  * soundfieldYaw
- *     the panorama yaw, in degrees, at which the ambisonic recording's own
- *     front points. Omitted where the two already agree.
- *
- *     The array's front axis is wherever it was set down, the panorama's zero
- *     wherever the camera started; half this collection differs by 180 degrees.
- *     Head tracking turns the soundfield by the camera's bearing, so half a turn
- *     out reverses which ear a source moves toward. Found by ear: turn the view
- *     and check a source crosses to the opposite ear rather than following you.
- *
- *     Reaches the headphone render only; stereo bakes its orientation in.
+ *     panorama yaw, in degrees, at which the recording's own front points; half
+ *     this collection is 180 out, which reverses which ear a source moves
+ *     toward. Omitted where the two already agree. Reaches the headphone render
+ *     only — stereo bakes its orientation in. Found by ear: turn the view and
+ *     check a source crosses to the opposite ear rather than following you.
  * unnormalized
- *     this church's original captures, present only where recovered.
+ *     the original captures, present only where recovered, and the only thing
+ *     the headphone render decodes — its button is dead without them. A decode
+ *     sums the four capsules and so needs their relative levels intact; the
+ *     published library's were each peak-normalized, so decoding those would
+ *     point sound in directions nobody recorded. Stereo never reads this and so
+ *     stays the reference the render is trimmed against.
  *
- *     The headphone render reads this and nothing else, so its button is dead
- *     without it. A decode sums the four capsules, which needs their relative
- *     levels intact; the published library's were each peak-normalized, so a
- *     decode of them would point sound in directions nobody recorded. See "Why
- *     not an ambisonic decode" in README.md.
- *
- *     Stereo never reads it, and so stays the reference the render is trimmed
- *     against. Receivers and panoramas are not repeated: the recovery did not
- *     change the room.
- *
- *         ir             where the recovered set lives
- *         trim           { ambisonic: { R1: -18.7, R2: -9.2, … } }, in dB,
- *                        replacing AMBISONIC_TRIM_DB outright. Bounded at -40
- *                        and +12 dB.
- *
- *                        IT SCALES THE DECODED ROOM AND NOT THE DRY PATH,
- *                        which is the identical signal in both stages and
- *                        skips the decoder — see buildConvolutionGraph(). The
- *                        room is the only thing left to calibrate. Applied to
- *                        the whole stage instead, calibrating a church dragged
- *                        its centre image down with it.
- *
- *                        Per receiver, and the spread is wide: St Francis runs
- *                        -18.7 dB at R1 to -4.0 at R4. The published capsules
- *                        were normalized per position, so stereo does not get
- *                        quieter with distance; the recovered set was scaled as
- *                        a whole, so it does. One figure per church leaves the
- *                        front rows clipping and the back rows inaudible.
- *
- *                        Corrected here rather than in the files: rescaling each
- *                        position's B-format would destroy the between-seat
- *                        relationships the set exists for. Derived by
- *                        tools/measure-loudness.js --write.
- *         soundfieldYaw  optional; see soundfieldYawOf(). Omit where the
- *                        recovered set agrees with the church.
+ *     trim   { ambisonic: { R1: -15.6, … } } — a signed level in dB, negative
+ *            quieter, bounded at -40 and +12. It scales the decoded room and
+ *            not the dry path, which is the identical signal in both stages and
+ *            skips the decoder. Per receiver, because stereo was normalized per
+ *            position while the recovered set was scaled as a whole: one figure
+ *            per church leaves front rows clipping and back rows inaudible.
+ *            Corrected here rather than in the files, which would destroy the
+ *            between-seat relationships the set exists for. Derived by
+ *            tools/measure-loudness.js --write.
  * receivers[id].pitch / .yaw
- *     camera angles handed to pannellum's lookAt(), in degrees. Every position
- *     spells both out, including the zeroes, so that a straight-ahead view
- *     reads as a decision rather than as a missing value.
+ *     pannellum lookAt() angles in degrees, zeroes spelled out so a
+ *     straight-ahead view reads as a decision rather than a missing value.
  * receivers[id].gainDb
- *     pre-fader reduction for that position's reverb, in dB. Omitted where the
- *     position plays back as recorded. See "Reverb ratios" in README.md for how
- *     these were derived and where they are applied.
+ *     pre-fader level for that position's reverb, in dB, signed like `trim`.
+ *     Omitted where the position plays back as recorded.
  */
 const ROOMS = {
     BridgeCommunityChurch: {
@@ -147,6 +110,13 @@ const ROOMS = {
         ir:       { dir: "IR/Church Street United Methodist Church, Knoxville/Normalized", prefix: "Church Street United" },
         panorama: { dir: "Images/Church Street United Methodist Church, Knoxville", prefix: "Church Street United Methodist Church", ext: ".jpg" },
         soundfieldYaw: 180,
+        unnormalized: {
+            ir:   { dir: "IR/Church Street United Methodist Church, Knoxville/Not Normalized", prefix: "Church Street United" },
+            trim: { ambisonic: { R1: -7.1, R2: -1.8, R3: -0.4, R4: 1.9 } },
+            // Direct sound at -34 to -42° across all four, as the recovered
+            // sets elsewhere; the half turn would put the source behind.
+            soundfieldYaw: 0,
+        },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
             R2: { pitch: 0, yaw: 0 },
@@ -159,16 +129,23 @@ const ROOMS = {
         ir:       { dir: "IR/Cane Ridge Meeting House, KY/Normalized", prefix: "Cane Ridge KY" },
         panorama: { dir: "Images/Cane Ridge Meeting House, KY", prefix: "Cane Ridge Meeting House, KY", ext: ".jpg" },
         soundfieldYaw: 180,
+        unnormalized: {
+            ir:   { dir: "IR/Cane Ridge Meeting House, KY/Not Normalized", prefix: "Cane Ridge KY" },
+            trim: { ambisonic: { R1: -12.2, R2: -9.5, R3: -8.8, R4: -9.4, R5: 6.1, R6: 5.9, R7: -6.3, R8: -2.1, R9: -3.5 } },
+            // Direct sound at -35 to -41° across all nine, taken at the first
+            // arrival: the balcony's loudest peak is the floor reflection.
+            soundfieldYaw: 0,
+        },
         receivers: {
             R1: { pitch:   0, yaw: 4 },
             R2: { pitch:   0, yaw: 0 },
             R3: { pitch:   0, yaw: 0 },
             R4: { pitch:   0, yaw: 0 },
-            R5: { pitch:   0, yaw: 0, gainDb:   3 },
-            R6: { pitch:   0, yaw: 0, gainDb:   3 },
-            R7: { pitch: -15, yaw: 0, gainDb: 1.5 },
-            R8: { pitch: -15, yaw: 0, gainDb: 1.5 },
-            R9: { pitch: -15, yaw: 0, gainDb: 1.5 }
+            R5: { pitch:   0, yaw: 0, gainDb:   -3 },
+            R6: { pitch:   0, yaw: 0, gainDb:   -3 },
+            R7: { pitch: -15, yaw: 0, gainDb: -1.5 },
+            R8: { pitch: -15, yaw: 0, gainDb: -1.5 },
+            R9: { pitch: -15, yaw: 0, gainDb: -1.5 }
         }
     },
 
@@ -176,16 +153,22 @@ const ROOMS = {
         ir:       { dir: "IR/First Presbyterian Church, KY/Normalized", prefix: "FPC KY" },
         panorama: { dir: "Images/First Presbyterian Church, KY", prefix: "First Presbyterian Church, KY", ext: ".jpg" },
         soundfieldYaw: 180,
+        unnormalized: {
+            ir:   { dir: "IR/First Presbyterian Church, KY/Not Normalized", prefix: "FPC KY" },
+            trim: { ambisonic: { R1: -6.1, R2: -3.7, R3: -2.5, R4: -4, R5: -1.2, R6: -0.1, R7: -4.7, R8: -2.2, R9: -1.8 } },
+            // Direct sound at -40 to -44° across all nine, as above.
+            soundfieldYaw: 0,
+        },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
-            R2: { pitch: 0, yaw: 0, gainDb: 1.5 },
-            R3: { pitch: 0, yaw: 0, gainDb:   3 },
+            R2: { pitch: 0, yaw: 0, gainDb: -1.5 },
+            R3: { pitch: 0, yaw: 0, gainDb:   -3 },
             R4: { pitch: 0, yaw: 0 },
-            R5: { pitch: 0, yaw: 0, gainDb: 1.5 },
-            R6: { pitch: 0, yaw: 0, gainDb:   3 },
+            R5: { pitch: 0, yaw: 0, gainDb: -1.5 },
+            R6: { pitch: 0, yaw: 0, gainDb:   -3 },
             R7: { pitch: 0, yaw: 0 },
-            R8: { pitch: 0, yaw: 0, gainDb: 1.5 },
-            R9: { pitch: 0, yaw: 0, gainDb:   3 }
+            R8: { pitch: 0, yaw: 0, gainDb: -1.5 },
+            R9: { pitch: 0, yaw: 0, gainDb:   -3 }
         }
     },
 
@@ -195,23 +178,21 @@ const ROOMS = {
         soundfieldYaw: 180,
         unnormalized: {
             ir:   { dir: "IR/Basilica St. Francis, IN/Not Normalized", prefix: "St Francis_IN" },
-            trim: { ambisonic: { R1: -18.7, R2: -9.2, R3: -8.7, R4: -4, R5: -5.8, R6: -7.4, R7: -6.8, R8: -6.5 } },
-            // Direct sound at azimuth -39 to -43 deg across all eight
-            // positions: the array's front and the panorama's agree already.
-            // Confirmed by ear.
+            trim: { ambisonic: { R1: -15.6, R2: -10, R3: -8.4, R4: -6, R5: -5.9, R6: -5.4, R7: -5.6, R8: -5.2 } },
+            // Direct sound at -39 to -43° across all eight: the fronts already
+            // agree. Confirmed by ear.
             soundfieldYaw: 0,
         },
         receivers: {
             R1: { pitch:   0, yaw: 1 },
-            R2: { pitch:  -2, yaw: 4, gainDb: 1.5 },
-            R3: { pitch:  -2, yaw: 3, gainDb:   3 },
-            R4: { pitch:   0, yaw: 0, gainDb:   1 },
-            R5: { pitch:   0, yaw: 0, gainDb:   1 },
-            R6: { pitch:   0, yaw: 0, gainDb: 2.5 },
-            R7: { pitch:   0, yaw: 0, gainDb: 2.5 },
-            // The balcony recordings were filed under their own name rather than
-            // following the prefix_receiver pattern used everywhere else.
-            R8: { pitch: -15, yaw: 0, gainDb: 4.5, irName: "St Francis_IN_balcony R8" }
+            R2: { pitch:  -2, yaw: 4, gainDb: -1.5 },
+            R3: { pitch:  -2, yaw: 3, gainDb:   -3 },
+            R4: { pitch:   0, yaw: 0, gainDb:   -1 },
+            R5: { pitch:   0, yaw: 0, gainDb:   -1 },
+            R6: { pitch:   0, yaw: 0, gainDb: -2.5 },
+            R7: { pitch:   0, yaw: 0, gainDb: -2.5 },
+            // Filed under its own name, not the prefix_receiver pattern
+            R8: { pitch: -15, yaw: 0, gainDb: -4.5, irName: "St Francis_IN_balcony R8" }
         }
     },
 
@@ -221,20 +202,19 @@ const ROOMS = {
         soundfieldYaw: 180,
         unnormalized: {
             ir:   { dir: "IR/Monastery Immaculate Conception, IN/Not Normalized", prefix: "MIC_IN" },
-            trim: { ambisonic: { R1: -5.1, R2: 2.1, R3: 2.5, R4: 4.4, R5: 1.7, R6: 2.3 } },
-            // Direct sound at azimuth -39 deg across all six positions, so
-            // the two fronts agree already. The church's half turn on top would
-            // render the source behind the listener, where lateral motion runs
-            // backwards. Confirmed by ear.
+            trim: { ambisonic: { R1: -5.6, R2: 1, R3: 2.7, R4: 3.8, R5: 2.2, R6: 3 } },
+            // Direct sound at -39° across all six, so the fronts agree; the
+            // church's half turn on top would put the source behind the
+            // listener, where lateral motion runs backwards.
             soundfieldYaw: 0,
         },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
-            R2: { pitch: 0, yaw: 0, gainDb: 1.5 },
-            R3: { pitch: 0, yaw: 0, gainDb:   3 },
-            R4: { pitch: 0, yaw: 0, gainDb: 4.5 },
-            R5: { pitch: 0, yaw: 0, gainDb: 1.5 },
-            R6: { pitch: 0, yaw: 0, gainDb: 1.5 }
+            R2: { pitch: 0, yaw: 0, gainDb: -1.5 },
+            R3: { pitch: 0, yaw: 0, gainDb:   -3 },
+            R4: { pitch: 0, yaw: 0, gainDb: -4.5 },
+            R5: { pitch: 0, yaw: 0, gainDb: -1.5 },
+            R6: { pitch: 0, yaw: 0, gainDb: -1.5 }
         }
     },
 
@@ -242,11 +222,18 @@ const ROOMS = {
         ir:       { dir: "IR/Our Lady of Guadalupe, NM/Normalized", prefix: "Guadalupe_SantaFe" },
         panorama: { dir: "Images/Our Lady of Guadalupe, NM", prefix: "Guadalupe_SantaFe", ext: ".JPG" },
         soundfieldYaw: 180,
+        unnormalized: {
+            ir:   { dir: "IR/Our Lady of Guadalupe, NM/Not Normalized", prefix: "Guadalupe_SantaFe" },
+            trim: { ambisonic: { R1: -13.7, R2: -10.7, R3: -11, R4: -9.6, R5: -9.9, R6: -8.4 } },
+            // Direct sound at -37 to -41° at R1–R5. R6 reads 136° even at the
+            // first arrival, half a turn from the rest; not confirmed by ear.
+            soundfieldYaw: 0,
+        },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
-            R2: { pitch: 0, yaw: 0, gainDb: 1.5 },
-            R3: { pitch: 0, yaw: 0, gainDb:   3 },
-            R4: { pitch: 0, yaw: 0, gainDb: 4.5 },
+            R2: { pitch: 0, yaw: 0, gainDb: -1.5 },
+            R3: { pitch: 0, yaw: 0, gainDb:   -3 },
+            R4: { pitch: 0, yaw: 0, gainDb: -4.5 },
             R5: { pitch: 0, yaw: 0 },
             R6: { pitch: 0, yaw: 0 }
         }
@@ -258,50 +245,40 @@ const ROOMS = {
         soundfieldYaw: 180,
         unnormalized: {
             ir:   { dir: "IR/St Augustine Isleta, NM/Not Normalized", prefix: "St Augustine_Isleta" },
-            trim: { ambisonic: { R1: -16.6, R2: -10.7, R3: -12.1, R4: -5.2, R5: -9.8 } },
-            // Direct sound at azimuth -40 to -41 deg across all five
-            // positions, as above. Confirmed by ear.
+            trim: { ambisonic: { R1: -16.3, R2: -11.5, R3: -10.5, R4: -8.8, R5: -7.8 } },
+            // Direct sound at -40 to -41° across all five, as above.
             soundfieldYaw: 0,
         },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
-            R2: { pitch: 0, yaw: 0, gainDb: 1.5 },
-            R3: { pitch: 0, yaw: 0, gainDb:   3 },
-            R4: { pitch: 0, yaw: 0, gainDb: 4.5 },
-            R5: { pitch: 0, yaw: 0, gainDb:   6 }
+            R2: { pitch: 0, yaw: 0, gainDb: -1.5 },
+            R3: { pitch: 0, yaw: 0, gainDb:   -3 },
+            R4: { pitch: 0, yaw: 0, gainDb: -4.5 },
+            R5: { pitch: 0, yaw: 0, gainDb:   -6 }
         }
     }
 };
 
-/**
- * Pulls the receiver id out of a button element id, e.g. "rpR3_CaneRidge..." -> "R3"
- * @returns {string} the receiver id, or "" if the element id is not a receiver button
- */
+/** "rpR3_CaneRidge…" -> "R3", or "" where the id is not a receiver button */
 function receiverIdOf(elementId) {
     const match = /^rp(R\d+)_/.exec(elementId || "");
     return match ? match[1] : "";
 }
 
 /**
- * Which set of files the headphone render decodes.
- *
- * Null rather than a fallback to the published library: a decode of those
- * capsules would sound spatial while pointing sound in directions nobody
- * recorded, and nothing about it would sound broken. See `unnormalized` above.
- *
- * @returns the recovered set, or null for a church that has none
+ * The set the headphone render decodes, or null where a church has none. Null
+ * rather than falling back to the published library: that decode would sound
+ * spatial, point sound in directions nobody recorded, and not sound broken.
  */
 function decodedSourceOf(config) {
     return config.unnormalized || null;
 }
 
 /**
- * Which panorama yaw the soundfield calls forward.
- *
- * Read off the recovered set, which is the only thing the render plays. The
- * church's own value cannot be inherited blindly: it was found by ear against a
- * decode whose directions are invalid, so it records whatever offset made a
- * broken soundfield sit least wrong. Falls back to it where the set agrees.
+ * Which panorama yaw the soundfield calls forward, read off the recovered set.
+ * The church's own value cannot be inherited blindly: it was found by ear
+ * against a decode whose directions are invalid, so it records whatever offset
+ * made a broken soundfield sit least wrong.
  */
 function soundfieldYawOf(config) {
     const decoded = decodedSourceOf(config);
@@ -310,11 +287,9 @@ function soundfieldYawOf(config) {
 }
 
 /**
- * Output level for the headphone render at one receiver, keyed by stage name —
- * the shape AudioEngine's stageTrims wants.
- *
- * Per receiver; see `trim` above. A position with no entry falls back to the
- * engine's constant, which assets.test.js exists to prevent.
+ * Output level for one receiver, keyed by stage name — the shape stageTrims
+ * wants. A position with no entry falls back to 0 dB and so plays untrimmed,
+ * which assets.test.js exists to prevent.
  */
 function stageTrimsOf(config, receiverId) {
     const decoded = decodedSourceOf(config);
@@ -326,37 +301,30 @@ function stageTrimsOf(config, receiverId) {
 }
 
 /**
- * Base path of a receiver's files within a given set, ending in the trailing
- * "-" that AudioEngine completes with a channel number or suffix.
- *
- * The stem comes from the church, not the set: both inherit `irName`.
+ * Base path of a receiver's files within a set, ending in the "-" AudioEngine
+ * completes with a channel number or suffix. The stem comes from the church,
+ * not the set: both inherit `irName`.
  */
 function responseBaseIn(source, config, receiverId) {
     const stem = config.receivers[receiverId].irName || `${source.ir.prefix}_${receiverId}`;
     return `${source.ir.dir}/${stem}-`;
 }
 
-/**
- * Base path of a receiver's impulse response pair — channels 1 and 2, which
- * stereo convolves. Always the published library.
- */
+/** The stereo pair, channels 1 and 2. Always the published library. */
 function impulseResponseBase(config, receiverId) {
     return responseBaseIn(config, config, receiverId);
 }
 
 /**
- * Base path of a receiver's B-format file, or "" where the church has no
- * recovered set. ambisonicAvailable() reads the empty string to keep the button
- * dead without a fetch that would only 404.
+ * The B-format file, or "" where there is no recovered set — ambisonicAvailable()
+ * reads the empty string to keep the button dead without a fetch that would 404.
  */
 function decodedResponseBase(config, receiverId) {
     const decoded = decodedSourceOf(config);
     return decoded ? responseBaseIn(decoded, config, receiverId) : "";
 }
 
-/**
- * Path of the 360 photo taken at a receiver position
- */
+/** Path of the 360 photo taken at a receiver position */
 function panoramaPath(config, receiverId) {
     const { dir, prefix, ext } = config.panorama;
     return `${dir}/${prefix}_${receiverId}${ext}`;

@@ -163,6 +163,15 @@ input, button, select, textarea {
     right: 16px;
     background-repeat: no-repeat;
     z-index: 2;
+    /* A floorplan is a fixed-size drawing with markers placed on it in px, so
+       it cannot shrink with the view. Where the view is smaller than the
+       drawing it scrolls inside these bounds instead of running out past the
+       view's edge, which would put the markers on that side out of reach.
+       `local` is what makes the drawing scroll with its markers; the default
+       pins it to the box and slides the markers across it. */
+    max-width: calc(100% - 32px);
+    max-height: calc(100% - 32px);
+    background-attachment: local;
     overflow: auto;
     cursor: default;
     pointer-events: auto;
@@ -384,7 +393,7 @@ input, button, select, textarea {
 
 .church-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
     gap: 20px;
     margin-top: 16px;
 }
@@ -573,7 +582,7 @@ input, button, select, textarea {
 /* ── About — Equipment Grid ── */
 .equipment-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
     gap: 20px;
     margin-top: 16px;
 }
@@ -799,4 +808,64 @@ input, button, select, textarea {
     height: 322px;
     background-image: url("../Images/St Augustine Isleta, NM/St Augustine Diagram.png");
     background-size: 203px 322px;
+}
+
+/* ── Narrow windows ── */
+/* Last in the file so it answers every rule above it. The page used to have a
+   floor of about 550px, set by this file rather than by the landing: the two
+   lockups in the app bar are some 370px that would not shrink, beside a title
+   that would not go under them, and the tab row is four labels that would not
+   wrap. Anything narrower widened the whole page, landing included. */
+@media (max-width: 640px) {
+    /* Title over logos, as the landing's header does it at the same sizes */
+    #appbar {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 10px 16px;
+        font-size: 18px;
+    }
+
+    .appbar-logos {
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        /* Lets the row wrap rather than hold its full width */
+        flex-shrink: 1;
+        max-width: 100%;
+    }
+
+    .appbar-logo {
+        height: 24px;
+    }
+
+    #tab-nav {
+        padding: 0 6px;
+    }
+
+    /* #map-btn is styled in Landing.css, which loads after this file, so it
+       needs the extra id to be reached from here */
+    .tab-btn,
+    #tab-nav #map-btn {
+        padding: 12px 10px;
+    }
+
+    #content-area {
+        margin: 8px 12px 6px;
+    }
+
+    .ui {
+        top: 8px;
+        right: 8px;
+        max-width: calc(100% - 16px);
+        max-height: calc(100% - 16px);
+    }
+
+    #about-panel, #instructions-panel {
+        padding: 20px 16px;
+    }
+
+    /* Justified text in a column this narrow opens rivers between the words */
+    .info-section p, .info-section li, .equipment-card li {
+        text-align: left;
+    }
 }
