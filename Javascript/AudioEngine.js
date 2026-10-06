@@ -128,10 +128,12 @@ const AMBISONIC_CHANNELS = 4;
  */
 const STAGE_CROSSFADE = 0.02;
 
-const HEADPHONES_TITLE_ON = "Headphones: on";
-const HEADPHONES_TITLE_OFF = "Headphones: off";
+const HEADPHONES_TITLE_ON =
+    "Headphones: on. You are hearing spatial audio, as if you were standing inside the church. Click to go back to regular stereo.";
+const HEADPHONES_TITLE_OFF =
+    "Headphones: off. Turn on for spatial audio, as if you were standing inside the church. Works best with headphones.";
 const HEADPHONES_TITLE_UNAVAILABLE =
-    "Headphones: unavailable — this church has no impulse response files this render can decode";
+    "Headphones: unavailable. This church does not have the recordings needed for spatial audio.";
 
 /** Whether playback leaves through the live ambisonic stage */
 let ambisonicEnabled = false;
@@ -280,9 +282,11 @@ function refreshModeButtons() {
 
 // ── Soundfield rotation ───────────────────────────────────────────────────
 
-const TRACKING_TITLE_ON = "Head tracking: the soundfield turns with the view";
-const TRACKING_TITLE_OFF = "Head tracking: off, so the soundfield stays where the recording put it";
-const TRACKING_TITLE_UNAVAILABLE = "Head tracking: available with the headphone render";
+const TRACKING_TITLE_ON =
+    "Head tracking: on. The sound moves as you look around, like turning your head inside the church.";
+const TRACKING_TITLE_OFF =
+    "Head tracking: off. The sound stays in place as you look around. Turn on to have it follow where you look.";
+const TRACKING_TITLE_UNAVAILABLE = "Head tracking: turn on Headphones first to use this.";
 
 function setSoundfieldTracking(enabled) {
     soundfieldTracking = enabled;
@@ -706,12 +710,16 @@ async function loadSource() {
 
 // ── Playback ──────────────────────────────────────────────────────────────
 
+const PLAY_TITLE_PLAY = "Play: listen to how this church sounds from the spot you have chosen.";
+const PLAY_TITLE_PAUSE = "Pause the sound.";
+
 function setPlaying(playing) {
     isPlaying = playing;
 
     const btn = document.getElementById('play');
     if (!btn) return;
     btn.textContent = playing ? 'pause_circle_filled' : 'play_circle_filled';
+    btn.title = playing ? PLAY_TITLE_PAUSE : PLAY_TITLE_PLAY;
     btn.classList.toggle('playing', playing);
 }
 

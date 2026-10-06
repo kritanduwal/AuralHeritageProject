@@ -253,7 +253,7 @@
 
                 <!-- Head tracking, for the headphone render only -->
                 <label id="tracking-control" for="tracking" class="unavailable"
-                       title="Head tracking: available with the headphone render">
+                       title="Head tracking: turn on Headphones first to use this.">
                     <input type="checkbox" id="tracking" disabled
                            onchange="setSoundfieldTracking(this.checked)">
                     Head tracking
@@ -265,9 +265,10 @@
                      so its tooltip would never appear. -->
                 <button id="headphones" class="mode-toggle material-icons" onclick="toggleAmbisonic()"
                         aria-pressed="false" aria-disabled="true"
-                        title="Headphones: unavailable — this church has no impulse response files this render can decode">headset</button>
+                        title="Headphones: unavailable. This church does not have the recordings needed for spatial audio.">headset</button>
 
-                <button id="play" class="material-icons" onclick="playpause()">play_circle_filled</button>
+                <button id="play" class="material-icons" onclick="playpause()"
+                        title="Play: listen to how this church sounds from the spot you have chosen.">play_circle_filled</button>
             </div>
         </div>
 
