@@ -124,11 +124,12 @@ const ruleFor = (selector) =>
     layoutCss.match(new RegExp('^' + selector + '\\s*\\{([^}]*)\\}', 'm'))[1];
 
 /** The playback controls, in the order they sit leftward from the corner */
-const CONTROL_ROW = ['#play', '#headphones'];
+const CONTROL_ROW = ['#play', '#headphones', '#speakers'];
 
 /** The render modes and the engine call each one makes */
 const MODE_TOGGLES = [
     ['headphones', 'toggleAmbisonic'],
+    ['speakers', 'toggleSpeakers'],
 ];
 
 test('every render mode has a button wired to the engine', () => {
@@ -522,8 +523,10 @@ test('the headphone render is part of the published experience', () => {
     // It used to sit behind /ambisonic. A stale FEATURE_CONTROLS entry would
     // hide the button from everybody; a style attribute would do it before any
     // script ran. features.test.js checks the roster and routes agree.
-    assert.deepEqual(Object.keys(app.data.FEATURE_CONTROLS), [],
-        'a control listed here would be hidden from every visitor');
+    const gated = Object.values(app.data.FEATURE_CONTROLS).flat();
+    for (const id of ['headphones', 'tracking-control', 'play']) {
+        assert.ok(!gated.includes(id), `${id} listed here would be hidden from every visitor`);
+    }
     assert.doesNotMatch(html, /id="headphones"[^>]*style=/,
         'the button must not ship pre-hidden');
 });

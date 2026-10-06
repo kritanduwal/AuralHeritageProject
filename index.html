@@ -267,6 +267,20 @@
                         aria-pressed="false" aria-disabled="true"
                         title="Headphones: unavailable. This church does not have the recordings needed for spatial audio.">headset</button>
 
+                <!-- The same soundfield decoded to five loudspeakers instead
+                     of two ears. Behind /5, with the routing panel below. -->
+                <button id="speakers" class="mode-toggle material-icons" onclick="toggleSpeakers()"
+                        aria-pressed="false" aria-disabled="true"
+                        title="Speakers: unavailable. This church does not have the recordings needed for spatial audio.">surround_sound</button>
+
+                <!-- Which output of the audio interface each speaker plays
+                     from. Open only while Speakers is on; the rows are drawn
+                     by SpeakerOutput.js, one option per output the device has. -->
+                <div id="speaker-routing">
+                    <div id="speaker-routing-title">Speaker outputs</div>
+                    <div id="speaker-routing-rows"></div>
+                </div>
+
                 <button id="play" class="material-icons" onclick="playpause()"
                         title="Play: listen to how this church sounds from the spot you have chosen.">play_circle_filled</button>
             </div>
@@ -490,6 +504,15 @@
                         the buttons and the room turns as you drag the view, the way it would if you turned your head
                         inside it. Off by default, so that the render can be judged on its own first.
                     </li>
+                    <li data-feature="5">
+                        <strong>Speakers</strong> - Press the surround button to the left of Headphones to play the
+                        church over five loudspeakers: left, right, centre and two surrounds. It needs an audio
+                        interface with at least five outputs, set as your computer's sound output and configured
+                        there for all of its channels. A panel opens above the buttons listing each speaker beside
+                        the output it plays from. Change any of them to match how your interface is wired, and
+                        press <em>Solo</em> to hear that speaker's part of the church on its own, from the output you
+                        chose. Press it again to bring the others back. Your choices are remembered for next time. Available at the same churches as Headphones.
+                    </li>
                     <li>
                         <strong>Church Info</strong> - Once a church is selected, click the <em>Church Info</em> button in
                         the bottom-left of the view to read its full history, address, measurement date, room dimensions,
@@ -608,6 +631,8 @@
     <script src="Javascript/Rooms.js"></script>
     <script src="Javascript/App.js"></script>
     <script src="Javascript/AudioEngine.js"></script>
+    <!-- After AudioEngine.js: the loudspeaker stage behind /5 -->
+    <script src="Javascript/SpeakerOutput.js"></script>
     <script src="Javascript/SettingsMenu.js"></script>
     <!-- After SettingsMenu.js: the landing's only exit is switchRoom() -->
     <script src="Javascript/Landing.js"></script>

@@ -369,10 +369,12 @@ function closeChurchInfo() {
 // ── Feature gating ────────────────────────────────────────────────────────
 
 /**
- * Which controls each URL feature reveals — "<flag>: ['id', …]". Empty today,
- * so every control ships to every visit. See Features.js.
+ * Which controls each URL feature reveals — "<flag>: ['id', …]". Anything not
+ * listed ships to every visit. See Features.js.
  */
-const FEATURE_CONTROLS = {};
+const FEATURE_CONTROLS = {
+    '5': ['speakers', 'speaker-routing'],
+};
 
 /**
  * Left edge of the first render toggle and the step between them, in px from
@@ -384,7 +386,7 @@ const TOGGLE_ROW_START_PX = 116;
 const TOGGLE_ROW_STEP_PX = 68;
 
 /** The render toggles, left to right, as layoutModeToggles() seats them */
-const MODE_TOGGLE_IDS = ['headphones'];
+const MODE_TOGGLE_IDS = ['headphones', 'speakers'];
 
 /**
  * Hides the controls this visit has not been given, and closes the gaps: the

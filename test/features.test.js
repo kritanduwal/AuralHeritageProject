@@ -2,9 +2,9 @@
 /**
  * Features.js — the URL feature flags, and the controls each one reveals.
  *
- * Nothing is gated today, so the suite declares flags of its own to keep the
- * mechanism covered, then checks that the shipped roster really is empty and
- * nothing has been left half-gated behind it.
+ * One feature is gated today, /5. The suite declares flags of its own to keep
+ * the mechanism covered independently of it, then checks that the shipped
+ * roster is exactly that one and nothing else has been left half-gated.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -21,11 +21,11 @@ const plain = (value) => JSON.parse(JSON.stringify(value));
 
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
-/** The app as it ships: no flags declared, nothing gated */
+/** The app as it ships, on a plain visit */
 const app0 = createApp();
 
 /**
- * An app with flags declared, since the shipped roster is empty.
+ * An app with flags of the suite's own declared beside the shipped one.
  *
  * FEATURE_NAMES is read live, so pushing onto it drives the real resolver.
  * FEATURES is not — the app read its address at load, before these names
@@ -82,7 +82,7 @@ test('the flags are read case-insensitively', () => {
 test('an address naming something undeclared manufactures no flag', () => {
     // What stops a removed flag coming back to life through an old bookmark
     const app = createApp({ path: '/ambisonic' });
-    assert.deepEqual(plain(app.state.FEATURES), {});
+    assert.ok(!('ambisonic' in plain(app.state.FEATURES)));
     assert.equal(app.g.featureEnabled('ambisonic'), false);
 });
 
@@ -152,24 +152,50 @@ test('help text describing a hidden feature is hidden with it', () => {
         'instructions for a control nobody can see would only confuse');
 });
 
-// ── nothing is gated today ────────────────────────────────────────────────
+// ── what is gated today ───────────────────────────────────────────────────
 
-test('the roster is empty, so a plain visit gets the whole experience', () => {
+/** Everything /5 reveals */
+const SPEAKER_CONTROLS = ['speakers', 'speaker-routing'];
+
+test('the roster is one flag, and it gates the speaker controls alone', () => {
     const app = createApp();
-    assert.deepEqual(plain(app.data.FEATURE_NAMES), []);
-    assert.deepEqual(plain(app.data.FEATURE_CONTROLS), {});
+    assert.deepEqual(plain(app.data.FEATURE_NAMES), ['5']);
+    assert.deepEqual(plain(app.data.FEATURE_CONTROLS), { '5': SPEAKER_CONTROLS });
     assert.deepEqual(plain(app.data.FEATURE_IMPLIES), {});
 });
 
-test('a plain visit is shown every control the page has', () => {
-    // With nothing declared the loop must leave the page alone; a stale entry
-    // would grey out the app for every visitor
+test('a plain visit is shown every published control, and none of the gated ones', () => {
+    // A stale entry would grey out the app for every visitor
     const app = createApp();
     app.g.applyFeatureGating();
 
     for (const id of ['headphones', 'tracking-control']) {
         assert.ok(!hidden(app, id), `${id} is part of the published experience now`);
     }
+    for (const id of SPEAKER_CONTROLS) {
+        assert.ok(hidden(app, id), `${id} belongs to /5`);
+    }
+});
+
+test('/5 reveals the speaker controls, by path or by query', () => {
+    for (const where of [{ path: '/5' }, { query: '?5' }]) {
+        const app = createApp(where);
+        app.g.applyFeatureGating();
+
+        for (const id of SPEAKER_CONTROLS) {
+            assert.ok(!hidden(app, id), `${id} should come with ${JSON.stringify(where)}`);
+        }
+    }
+});
+
+test('a number elsewhere in the address does not switch /5 on', () => {
+    // The flag is a single digit, so the whole-segment rule is all that keeps
+    // it from matching every address with a 5 in it
+    const app = createApp();
+    assert.equal(flagsFor(app, '/15')['5'], false);
+    assert.equal(flagsFor(app, '/5th-avenue')['5'], false);
+    assert.equal(flagsFor(app, '/', '?church=5')['5'], false);
+    assert.equal(flagsFor(app, '/', '?55')['5'], false);
 });
 
 test('no markup is left waiting on a flag that no longer exists', () => {
@@ -210,8 +236,9 @@ test('the routes agree with the roster on both hosts', () => {
 const seatOf = (app, id) => app.el(id).style.right;
 
 test('the visible toggles sit in a row beside the play button', () => {
-    // Positioned individually against the corner, so hiding one leaves a hole
-    const app = createApp();
+    // Positioned individually against the corner, so hiding one leaves a hole.
+    // At /5, the only address that shows the whole row.
+    const app = createApp({ path: '/5' });
     const { TOGGLE_ROW_START_PX, TOGGLE_ROW_STEP_PX } = app.data;
     app.g.applyFeatureGating();
 

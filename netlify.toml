@@ -3,12 +3,13 @@
   command = ""
 
 # One block per flag in FEATURE_NAMES (Javascript/Features.js), alongside its
-# path in FEATURE_PATHS (server.js). None today.
-#
-#   [[redirects]]
-#     from = "/<flag>"
-#     to = "/index.html"
-#     status = 200
+# path in FEATURE_PATHS (server.js).
 #
 # status = 200 rewrites rather than redirects, which keeps the URL — and so the
 # flag — intact for Features.js to read.
+
+# Loudspeaker playback of the B-format
+[[redirects]]
+  from = "/5"
+  to = "/index.html"
+  status = 200
