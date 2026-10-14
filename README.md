@@ -547,6 +547,25 @@ The bearing it turns by is the camera's *relative to the recording's own front*,
 which is what `soundfieldYaw` records. See
 [Why the originals need their own `soundfieldYaw`](#why-the-originals-need-their-own-soundfieldyaw).
 
+**The sound follows the view; it does not copy it.** Each animation frame, a
+follower moves toward the camera's bearing by a share set by how fast the view
+is moving. A fast swing gets a time constant of 8 ms, so the room keeps up with
+the turn. A slow drift gets 80 ms, which smooths over the lumpy steps a drag
+arrives in. Speeds between 15 and 200 °/s move evenly between the two on a log
+scale. The speed estimate rises within a frame or two and falls over 150 ms, so
+one late frame mid-drag does not read as the view stopping. Turns take the short
+way across ±180°. Switching tracking off glides back to forward instead of
+snapping.
+
+**Each frame is a glide, not a step.** Omnitone's `setRotationMatrix4()` writes
+its nine rotator gains outright, so a rotation lands as a jump once per frame:
+audible on a fast turn, and nothing at all when a frame is late. The engine
+instead ramps those same gains (`_foaRotator._m0…_m8`, reachable because the
+version is pinned at 1.3.0) over the interval the frame bridges, so the audio
+thread joins the frames up. If the internals are ever missing, it falls back to
+the public call. Nothing is written once the sound has caught up with a still
+view.
+
 ### Why not an ambisonic decode
 
 Every receiver also carries a 4-channel ambisonic array, which would be the more
