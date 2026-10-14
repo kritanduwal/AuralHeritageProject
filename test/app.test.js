@@ -696,3 +696,144 @@ test('every recovered set has been measured, so none falls back in practice', ()
 
     assert.deepEqual(uncalibrated, [], 'these positions still need a loudness pass');
 });
+
+// ── About-tab church cards ────────────────────────────────────────────────
+
+const fs = require('fs');
+const path = require('path');
+const { ROOT } = require('./helpers/harness.js');
+const aboutHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+
+/** The data-room of every card in the About tab, in markup order */
+const cardRooms = () => [...aboutHtml.matchAll(/<div class="church-card"[^>]*?data-room="([^"]+)"/g)].map(m => m[1]);
+
+/**
+ * An app whose About tab holds one card per room key given, wired as initApp
+ * wires them. Each card carries its own <h3>, as the markup does.
+ */
+function withCards(keys) {
+    let cards = [];
+    const app = createApp({
+        querySelectorAll: (sel) => (sel === '.church-card[data-room]' ? cards : []),
+    });
+    cards = keys.map(key => {
+        const card = app.el('card-' + key);
+        card['data-room'] = key;
+        card.querySelector('h3').textContent = (app.data.churchData[key] || {}).name || key;
+        return card;
+    });
+    app.g.wireChurchCards();
+    return { app, card: (key) => app.el('card-' + key) };
+}
+
+test('every church card in the About tab names a church the app can play, once', () => {
+    const app = createApp();
+    const rooms = cardRooms();
+    const all = (aboutHtml.match(/<div class="church-card"/g) || []).length;
+
+    assert.equal(rooms.length, all, 'a card without data-room would be the only one that does nothing');
+    assert.deepEqual([...rooms].sort(), Object.keys(app.data.ROOMS).sort(),
+        'one card per church, with no strays and no gaps');
+});
+
+test('the About tab tells the visitor the cards can be clicked', () => {
+    assert.match(aboutHtml, /Click a church below to step inside it/);
+});
+
+test('clicking a card opens that church in the View tab', async () => {
+    const { app, card } = withCards(['CaneRidgeMeetingHouse']);
+    app.g.switchTab('about', app.el('tab-about'));
+
+    card('CaneRidgeMeetingHouse').onclick();
+    await app.settle();
+
+    assert.ok(app.el('main-panel').classList.contains('active'), 'the View tab should be showing');
+    assert.ok(app.el('tab-main').classList.contains('active'), 'and its tab button lit');
+    assert.equal(app.state.room, 'CaneRidgeMeetingHouse');
+    assert.equal(app.el('roomDropdown').value, 'CaneRidgeMeetingHouse', 'the dropdown should read the church');
+    assert.equal(app.state.rcvpos, 'rpR1_CaneRidgeMeetingHouse');
+    assert.equal(app.el('CaneRidgeMeetingHouseui').style.display, 'flex');
+});
+
+test('every card opens its own church without error', async () => {
+    const keys = cardRooms();
+    const { app, card } = withCards(keys);
+    for (const key of keys) {
+        card(key).onclick();
+        await app.settle();
+        assert.equal(app.state.room, key);
+    }
+});
+
+test('a card is a button to the keyboard and to a screen reader', () => {
+    const { card } = withCards(['StAugustineIsleta']);
+    const c = card('StAugustineIsleta');
+
+    assert.equal(c.role, 'button');
+    assert.equal(c.tabindex, '0', 'it has to be reachable with Tab');
+    assert.match(c.title, /St\. Augustine/);
+    assert.ok(c.classList.contains('church-card--link'), 'the hover style is keyed to this class');
+});
+
+for (const key of ['Enter', ' ']) {
+    test(`${key === ' ' ? 'Space' : key} on a focused card opens its church`, async () => {
+        const { app, card } = withCards(['BasilicaStFrancis']);
+        let prevented = false;
+        card('BasilicaStFrancis').onkeydown({ key, preventDefault() { prevented = true; } });
+        await app.settle();
+
+        assert.equal(app.state.room, 'BasilicaStFrancis');
+        assert.ok(prevented, 'Space would otherwise scroll the page as well');
+    });
+}
+
+test('other keys on a card do nothing', () => {
+    const { app, card } = withCards(['BasilicaStFrancis']);
+    card('BasilicaStFrancis').onkeydown({ key: 'Tab', preventDefault() { assert.fail('Tab must still move focus'); } });
+    assert.equal(app.state.room, '');
+});
+
+test('clicking the church already loaded only changes tab, keeping the chosen receiver', async () => {
+    const { app, card } = withCards(['CaneRidgeMeetingHouse']);
+    app.g.switchRoom('CaneRidgeMeetingHouse');
+    await app.settle();
+    app.g.updateRcvpos('rpR5_CaneRidgeMeetingHouse');
+    await app.settle();
+    const compiles = app.state.compileSequence;
+
+    app.g.switchTab('about', app.el('tab-about'));
+    card('CaneRidgeMeetingHouse').onclick();
+    await app.settle();
+
+    assert.ok(app.el('main-panel').classList.contains('active'));
+    assert.equal(app.state.rcvpos, 'rpR5_CaneRidgeMeetingHouse', 'the receiver must not reset to R1');
+    assert.equal(app.state.compileSequence, compiles, 'nothing should be reselected or restarted');
+});
+
+test('clicking a different church while playing switches the sound to it', async () => {
+    const { app, card } = withCards(['CaneRidgeMeetingHouse', 'StAugustineIsleta']);
+    app.loadFakeSource();
+    app.g.switchRoom('CaneRidgeMeetingHouse');
+    await app.settle();
+    await app.g.playpause();
+
+    card('StAugustineIsleta').onclick();
+    await app.settle(12);
+
+    assert.equal(app.state.isPlaying, true);
+    assert.match(app.state.currentIr.base, /St Augustine_Isleta_R1-$/);
+});
+
+test('a card naming no church the app knows is left as plain text', () => {
+    const { card } = withCards(['NoSuchChurch']);
+    const c = card('NoSuchChurch');
+    assert.equal(c.onclick, undefined);
+    assert.equal(c.role, undefined);
+});
+
+test('initApp wires the cards', () => {
+    let asked = false;
+    const app = createApp({ querySelectorAll: (sel) => { if (sel === '.church-card[data-room]') asked = true; return []; } });
+    app.g.initApp();
+    assert.ok(asked);
+});

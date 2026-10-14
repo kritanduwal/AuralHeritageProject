@@ -337,6 +337,51 @@ function switchTab(tabId, btnEl) {
     if (button) button.classList.add('active');
 }
 
+// ── Opening a church from elsewhere ───────────────────────────────────────
+
+/**
+ * Puts one church on in the View tab, as the dropdown would: the tab, the
+ * dropdown reading that church, and the selection. The landing and the About
+ * tab's cards both come in through here.
+ *
+ * Choosing the church already loaded only changes tab. Selecting it again
+ * would throw away the receiver the visitor had picked and restart the sound.
+ */
+function openChurchInView(key) {
+    switchTab('main');
+    if (key === room) return;
+
+    const dropdown = document.getElementById('roomDropdown');
+    if (dropdown) dropdown.value = key;
+
+    switchRoom(key);
+}
+
+/**
+ * Makes each About-tab church card open its church. The cards are plain
+ * blocks of text in the markup, so they are given a button's role and focus
+ * here, and answer Enter and Space as one would.
+ */
+function wireChurchCards() {
+    for (const card of document.querySelectorAll('.church-card[data-room]')) {
+        const key = card.getAttribute('data-room');
+        if (!ROOMS[key]) continue;   // a card for a church the app cannot play stays text
+
+        const name = card.querySelector('h3');
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.title = `Step inside ${name ? name.textContent : 'this church'} in the View tab`;
+        card.classList.add('church-card--link');
+
+        card.onclick = () => openChurchInView(key);
+        card.onkeydown = event => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();   // Space would otherwise scroll the page
+            openChurchInView(key);
+        };
+    }
+}
+
 // ── Church Info Modal ─────────────────────────────────────────────────────
 
 /**
@@ -546,6 +591,7 @@ document.addEventListener('DOMContentLoaded', initApp);
 function initApp() {
     hideUnsupportedFullscreen();
     applyFeatureGating();
+    wireChurchCards();
     loadSource();
     setMix(document.getElementById('convmix').value);
     refreshModeButtons();

@@ -117,6 +117,7 @@ function createApp(options = {}) {
             /** One stable stand-in per selector, scoped to this element */
             querySelector(sel) { return el(id + ' ' + sel); },
             setAttribute(name, value) { this[name] = value; },
+            getAttribute(name) { return name in this ? this[name] : null; },
             removeAttribute(name) { delete this[name]; },
         };
     };
