@@ -278,12 +278,13 @@ let speakersEnabled = false;
 /**
  * Whether the speaker stage can be engaged: the flag, a device wide enough,
  * and a B-format to decode. It shares the headphone render's convolvers, so it
- * is offered at exactly the churches that render is.
+ * is offered at the same churches — but not Omnitone, which only the headphone
+ * decode needs, so a CDN that failed does not take the speakers with it.
  */
 function speakersAvailable() {
     if (!speakerStageOffered()) return false;
     if (activeGraph) return Boolean(activeGraph.speakerOut);
-    return ambisonicAvailable();
+    return bformatPossible();
 }
 
 function setSpeakersEnabled(enabled) {

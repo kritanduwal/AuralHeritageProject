@@ -196,6 +196,58 @@ test('the native picker decodes a local file and labels it', async () => {
     assert.equal(app.el('srcselectlabel').textContent, 'Field Recording');
 });
 
+/** Opens the native picker and returns the <input> the app created for it */
+function openPicker(app) {
+    const created = [];
+    const realCreate = app.g.document.createElement;
+    app.g.document.createElement = (tag) => { const e = realCreate(tag); created.push(e); return e; };
+    app.g.openNativeFilePicker();
+    app.g.document.createElement = realCreate;
+    return created[0];
+}
+
+for (const [what, file] of [
+    ['a file the browser cannot decode', { name: 'Corrupt.wav', arrayBuffer: async () => ({ corrupt: true }) }],
+    ['an empty file', { name: 'Empty.wav', arrayBuffer: async () => ({ corrupt: true, byteLength: 0 }) }],
+    ['a file that is not audio at all', { name: 'notes.wav', arrayBuffer: async () => ({ corrupt: true }) }],
+    ['a file the disk will not give up', { name: 'Locked.wav', arrayBuffer: async () => { throw new Error('NotReadableError'); } }],
+]) {
+    test(`${what} is reported, and the previous source stays`, async () => {
+        const app = createApp();
+        app.loadFakeSource();
+        const before = app.state.sourceBuffer;
+        app.el('srcselectlabel').textContent = 'Clarinet';
+
+        await openPicker(app).onchange({ target: { files: [file] } });
+
+        assert.equal(app.state.sourceBuffer, before, 'the last good source should still play');
+        assert.equal(app.el('srcselectlabel').textContent, 'Clarinet', 'the label must not claim the failed file');
+        assert.equal(app.el('error').style.display, 'flex');
+        assert.match(app.el('error-message').textContent, /source file could not be loaded/);
+        assert.equal(app.el('error-resource').textContent, file.name);
+    });
+}
+
+test('a local file chosen while playing stops the church first', async () => {
+    const app = createApp();
+    app.loadFakeSource();
+    app.g.setImpulseResponse('IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-', 0);
+    await app.g.playpause();
+    assert.equal(app.state.isPlaying, true);
+
+    await openPicker(app).onchange({ target: { files: [{ name: 'Mine.wav', arrayBuffer: async () => new ArrayBuffer(32) }] } });
+    assert.equal(app.state.isPlaying, false);
+    assert.equal(app.el('srcselectlabel').textContent, 'Mine');
+});
+
+test('closing the source picker twice is harmless', async () => {
+    const app = createApp();
+    await app.g.selectSource();
+    app.g.closeSourceModal();
+    assert.equal(app.el('source-modal').classList.contains('open'), false);
+    assert.doesNotThrow(() => app.g.closeSourceModal());
+});
+
 test('cancelling the native picker changes nothing', async () => {
     const app = createApp();
     app.el('srcselectlabel').textContent = 'Clarinet';

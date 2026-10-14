@@ -16,6 +16,9 @@ const PANORAMA_HFOV = 120;
 /** Fourth argument handed to pannellum's lookAt() when aiming the camera */
 const LOOK_AT_ANIMATION = { duration: 1000 };
 
+/** Where pannellum comes from, named in the banner if it never arrives */
+const PANNELLUM_SCRIPT = "https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js";
+
 let room = "";      // key into ROOMS / churchData, "" until a church is chosen
 let rcvpos = "";    // id of the selected receiver button, e.g. "rpR3_CaneRidgeMeetingHouse"
 let srcpos = "";    // id of the source button, e.g. "spS_CaneRidgeMeetingHouse"
@@ -40,6 +43,14 @@ function setImage(image) {
             console.error(err);
         }
         viewer = undefined;
+    }
+
+    // pannellum is a CDN script. Without it there is no panorama to show, but
+    // the rest of the page — the map, the list, playback — still works, so the
+    // view says what is missing instead of the whole app failing to start.
+    if (typeof pannellum === 'undefined') {
+        showResourceError("error: the 360° viewer could not be loaded", PANNELLUM_SCRIPT);
+        return null;
     }
 
     viewer = pannellum.viewer('panorama', {
@@ -76,17 +87,28 @@ function destroyView() {
  * Points a viewer at a receiver's angles once it is ready to be aimed.
  * Bound to the specific viewer instance so a selection that is superseded
  * mid-load cannot swing the camera that replaced it.
+ *
+ * The load event always aims. The fallback timer usually fires first, while
+ * the image is still downloading, and an aim made before the scene exists is
+ * not one to rely on — so it is not allowed to stand in for the real one. A
+ * second aim at the same angles costs nothing.
  */
 function aimViewer(view, pitch, yaw) {
-    let aimed = false;
+    if (!view) return;
+
+    let loaded = false;
     const aim = () => {
-        if (aimed || viewer !== view) return;
-        aimed = true;
+        if (viewer !== view) return;
         view.lookAt(pitch, yaw, PANORAMA_HFOV, LOOK_AT_ANIMATION);
     };
 
-    view.on('load', aim);
-    setTimeout(aim, 100); // fallback in case the load event is missed
+    view.on('load', () => {
+        if (loaded) return;
+        loaded = true;
+        aim();
+    });
+    // Fallback in case the load event is missed
+    setTimeout(() => { if (!loaded) aim(); }, 100);
 }
 
 // ── Missing resource reporting ────────────────────────────────────────────
@@ -359,12 +381,45 @@ function showChurchInfo() {
             .map(([k, v]) => `<tr><td>${k} to Speakers</td><td>${v}</td></tr>`)
             .join('');
 
-    document.getElementById('church-info-modal').classList.add('open');
+    openModal(document.getElementById('church-info-modal'));
 }
 
 function closeChurchInfo() {
-    document.getElementById('church-info-modal').classList.remove('open');
+    closeModal(document.getElementById('church-info-modal'));
 }
+
+// ── Modals ────────────────────────────────────────────────────────────────
+
+/** Whatever had focus when a modal opened, so closing it can hand focus back */
+let modalOpener = null;
+
+/**
+ * Opens a modal and moves keyboard focus into it, onto its close button, so a
+ * keyboard or screen-reader visitor lands in the dialog rather than behind it.
+ */
+function openModal(modal) {
+    if (!modal.classList.contains('open')) modalOpener = document.activeElement || null;
+    modal.classList.add('open');
+
+    const close = modal.querySelector && modal.querySelector('.modal-close-btn');
+    if (close && typeof close.focus === 'function') close.focus();
+}
+
+/** Closes a modal and returns focus to the control that opened it */
+function closeModal(modal) {
+    if (!modal.classList.contains('open')) return;
+    modal.classList.remove('open');
+
+    if (modalOpener && typeof modalOpener.focus === 'function') modalOpener.focus();
+    modalOpener = null;
+}
+
+// Escape closes whichever modal is open, as it closes the landing (Landing.js)
+document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    closeChurchInfo();
+    closeSourceModal();
+});
 
 // ── Feature gating ────────────────────────────────────────────────────────
 
@@ -427,10 +482,18 @@ function layoutModeToggles() {
  * buttons, error banner, and play control come along
  */
 function toggleFullscreen() {
+    // iPhone Safari offers no fullscreen for anything but video, and the
+    // promise rejects wherever the browser refuses; neither should throw.
+    const fail = err => console.error(err);
+
     if (document.fullscreenElement) {
-        document.exitFullscreen();
-    } else {
-        document.getElementById('view').requestFullscreen();
+        Promise.resolve(document.exitFullscreen()).catch(fail);
+        return;
+    }
+
+    const view = document.getElementById('view');
+    if (typeof view.requestFullscreen === 'function') {
+        Promise.resolve(view.requestFullscreen()).catch(fail);
     }
 }
 
@@ -448,10 +511,32 @@ document.addEventListener('fullscreenchange', () => {
         .toggle('pnlm-fullscreen-toggle-button-active', !!document.fullscreenElement);
 });
 
+/**
+ * Takes the fullscreen control away where the browser cannot honour it —
+ * iPhone Safari, which fullscreens only video — rather than offering a button
+ * that does nothing.
+ */
+function hideUnsupportedFullscreen() {
+    const view = document.getElementById('view');
+    const button = document.getElementById('fullscreen-btn');
+    if (view && button && typeof view.requestFullscreen !== 'function') {
+        button.style.display = 'none';
+    }
+}
+
 // ── Startup ───────────────────────────────────────────────────────────────
 
 /**
- * Called from <body onload>. Loads the default source file and syncs the
+ * Runs once the document is parsed, not at window load: load waits for every
+ * image and third-party stylesheet on the page, and one slow logo would leave
+ * the landing empty. Stylesheets in <head> are already applied by now, since
+ * the scripts at the foot of <body> waited for them, so the map measures its
+ * pane at its real size.
+ */
+document.addEventListener('DOMContentLoaded', initApp);
+
+/**
+ * Loads the default source file and syncs the
  * playback controls to the state the audio engine starts in.
  *
  * The landing is filled in last. It is already covering all of this — it ships
@@ -459,6 +544,7 @@ document.addEventListener('fullscreenchange', () => {
  * reach them, rather than while they are being looked at.
  */
 function initApp() {
+    hideUnsupportedFullscreen();
     applyFeatureGating();
     loadSource();
     setMix(document.getElementById('convmix').value);

@@ -29,7 +29,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
 </head>
 
-<body onload="initApp()">
+<body>
     <!-- App Bar -->
     <div id="appbar">
         <div class="app-title">Aural Heritage Preservation of Historic American Churches</div>
@@ -539,11 +539,11 @@
     </footer>
 
     <!-- Source File Modal -->
-    <div id="source-modal">
+    <div id="source-modal" role="dialog" aria-modal="true" aria-labelledby="source-modal-title" onclick="if(event.target===this)closeSourceModal()">
         <div id="source-modal-inner">
             <div id="source-modal-header">
-                <h3>Select Source File</h3>
-                <button class="modal-close-btn" onclick="closeSourceModal()">&#x2715;</button>
+                <h3 id="source-modal-title">Select Source File</h3>
+                <button class="modal-close-btn" aria-label="Close" onclick="closeSourceModal()">&#x2715;</button>
             </div>
             <div id="source-file-list"></div>
             <div id="source-modal-footer">
@@ -553,7 +553,7 @@
     </div>
 
     <!-- Church Info Modal -->
-    <div id="church-info-modal" onclick="if(event.target===this)closeChurchInfo()">
+    <div id="church-info-modal" role="dialog" aria-modal="true" aria-labelledby="church-info-name" onclick="if(event.target===this)closeChurchInfo()">
         <div id="church-info-inner">
             <div id="church-info-header">
                 <div id="church-info-header-text">
@@ -561,7 +561,7 @@
                     <p id="church-info-address"></p>
                     <p id="church-info-date"></p>
                 </div>
-                <button class="modal-close-btn" onclick="closeChurchInfo()">&#x2715;</button>
+                <button class="modal-close-btn" aria-label="Close" onclick="closeChurchInfo()">&#x2715;</button>
             </div>
             <div id="church-info-body">
                 <!-- Cover photo. Hidden for churches with none, and hidden again

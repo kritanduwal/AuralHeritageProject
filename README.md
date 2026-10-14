@@ -795,8 +795,10 @@ Things to know before relying on it:
   so the mix slider means the same thing and at 0% the two stages are the same
   signal on the same two speakers.
 - **Head tracking does not apply.** The listener turns their own head.
-- **It needs the headphone stage to exist**, because it taps that stage's
-  convolvers: same seven churches, and Omnitone has to have loaded.
+- **It is offered where the headphone stage is**, because it taps the same
+  four B-format convolvers: the same seven churches. It does not need Omnitone,
+  which only the binaural decode uses, so a CDN that failed costs the
+  headphones and leaves the speakers.
 - **The offline render does not carry it.** `downloadConvolvedAudio()` writes
   stereo while Speakers is on.
 

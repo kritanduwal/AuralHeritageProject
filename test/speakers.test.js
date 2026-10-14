@@ -288,6 +288,40 @@ test('a church with nothing to decode has no speaker stage either', async () => 
     assert.equal(app.state.activeGraph.stereoOut.gain.value, 1);
 });
 
+test('the speakers do not depend on Omnitone, which only the headphones need', async () => {
+    // The speaker decode is plain gains; a CDN that failed to deliver the
+    // binaural decoder should cost the headphones and nothing else.
+    const app = speakerApp({ noOmnitone: true });
+    app.g.refreshModeButtons();
+    assert.equal(app.el('speakers')['aria-disabled'], 'false', 'offered before any play');
+
+    app.g.setSpeakersEnabled(true);
+    await app.g.startPlayback();
+
+    const graph = app.state.activeGraph;
+    assert.ok(graph.speakerOut, 'the speaker stage should be built');
+    assert.equal(graph.ambisonicOut, null, 'the headphone stage cannot be');
+    assert.equal(graph.speakerOut.gain.value, 1);
+    assert.equal(graph.stereoOut.gain.value, 0);
+    assert.equal(app.nodes.filter(n => n.kind === 'convolver').length, 2 + 4,
+        'the four B-format convolvers are still built, for the speakers');
+});
+
+test('a renderer that fails to initialize leaves the speakers working too', async () => {
+    const app = speakerApp({ omnitoneFails: true });
+    app.g.setSpeakersEnabled(true);
+    await app.g.startPlayback();
+    assert.ok(app.state.activeGraph.speakerOut);
+    assert.equal(app.state.activeGraph.speakerOut.gain.value, 1);
+});
+
+test('a plain visit without Omnitone builds no B-format convolvers at all', async () => {
+    // Nothing would hear them: no decoder, and no speaker stage without the flag
+    const app = speakerApp({ path: '/', noOmnitone: true });
+    await app.g.startPlayback();
+    assert.equal(app.nodes.filter(n => n.kind === 'convolver').length, 2);
+});
+
 test('the button reports the mode it is in', async () => {
     const app = speakerApp();
     await app.g.startPlayback();

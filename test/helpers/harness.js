@@ -112,6 +112,10 @@ function createApp(options = {}) {
                 },
             },
             appendChild(child) { (this.children ||= []).push(child); },
+            /** Takes keyboard focus, as document.activeElement reports it */
+            focus() { focusState.active = this; },
+            /** One stable stand-in per selector, scoped to this element */
+            querySelector(sel) { return el(id + ' ' + sel); },
             setAttribute(name, value) { this[name] = value; },
             removeAttribute(name) { delete this[name]; },
         };
@@ -126,6 +130,9 @@ function createApp(options = {}) {
     };
 
     const listeners = {};
+
+    /** Where keyboard focus is; read through document.activeElement */
+    const focusState = { active: null };
 
     // ── timers (queued, never automatic, so tests control ordering) ───────
     const timerQueue = [];
@@ -209,7 +216,10 @@ function createApp(options = {}) {
         }),
         // Honours the channel count the responder asked for, so a test can serve
         // a 4-channel B-format file where everything else is mono
-        decodeAudioData: async (buf) => fakeAudioBuffer(4800, (buf && buf.channels) || 1, 48000),
+        // A body marked corrupt fails as an undecodable file does in a browser
+        decodeAudioData: async (buf) => (buf && buf.corrupt)
+            ? Promise.reject(new Error('EncodingError: unable to decode audio data'))
+            : fakeAudioBuffer(4800, (buf && buf.channels) || 1, 48000),
         createBuffer: (channels, length, sampleRate) => {
             const buffer = fakeAudioBuffer(length, channels, sampleRate);
             buffer.copyToChannel = (source, ch) => buffer.getChannelData(ch).set(source);
@@ -526,13 +536,15 @@ function createApp(options = {}) {
         // media queries at all is a real case the code has to survive, and
         // leaving it out by default is what keeps that path covered.
         ...(options.media ? { matchMedia: (query) => ({ media: query, matches: !!options.media[query] }) } : {}),
-        pannellum,
+        // Absent when a test asks with noPannellum, as when its CDN is blocked
+        ...(options.noPannellum ? {} : { pannellum }),
         ...(options.noOmnitone ? {} : { Omnitone: omnitone }),
         ...(options.noLeaflet ? {} : { L: leaflet }),
         document: {
             documentElement: el(':root'),
             body: el('body'),
             fullscreenElement: null,
+            get activeElement() { return focusState.active; },
             getElementById: el,
             querySelectorAll: (sel) => options.querySelectorAll ? options.querySelectorAll(sel) : [],
             createElement: (tag) => Object.assign(makeElement('<' + tag + '>'), {

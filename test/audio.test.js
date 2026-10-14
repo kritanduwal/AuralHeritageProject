@@ -173,10 +173,24 @@ test('each convolver feeds its own ear', () => {
     assert.equal(right.input, 1, 'wet right must land on output channel 1');
 });
 
-test('the splitter keeps a single channel so stereo sources convolve as mono', () => {
+test('a stereo source is folded to mono before the room, not cut to its left channel', () => {
+    // A one-output splitter alone keeps channel 0: a stereo file panned right
+    // would reach the convolvers as silence. The trim ahead of it downmixes.
     const app = createApp();
-    const { splitter } = buildGraph(app);
+    const { splitter, irTrim } = buildGraph(app);
+
     assert.equal(splitter.outputs, 1);
+    assert.equal(irTrim.channelCount, 1, 'the wet path should carry one channel');
+    assert.equal(irTrim.channelCountMode, 'explicit', 'or a stereo input would widen it back to two');
+    assert.equal(irTrim.channelInterpretation, 'speakers', 'speakers is what sums L and R; discrete drops R');
+});
+
+test('the B-format convolvers hear the same mono downmix as the stereo pair', () => {
+    const app = createApp();
+    const { irTrim, splitter, graph } = buildGraph(app, { withBformat: true });
+    assert.ok(app.edgesFrom(irTrim).some(e => e.to === splitter));
+    assert.ok(app.edgesFrom(splitter).some(e => e.to === graph.ambiWet),
+        'the headphone render should tap the downmixed signal, not the raw source');
 });
 
 test('the graph terminates at the context destination', () => {
@@ -1004,6 +1018,50 @@ test('a position with no B-format is looked for once, not on every play', async 
     assert.equal(requests(), first);
 });
 
+/**
+ * Makes the B-format answer however `answer` says on each request, so a test
+ * can fail it once and then let it through.
+ */
+function withFlakyBformat(app, answer) {
+    const server = app.net.respond.bind(app.net);
+    app.net.respond = (url, opts) => (/-Bformat\.wav$/.test(url) ? answer(url, opts) : server(url, opts));
+    return app;
+}
+
+const BFORMAT_OK = { ok: true, status: 200, channels: 4 };
+
+for (const [what, failure] of [
+    ['a server error', () => ({ ok: false, status: 500 })],
+    ['a dropped connection', () => { throw new TypeError('Failed to fetch'); }],
+    ['a file that will not decode', () => ({ ok: true, status: 200, body: { corrupt: true } })],
+]) {
+    test(`${what} on the B-format costs one play the headphones, not the visit`, async () => {
+        let fail = true;
+        const app = await readyToPlay(withFlakyBformat(createApp(), () => (fail ? failure() : BFORMAT_OK)));
+
+        await app.g.startPlayback();
+        assert.equal(app.state.activeGraph.ambisonicOut, null, 'this play falls back to stereo');
+        assert.equal(app.state.bformatMissing.size, 0, 'only a 404 says the position has none');
+
+        app.g.stopPlayback();
+        assert.equal(app.el('headphones')['aria-disabled'], 'false',
+            'stopped, the button should offer the mode again');
+
+        fail = false;
+        await app.g.startPlayback();
+        assert.ok(app.state.activeGraph.ambisonicOut, 'the next play should get the render');
+    });
+}
+
+test('a 404 on the B-format is still remembered as there being none', async () => {
+    const app = await readyToPlay(withFlakyBformat(createApp(), () => ({ ok: false, status: 404 })));
+    await app.g.startPlayback();
+    app.g.stopPlayback();
+
+    assert.equal(app.state.bformatMissing.size, 1);
+    assert.equal(app.el('headphones')['aria-disabled'], 'true');
+});
+
 test('the mode is simply unavailable when Omnitone did not load', async () => {
     // A CDN that fails must cost one mode, not the whole engine.
     const app = await readyToPlay(withAmbisonic(createApp({ noOmnitone: true })));
@@ -1604,6 +1662,104 @@ test('pausing when nothing is playing is harmless', async () => {
     const app = createApp();
     await app.g.playpause();          // nothing loaded
     assert.equal(app.state.isPlaying, false);
+});
+
+/** Sources that were started and are still running */
+const runningSources = (app) => app.nodes.filter(n => n.kind === 'source' && n.started && !n.stopped);
+
+/** Graph outputs connected to the destination and never unhooked since */
+const liveOutputs = (app) => app.edges
+    .filter(e => e.to === app.ctx.destination && !e.disconnected)
+    .map(e => e.from)
+    .filter(out => !app.edges.some(e => e.from === out && e.disconnected));
+
+test('the context is resumed inside the click, before any file is fetched', async () => {
+    // Safari only lets a suspended context resume during the gesture itself.
+    // After the impulse responses have downloaded, that gesture is spent.
+    const app = await readyToPlay(createApp());
+    const pending = app.g.playpause();
+
+    assert.equal(app.ctx.resumeCalls, 1, 'resume() must be asked for synchronously');
+    await pending;
+    assert.equal(app.ctx.state, 'running');
+});
+
+test('the button shows pause from the click, not from when the files arrive', async () => {
+    const app = await readyToPlay(createApp());
+    const pending = app.g.playpause();
+
+    assert.equal(app.el('play').textContent, 'pause_circle_filled',
+        'a slow load should still look like it heard the click');
+    assert.equal(app.state.isPlaying, true);
+    await pending;
+});
+
+test('pressing pause while the files load calls the start off', async () => {
+    const app = await readyToPlay(createApp());
+    const starting = app.g.playpause();
+    await app.g.playpause();          // the second click of a double-click
+    await starting;
+    await app.settle();
+
+    assert.equal(app.state.isPlaying, false);
+    assert.equal(app.state.activeGraph, null, 'a cancelled start must not build a graph');
+    assert.equal(runningSources(app).length, 0, 'nothing should be sounding');
+    assert.equal(app.el('play').textContent, 'play_circle_filled');
+});
+
+test('play, pause, play in quick succession ends up playing once', async () => {
+    const app = await readyToPlay(createApp());
+    const first = app.g.playpause();
+    app.g.playpause();
+    const third = app.g.playpause();
+    await Promise.all([first, third]);
+    await app.settle();
+
+    assert.equal(app.state.isPlaying, true);
+    assert.equal(runningSources(app).length, 1, 'exactly one source should be running');
+    assert.equal(liveOutputs(app).length, 1, 'exactly one graph should be feeding the destination');
+});
+
+test('a start overtaken by a newer one plays the newer position', async () => {
+    const app = await readyToPlay(createApp());
+    const first = app.g.startPlayback();
+
+    const later = 'IR/Monastery Immaculate Conception, IN/Normalized/MIC_IN_R2-';
+    app.g.setImpulseResponse(later, -1.5, '');
+    const second = app.g.startPlayback();
+    await Promise.all([first, second]);
+
+    assert.equal(runningSources(app).length, 1);
+    const splitter = app.nodes.filter(n => n.kind === 'splitter').at(-1);
+    close(app.edgesTo(splitter)[0].from.gain.value, app.g.gainFromDb(-1.5),
+        1e-9, 'the graph should carry the later position’s trim');
+    assert.equal(app.nodes.filter(n => n.kind === 'splitter').length, 1,
+        'the overtaken start should never have built a graph');
+});
+
+test('a server error on the impulse response is reported with its status', async () => {
+    const app = await readyToPlay(createApp());
+    app.net.respond = () => ({ ok: false, status: 500 });
+
+    await app.g.playpause();
+
+    assert.equal(app.state.isPlaying, false);
+    assert.equal(app.el('play').textContent, 'play_circle_filled', 'the button should not be left on pause');
+    assert.match(app.el('error-message').textContent, /impulse response could not be retrieved \(500\)/);
+});
+
+test('an impulse response that failed once is fetched again on the next play', async () => {
+    const app = await readyToPlay(createApp());
+    const server = app.net.respond.bind(app.net);
+    let failing = true;
+    app.net.respond = (url, opts) => (failing ? { ok: false, status: 503 } : server(url, opts));
+
+    await app.g.playpause();
+    assert.equal(app.state.isPlaying, false);
+
+    failing = false;
+    await app.g.playpause();
+    assert.equal(app.state.isPlaying, true, 'a transient failure must not be cached');
 });
 
 // ── source files ──────────────────────────────────────────────────────────

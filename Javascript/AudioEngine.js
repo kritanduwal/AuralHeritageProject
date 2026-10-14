@@ -208,8 +208,13 @@ async function loadBformatChannels(audioCtx, base) {
     try {
         buffer = await loadImpulseResponse(base + BFORMAT_SUFFIX);
     } catch (err) {
-        bformatMissing.add(base);
-        return null;   // most positions have none; that is not a failure
+        // Only a 404 says the position has none, which most do and which is
+        // not a failure. Anything else — a dropped connection, a 500, a file
+        // that would not decode — may not happen twice, so it costs this play
+        // the render rather than the rest of the visit.
+        if (err && err.status === 404) bformatMissing.add(base);
+        else console.warn(`${base}${BFORMAT_SUFFIX} could not be loaded; will try again next play`, err);
+        return null;
     }
 
     if (buffer.numberOfChannels < AMBISONIC_CHANNELS) {
@@ -254,8 +259,12 @@ function toggleAmbisonic() {
  */
 function ambisonicAvailable() {
     if (activeGraph) return Boolean(activeGraph.ambisonicOut);
-    return typeof Omnitone !== 'undefined' && Boolean(currentIr.decodedBase)
-        && !bformatMissing.has(currentIr.decodedBase);
+    return typeof Omnitone !== 'undefined' && bformatPossible();
+}
+
+/** Whether the position has a B-format that nothing has ruled out yet */
+function bformatPossible() {
+    return Boolean(currentIr.decodedBase) && !bformatMissing.has(currentIr.decodedBase);
 }
 
 /**
@@ -536,8 +545,15 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
     const irTrim = audioCtx.createGain();
     irTrim.gain.value = gainFromDb(irGainDb);
 
-    // A one-output splitter keeps channel 0 only, so a stereo source file is
-    // convolved as mono rather than folded into both ears.
+    // The trim also folds a stereo source down to mono, (L + R) / 2, which is
+    // the same downmix the dry path gets on its way into the mergers. Without
+    // it the one-output splitter below keeps channel 0 alone: the room would
+    // hear only the left of a stereo file, and nothing of one panned right.
+    irTrim.channelCount = 1;
+    irTrim.channelCountMode = 'explicit';
+    irTrim.channelInterpretation = 'speakers';
+
+    // Already mono by here; one output is the single tap every convolver shares
     const splitter = audioCtx.createChannelSplitter(1);
 
     const dryGain = audioCtx.createGain();
@@ -575,10 +591,10 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
     let ambiBus = null;
     let speakerStage = null;
 
-    if (bformatChannels && ambisonicRenderer) {
-        ambiMerger = audioCtx.createChannelMerger(AMBISONIC_CHANNELS);
-        ambisonicOut = audioCtx.createGain();
-
+    // The four B-format convolvers are shared by the headphone and speaker
+    // stages, so they are built for whichever of the two can be: the speaker
+    // decode is plain gains and does not need Omnitone to have loaded.
+    if (bformatChannels && (ambisonicRenderer || speakerOutput)) {
         // Before the convolvers rather than after the merger, so it scales the
         // room without reaching the dry signal the merger is about to sum in.
         ambiWet = audioCtx.createGain();
@@ -594,33 +610,38 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
             convolver.normalize = false;
             convolver.buffer = bformatChannels[ch];
             ambiWet.connect(convolver);
-            convolver.connect(ambiMerger, 0, ch);
             ambiConvolvers.push(convolver);
         }
 
-        // Ambisonic channels are not speaker feeds, so the stream is declared
-        // discrete: read as a quad layout a 4-channel signal would be remapped,
-        // scrambling W/Y/Z/X into positions.
-        ambiBus = audioCtx.createGain();
-        ambiBus.channelCount = AMBISONIC_CHANNELS;
-        ambiBus.channelCountMode = 'explicit';
-        ambiBus.channelInterpretation = 'discrete';
+        if (ambisonicRenderer) {
+            ambiMerger = audioCtx.createChannelMerger(AMBISONIC_CHANNELS);
+            ambisonicOut = audioCtx.createGain();
+            ambiConvolvers.forEach((convolver, ch) => convolver.connect(ambiMerger, 0, ch));
 
-        ambiMerger.connect(ambiBus);
-        ambiBus.connect(ambisonicRenderer.input);
-        ambisonicRenderer.output.connect(ambisonicOut);
+            // Ambisonic channels are not speaker feeds, so the stream is declared
+            // discrete: read as a quad layout a 4-channel signal would be remapped,
+            // scrambling W/Y/Z/X into positions.
+            ambiBus = audioCtx.createGain();
+            ambiBus.channelCount = AMBISONIC_CHANNELS;
+            ambiBus.channelCountMode = 'explicit';
+            ambiBus.channelInterpretation = 'discrete';
 
-        // THE DRY DOES NOT GO THROUGH THE DECODER. Encoded as a plane wave it
-        // comes back still exactly mono, having spent 5.7 dB and picked up HRTF
-        // colouring on the way; sent straight out, as the stereo stage sends it,
-        // the two stages agree at a mix of 0%. The impulse response already
-        // carries the room's direct sound, so this path has none to lose.
-        ambiDryMerger = audioCtx.createChannelMerger(2);
-        dryGain.connect(ambiDryMerger, 0, 0);
-        dryGain.connect(ambiDryMerger, 0, 1);
-        ambiDryMerger.connect(ambisonicOut);
+            ambiMerger.connect(ambiBus);
+            ambiBus.connect(ambisonicRenderer.input);
+            ambisonicRenderer.output.connect(ambisonicOut);
 
-        ambisonicOut.connect(output);
+            // THE DRY DOES NOT GO THROUGH THE DECODER. Encoded as a plane wave it
+            // comes back still exactly mono, having spent 5.7 dB and picked up HRTF
+            // colouring on the way; sent straight out, as the stereo stage sends it,
+            // the two stages agree at a mix of 0%. The impulse response already
+            // carries the room's direct sound, so this path has none to lose.
+            ambiDryMerger = audioCtx.createChannelMerger(2);
+            dryGain.connect(ambiDryMerger, 0, 0);
+            dryGain.connect(ambiDryMerger, 0, 1);
+            ambiDryMerger.connect(ambisonicOut);
+
+            ambisonicOut.connect(output);
+        }
 
         if (speakerOutput) {
             speakerStage = buildSpeakerStage(audioCtx, {
@@ -758,6 +779,12 @@ function setPlaying(playing) {
     btn.classList.toggle('playing', playing);
 }
 
+/**
+ * Counts starts and stops, so a start still fetching can tell it has been
+ * superseded: by a pause pressed while it loaded, or by a newer start.
+ */
+let playbackTicket = 0;
+
 async function startPlayback() {
     if (!sourceBuffer) {
         showResourceError("error: source file has not finished loading", "");
@@ -765,33 +792,47 @@ async function startPlayback() {
     }
     if (!currentIr.base) return;
 
+    const ticket = ++playbackTicket;
+    const ir = currentIr;
+
+    // Asked for before the first await, while this is still the click that
+    // started it. A context constructed before any user gesture starts out
+    // suspended, and Safari only lets it resume inside the gesture itself;
+    // after the fetches below the gesture is spent and the play is silent.
+    const resumed = ctx.resume().catch(err => console.error(err));
+
+    // The button shows pause from the click, not from when the files arrive,
+    // so a second press during a slow load reads as — and is — a cancel
+    setPlaying(true);
+
     let irLeft, irRight;
     try {
         [irLeft, irRight] = await Promise.all([
-            loadImpulseResponse(currentIr.base + "1.wav"),
-            loadImpulseResponse(currentIr.base + "2.wav")
+            loadImpulseResponse(ir.base + "1.wav"),
+            loadImpulseResponse(ir.base + "2.wav")
         ]);
     } catch (err) {
-        reportResourceFailure(err, "impulse response", currentIr.base + "1.wav");
+        if (ticket !== playbackTicket) return;
+        reportResourceFailure(err, "impulse response", ir.base + "1.wav");
         document.getElementById("play").disabled = true;
         setPlaying(false);
         return;
     }
+    if (ticket !== playbackTicket) return;
 
     // Loaded before the graph is built, not on demand, so the mode can be
     // toggled mid-playback without a rebuild that would restart the loop
     const [bformatChannels, ambisonicRenderer] = await Promise.all([
-        loadBformatChannels(ctx, currentIr.decodedBase),
+        loadBformatChannels(ctx, ir.decodedBase),
         ensureAmbisonicRenderer(),
     ]);
+    await resumed;
+    if (ticket !== playbackTicket) return;
 
-    // A context constructed before any user gesture starts out suspended
-    await ctx.resume();
-
-    // Switching receivers restarts playback, so a second start can arrive while
-    // this one was still fetching. Tear down anything already running rather
-    // than leaving two graphs feeding the destination at once.
-    stopPlayback();
+    // A receiver switch restarts playback, so a graph may still be running.
+    // Tear it down rather than leaving two feeding the destination at once.
+    releaseGraph();
+    stopSoundfieldTracking();
 
     source = ctx.createBufferSource();
     source.buffer = sourceBuffer;
@@ -800,7 +841,7 @@ async function startPlayback() {
         irLeft,
         irRight,
         mix: convolutionMix,
-        irGainDb: currentIr.gainDb,
+        irGainDb: ir.gainDb,
         ambisonic: ambisonicEnabled,
         bformatChannels,
         ambisonicRenderer,
@@ -819,6 +860,19 @@ async function startPlayback() {
 }
 
 function stopPlayback() {
+    playbackTicket++;   // calls off a start that is still fetching
+    releaseGraph();
+    stopSoundfieldTracking();
+    setPlaying(false);
+
+    // Availability is read off the graph while one is running, so the controls
+    // have to be asked again once it is gone or they keep reporting the last
+    // position's answer.
+    refreshModeButtons();
+}
+
+/** Stops the source and unhooks the running graph, if there is one */
+function releaseGraph() {
     if (source) {
         try {
             source.stop();
@@ -843,14 +897,6 @@ function stopPlayback() {
 
         activeGraph = null;
     }
-
-    stopSoundfieldTracking();
-    setPlaying(false);
-
-    // Availability is read off the graph while one is running, so the controls
-    // have to be asked again once it is gone or they keep reporting the last
-    // position's answer.
-    refreshModeButtons();
 }
 
 async function playpause() {
