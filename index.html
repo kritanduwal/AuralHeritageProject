@@ -620,6 +620,9 @@
 
     <!-- Loaded last so App.js can build the panorama viewer as soon as it runs.
          Data first, then the view and audio layers that read it. -->
+    <!-- First, so it can watch every request the others make. Off unless the
+         address has ?netlog or netlog(true) was run in the console. -->
+    <script src="Javascript/NetworkLog.js"></script>
     <script src="Javascript/Features.js"></script>
     <script src="Javascript/ChurchData.js"></script>
     <script src="Javascript/Rooms.js"></script>

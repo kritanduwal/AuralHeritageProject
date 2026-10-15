@@ -33,6 +33,35 @@ from your own machine.
 Deployment is Netlify, configured by `netlify.toml` to publish the repository root
 as-is with no build command.
 
+### Seeing the network traffic
+
+**Dev server.** `npm start` prints one line per request as it finishes:
+
+```
+14:02:31.118  GET 200  /IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-1.wav  1.4 MB  38 ms
+14:02:31.140  HEAD 404  /IR/Nowhere/missing-1.wav  -  2 ms  <-- not found
+```
+
+Requests the browser abandons, such as a superseded impulse response, show as
+`aborted`. `LOG_REQUESTS=0 npm start` silences it.
+
+**Browser.** This works on any host, Netlify included. Add `?netlog` to the
+address (`/?netlog`, `/5?netlog`), or run `netlog(true)` in the console to
+switch it on and keep it on across visits; `netlog(false)` turns it off. Each
+request is logged as `[net] …`:
+
+- **`fetch` lines** are the app's own requests: impulse responses, B-format
+  files, source files, the availability probe and `/api/source-files`. They show
+  method, status, size and time. Failures appear as warnings, with the reason.
+- **Other lines** are panoramas, map tiles, diagrams, scripts and fonts, taken
+  from the browser's Resource Timing. They show size and time, plus status in
+  browsers that report it, and are marked `from cache` when nothing crossed the
+  network.
+
+`console.table(netlogEntries)` lists the session so far, and `netlogSummary()`
+totals it by kind. The code is in `Javascript/NetworkLog.js`, which loads first
+so that it sees every request.
+
 ## Tests
 
 ```bash
