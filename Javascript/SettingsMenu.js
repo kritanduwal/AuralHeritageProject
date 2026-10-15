@@ -57,6 +57,9 @@ const BUNDLED_SOURCE_FILES = [
     { filename: 'Acoustic guitar.wav',          label: 'Acoustic Guitar' },
     { filename: 'Chorus_New.wav',               label: 'Chorus' },
     { filename: 'Clarinet.wav',                 label: 'Clarinet' },
+    { filename: 'Psalms 46_English.mp3',        label: 'Psalm 46 – English' },
+    { filename: 'Psalms 46_French.mp3',         label: 'Psalm 46 – French' },
+    { filename: 'Psalms 46_Spanish.mp3',        label: 'Psalm 46 – Spanish' },
     { filename: 'Sermon_Dr. William Barber.wav',label: 'Sermon – Dr. William Barber' },
     { filename: 'Trumpet.wav',                  label: 'Trumpet' },
 ];
