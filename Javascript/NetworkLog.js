@@ -93,10 +93,14 @@ function wrapFetchForLog(realFetch) {
             const length = response.headers && typeof response.headers.get === 'function'
                 ? Number(response.headers.get('Content-Length'))
                 : NaN;
+            // A HEAD reports the size of the file it asked about, none of
+            // which was transferred; logged bare it would look like a download
+            const head = method === 'HEAD';
             netlogRecord({
                 kind: 'fetch', method, url, status: response.status,
-                bytes: length, ms: now() - started,
+                bytes: head ? 0 : length, ms: now() - started,
                 failed: !response.ok,
+                note: head ? 'headers only' + (Number.isFinite(length) ? `, file is ${netlogBytes(length)}` : '') : '',
             });
             return response;
         } catch (err) {

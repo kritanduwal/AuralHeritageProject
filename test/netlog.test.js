@@ -102,6 +102,21 @@ test('an app request is logged with its method, status and readable path', async
     assert.ok(out.lines.info.some(l => /\[net\] fetch 200 HEAD IR\/Cane Ridge/.test(l)));
 });
 
+test('a HEAD is logged as headers only, not as a download of the file', async () => {
+    // The availability probe asks for the same -1.wav playback later fetches.
+    // Logged with the file's size, the two read as the file downloaded twice.
+    const { app, out, entries } = logging();
+    const logged = app.g.wrapFetchForLog(async () => ({
+        ok: true, status: 200,
+        headers: { get: (h) => (h === 'Content-Length' ? '720179' : null) },
+    }));
+    await logged('IR/x-1.wav', { method: 'HEAD' });
+
+    assert.equal(entries().at(-1).bytes, 0, 'nothing but headers crossed the wire');
+    assert.match(entries().at(-1).note, /headers only, file is 703\.3 KB/);
+    assert.ok(out.lines.info.some(l => /HEAD IR\/x-1\.wav 0 B .*headers only/.test(l)));
+});
+
 test('a percent-encoded request is shown decoded, as the error banner shows it', async () => {
     const { app, entries } = logging();
     await app.g.fetch('/Source%20Files/Sermon_Dr.%20William%20Barber.wav');
@@ -299,8 +314,12 @@ test('the dev server logs each request with its status, path, size and time', as
     const output = await serverLog([
         ['GET', '/Source%20Files/Clarinet.wav'],
         ['HEAD', '/IR/Nowhere/missing-1.wav'],
+        ['HEAD', '/Source%20Files/Clarinet.wav'],
         ['GET', '/index.html'],
     ]);
+
+    assert.match(output, /HEAD 200 {2}\/Source Files\/Clarinet\.wav {2}headers only \(file [\d.]+ (KB|MB)\)/,
+        'a HEAD must not read as the file being downloaded');
 
     assert.match(output, /\d\d:\d\d:\d\d\.\d{3} {2}GET 200 {2}\/Source Files\/Clarinet\.wav {2}[\d.]+ (KB|MB) {2}\d+ ms/,
         'paths decoded, sizes readable');

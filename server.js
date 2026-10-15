@@ -42,7 +42,10 @@ if (LOG_REQUESTS) {
             logged = true;
             const ms = Number(process.hrtime.bigint() - started) / 1e6;
             const time = new Date().toISOString().slice(11, 23);
-            const size = formatBytes(Number(res.getHeader('Content-Length')));
+            // A HEAD carries the Content-Length of the file it describes but
+            // sends none of it; printing that size bare reads as a download
+            const length = formatBytes(Number(res.getHeader('Content-Length')));
+            const size = req.method === 'HEAD' ? `headers only (file ${length})` : length;
             const range = req.headers.range ? `  range ${req.headers.range}` : '';
             const flag = typeof status === 'number' && status >= 400 ? '  <-- ' + (status >= 500 ? 'error' : 'not found') : '';
             console.log(`${time}  ${req.method} ${status}  ${readablePath(req.originalUrl)}  ${size}  ${ms.toFixed(0)} ms${range}${flag}`);
