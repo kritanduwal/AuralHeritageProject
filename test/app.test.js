@@ -111,6 +111,26 @@ test('compile restarts playback so a receiver switch takes effect immediately', 
     assert.equal(app.state.currentIr.gainDb, -3, 'R5 carries a -3 dB trim');
 });
 
+test('a receiver switched while the first play is still loading is the one heard', async () => {
+    const app = select(createApp(), 'CaneRidgeMeetingHouse', 'R1');
+    app.loadFakeSource();
+    await app.g.compile();
+
+    const starting = app.g.playpause();          // R1's files are still on their way
+    app.state.rcvpos = 'rpR5_CaneRidgeMeetingHouse';
+    await app.g.compile();
+    await starting;
+    await app.settle();
+
+    const running = app.nodes.filter(n => n.kind === 'source' && n.started && !n.stopped);
+    assert.equal(running.length, 1, 'one source, not one per selection');
+    const splitter = app.nodes.filter(n => n.kind === 'splitter').at(-1);
+    assert.ok(Math.abs(app.edgesTo(splitter)[0].from.gain.value - app.g.gainFromDb(-3)) < 1e-9,
+        'the graph should be R5’s, with its -3 dB trim, not the R1 that was loading');
+    assert.ok(app.net.log.some(r => r.method === 'GET' && /Cane Ridge KY_R5-1\.wav$/.test(r.url)),
+        'R5’s impulse response should have been downloaded, not merely probed');
+});
+
 test('compile leaves playback stopped if it was already stopped', async () => {
     const app = select(createApp(), 'CaneRidgeMeetingHouse', 'R1');
     app.loadFakeSource();
@@ -212,6 +232,40 @@ test('aimViewer aims once, whether the load event or the fallback gets there fir
     app.timers.flush();          // the 100 ms fallback
     view.emit('load');           // and a duplicate event
     assert.equal(view.aimed, null, 'the camera should only be aimed once');
+});
+
+test('aimViewer still aims on load when the fallback fired first', () => {
+    // The fallback usually wins, with the image still downloading; an aim made
+    // before the scene exists must not stand in for the one made after it.
+    const app = createApp();
+    const view = app.g.setImage('Images/default.jpg');
+    app.g.aimViewer(view, -15, 4);
+
+    app.timers.flush();
+    view.aimed = null;
+    view.emit('load');
+    assert.deepEqual(view.aimed.slice(0, 3), [-15, 4, app.data.PANORAMA_HFOV]);
+});
+
+test('without pannellum the app still starts, and says what is missing', async () => {
+    // A blocked CDN used to throw at load and take every script after it down
+    const app = createApp({ noPannellum: true });
+
+    assert.equal(app.el('error').style.display, 'flex');
+    assert.match(app.el('error-message').textContent, /360° viewer could not be loaded/);
+    assert.match(app.el('error-resource').textContent, /pannellum/);
+
+    app.g.initApp();
+    app.g.switchRoom('CaneRidgeMeetingHouse');
+    await app.settle();
+    assert.equal(app.state.currentIr.base, 'IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-',
+        'a church can still be chosen and played');
+    assert.equal(app.el('play').disabled, false);
+});
+
+test('without pannellum the soundfield rotation finds no view rather than throwing', () => {
+    const app = createApp({ noPannellum: true });
+    assert.equal(app.g.currentSoundfieldRotation(), null);
 });
 
 test('destroyView returns to the neutral backdrop', () => {
@@ -416,6 +470,110 @@ test('closeChurchInfo closes the modal', () => {
     assert.equal(app.el('church-info-modal').classList.contains('open'), false);
 });
 
+// ── modals and keyboard ───────────────────────────────────────────────────
+
+const pressEscape = (app) => app.listeners.keydown.forEach(fn => fn({ key: 'Escape' }));
+
+test('opening the church info moves focus into it, and closing hands it back', () => {
+    const app = select(createApp(), 'CaneRidgeMeetingHouse');
+    const opener = app.el('church-info-btn');
+    opener.focus();
+
+    app.g.showChurchInfo();
+    assert.equal(app.g.document.activeElement, app.el('church-info-modal').querySelector('.modal-close-btn'),
+        'a keyboard visitor should land in the dialog, not behind it');
+
+    app.g.closeChurchInfo();
+    assert.equal(app.g.document.activeElement, opener);
+});
+
+test('escape closes the church info', () => {
+    const app = select(createApp(), 'CaneRidgeMeetingHouse');
+    app.g.showChurchInfo();
+    pressEscape(app);
+    assert.equal(app.el('church-info-modal').classList.contains('open'), false);
+});
+
+test('escape closes the source picker', async () => {
+    const app = createApp();
+    await app.g.selectSource();
+    assert.ok(app.el('source-modal').classList.contains('open'));
+
+    pressEscape(app);
+    assert.equal(app.el('source-modal').classList.contains('open'), false);
+});
+
+test('escape with no modal open does not move focus', () => {
+    const app = createApp();
+    const somewhere = app.el('convmix');
+    somewhere.focus();
+    pressEscape(app);
+    assert.equal(app.g.document.activeElement, somewhere);
+});
+
+test('the modals are announced as dialogs, with a name and a labelled close button', () => {
+    const fs = require('fs'), path = require('path');
+    const { ROOT } = require('./helpers/harness.js');
+    const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+
+    for (const id of ['source-modal', 'church-info-modal']) {
+        const tag = html.match(new RegExp(`<div id="${id}"[^>]*>`))[0];
+        assert.match(tag, /role="dialog"/, id);
+        assert.match(tag, /aria-modal="true"/, id);
+        const label = tag.match(/aria-labelledby="([^"]+)"/);
+        assert.ok(label && html.includes(`id="${label[1]}"`), `${id} should be named by an element that exists`);
+        assert.match(tag, /event\.target===this/, `${id} should close on a click outside it`);
+    }
+    assert.doesNotMatch(html, /<button class="modal-close-btn"(?![^>]*aria-label)/,
+        'an ✕ alone is read out as "multiplication x"');
+});
+
+// ── startup ───────────────────────────────────────────────────────────────
+
+test('the app starts when the document is parsed, not when every image has loaded', () => {
+    const fs = require('fs'), path = require('path');
+    const { ROOT } = require('./helpers/harness.js');
+    const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    assert.doesNotMatch(html, /onload="initApp\(\)"/, 'window load waits on a slow third-party logo');
+
+    const app = createApp();
+    assert.deepEqual(app.listeners.DOMContentLoaded, [app.g.initApp]);
+});
+
+// ── fullscreen ────────────────────────────────────────────────────────────
+
+test('fullscreen is not offered where the browser cannot do it', () => {
+    const app = createApp();                 // the stub #view has no requestFullscreen, as on iPhone
+    app.g.initApp();
+    assert.equal(app.el('fullscreen-btn').style.display, 'none');
+    assert.doesNotThrow(() => app.g.toggleFullscreen());
+});
+
+test('fullscreen is offered, and requested, where it is supported', async () => {
+    const app = createApp();
+    let requested = 0;
+    app.el('view').requestFullscreen = async () => { requested++; };
+    app.g.initApp();
+
+    assert.notEqual(app.el('fullscreen-btn').style.display, 'none');
+    app.g.toggleFullscreen();
+    assert.equal(requested, 1);
+});
+
+test('a browser refusing fullscreen is not an unhandled rejection', async () => {
+    const app = createApp();
+    app.el('view').requestFullscreen = () => Promise.reject(new TypeError('not allowed'));
+
+    let unhandled = null;
+    const onUnhandled = (err) => { unhandled = err; };
+    process.on('unhandledRejection', onUnhandled);
+    app.g.toggleFullscreen();
+    await app.settle();
+    process.off('unhandledRejection', onUnhandled);
+
+    assert.equal(unhandled, null);
+});
+
 test('the info modal follows the page into and out of fullscreen', () => {
     const app = createApp();
     const onFullscreen = app.listeners.fullscreenchange[0];
@@ -537,4 +695,145 @@ test('every recovered set has been measured, so none falls back in practice', ()
     }
 
     assert.deepEqual(uncalibrated, [], 'these positions still need a loudness pass');
+});
+
+// ── About-tab church cards ────────────────────────────────────────────────
+
+const fs = require('fs');
+const path = require('path');
+const { ROOT } = require('./helpers/harness.js');
+const aboutHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+
+/** The data-room of every card in the About tab, in markup order */
+const cardRooms = () => [...aboutHtml.matchAll(/<div class="church-card"[^>]*?data-room="([^"]+)"/g)].map(m => m[1]);
+
+/**
+ * An app whose About tab holds one card per room key given, wired as initApp
+ * wires them. Each card carries its own <h3>, as the markup does.
+ */
+function withCards(keys) {
+    let cards = [];
+    const app = createApp({
+        querySelectorAll: (sel) => (sel === '.church-card[data-room]' ? cards : []),
+    });
+    cards = keys.map(key => {
+        const card = app.el('card-' + key);
+        card['data-room'] = key;
+        card.querySelector('h3').textContent = (app.data.churchData[key] || {}).name || key;
+        return card;
+    });
+    app.g.wireChurchCards();
+    return { app, card: (key) => app.el('card-' + key) };
+}
+
+test('every church card in the About tab names a church the app can play, once', () => {
+    const app = createApp();
+    const rooms = cardRooms();
+    const all = (aboutHtml.match(/<div class="church-card"/g) || []).length;
+
+    assert.equal(rooms.length, all, 'a card without data-room would be the only one that does nothing');
+    assert.deepEqual([...rooms].sort(), Object.keys(app.data.ROOMS).sort(),
+        'one card per church, with no strays and no gaps');
+});
+
+test('the About tab tells the visitor the cards can be clicked', () => {
+    assert.match(aboutHtml, /Click a church below to step inside it/);
+});
+
+test('clicking a card opens that church in the View tab', async () => {
+    const { app, card } = withCards(['CaneRidgeMeetingHouse']);
+    app.g.switchTab('about', app.el('tab-about'));
+
+    card('CaneRidgeMeetingHouse').onclick();
+    await app.settle();
+
+    assert.ok(app.el('main-panel').classList.contains('active'), 'the View tab should be showing');
+    assert.ok(app.el('tab-main').classList.contains('active'), 'and its tab button lit');
+    assert.equal(app.state.room, 'CaneRidgeMeetingHouse');
+    assert.equal(app.el('roomDropdown').value, 'CaneRidgeMeetingHouse', 'the dropdown should read the church');
+    assert.equal(app.state.rcvpos, 'rpR1_CaneRidgeMeetingHouse');
+    assert.equal(app.el('CaneRidgeMeetingHouseui').style.display, 'flex');
+});
+
+test('every card opens its own church without error', async () => {
+    const keys = cardRooms();
+    const { app, card } = withCards(keys);
+    for (const key of keys) {
+        card(key).onclick();
+        await app.settle();
+        assert.equal(app.state.room, key);
+    }
+});
+
+test('a card is a button to the keyboard and to a screen reader', () => {
+    const { card } = withCards(['StAugustineIsleta']);
+    const c = card('StAugustineIsleta');
+
+    assert.equal(c.role, 'button');
+    assert.equal(c.tabindex, '0', 'it has to be reachable with Tab');
+    assert.match(c.title, /St\. Augustine/);
+    assert.ok(c.classList.contains('church-card--link'), 'the hover style is keyed to this class');
+});
+
+for (const key of ['Enter', ' ']) {
+    test(`${key === ' ' ? 'Space' : key} on a focused card opens its church`, async () => {
+        const { app, card } = withCards(['BasilicaStFrancis']);
+        let prevented = false;
+        card('BasilicaStFrancis').onkeydown({ key, preventDefault() { prevented = true; } });
+        await app.settle();
+
+        assert.equal(app.state.room, 'BasilicaStFrancis');
+        assert.ok(prevented, 'Space would otherwise scroll the page as well');
+    });
+}
+
+test('other keys on a card do nothing', () => {
+    const { app, card } = withCards(['BasilicaStFrancis']);
+    card('BasilicaStFrancis').onkeydown({ key: 'Tab', preventDefault() { assert.fail('Tab must still move focus'); } });
+    assert.equal(app.state.room, '');
+});
+
+test('clicking the church already loaded only changes tab, keeping the chosen receiver', async () => {
+    const { app, card } = withCards(['CaneRidgeMeetingHouse']);
+    app.g.switchRoom('CaneRidgeMeetingHouse');
+    await app.settle();
+    app.g.updateRcvpos('rpR5_CaneRidgeMeetingHouse');
+    await app.settle();
+    const compiles = app.state.compileSequence;
+
+    app.g.switchTab('about', app.el('tab-about'));
+    card('CaneRidgeMeetingHouse').onclick();
+    await app.settle();
+
+    assert.ok(app.el('main-panel').classList.contains('active'));
+    assert.equal(app.state.rcvpos, 'rpR5_CaneRidgeMeetingHouse', 'the receiver must not reset to R1');
+    assert.equal(app.state.compileSequence, compiles, 'nothing should be reselected or restarted');
+});
+
+test('clicking a different church while playing switches the sound to it', async () => {
+    const { app, card } = withCards(['CaneRidgeMeetingHouse', 'StAugustineIsleta']);
+    app.loadFakeSource();
+    app.g.switchRoom('CaneRidgeMeetingHouse');
+    await app.settle();
+    await app.g.playpause();
+
+    card('StAugustineIsleta').onclick();
+    await app.settle(12);
+
+    assert.equal(app.state.isPlaying, true);
+    assert.match(app.state.currentIr.base, /St Augustine_Isleta_R1-$/);
+});
+
+test('a card naming no church the app knows is left as plain text', () => {
+    const { card } = withCards(['NoSuchChurch']);
+    const c = card('NoSuchChurch');
+    assert.equal(c.onclick, undefined);
+    assert.equal(c.role, undefined);
+});
+
+test('initApp wires the cards', () => {
+    let asked = false;
+    const app = createApp({ querySelectorAll: (sel) => { if (sel === '.church-card[data-room]') asked = true; return []; } });
+    app.g.initApp();
+    assert.ok(asked);
 });

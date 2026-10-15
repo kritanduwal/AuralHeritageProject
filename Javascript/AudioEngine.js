@@ -208,8 +208,13 @@ async function loadBformatChannels(audioCtx, base) {
     try {
         buffer = await loadImpulseResponse(base + BFORMAT_SUFFIX);
     } catch (err) {
-        bformatMissing.add(base);
-        return null;   // most positions have none; that is not a failure
+        // Only a 404 says the position has none, which most do and which is
+        // not a failure. Anything else — a dropped connection, a 500, a file
+        // that would not decode — may not happen twice, so it costs this play
+        // the render rather than the rest of the visit.
+        if (err && err.status === 404) bformatMissing.add(base);
+        else console.warn(`${base}${BFORMAT_SUFFIX} could not be loaded; will try again next play`, err);
+        return null;
     }
 
     if (buffer.numberOfChannels < AMBISONIC_CHANNELS) {
@@ -254,8 +259,12 @@ function toggleAmbisonic() {
  */
 function ambisonicAvailable() {
     if (activeGraph) return Boolean(activeGraph.ambisonicOut);
-    return typeof Omnitone !== 'undefined' && Boolean(currentIr.decodedBase)
-        && !bformatMissing.has(currentIr.decodedBase);
+    return typeof Omnitone !== 'undefined' && bformatPossible();
+}
+
+/** Whether the position has a B-format that nothing has ruled out yet */
+function bformatPossible() {
+    return Boolean(currentIr.decodedBase) && !bformatMissing.has(currentIr.decodedBase);
 }
 
 /**
@@ -324,31 +333,160 @@ function toggleSoundfieldTracking() {
     setSoundfieldTracking(!soundfieldTracking);
 }
 
+/**
+ * How closely the soundfield follows the view, by how fast the view is moving.
+ *
+ * The sound chases the camera rather than copying it. While the view is swung
+ * hard the chase is all but instant, so a fast turn is heard as a fast turn;
+ * while it drifts, the chase is a short glide, which smooths over the uneven
+ * steps a drag delivers frame to frame instead of playing each one as a jolt.
+ * Between the two speeds the time constant moves evenly in log terms.
+ */
+const TRACKING_TAU_SLOW = 0.08;     // seconds, at or below TRACKING_SPEED_SLOW
+const TRACKING_TAU_FAST = 0.008;    // seconds, at or above TRACKING_SPEED_FAST
+const TRACKING_SPEED_SLOW = 15;     // degrees per second
+const TRACKING_SPEED_FAST = 200;    // degrees per second
+
+/**
+ * How quickly the measured speed itself rises and falls. It rises fast, so the
+ * start of a flick is followed at once, and falls slowly, so a frame that
+ * arrives late in the middle of a drag does not read as the view stopping.
+ */
+const TRACKING_SPEED_ATTACK = 0.02;  // seconds
+const TRACKING_SPEED_RELEASE = 0.15; // seconds
+
+/** Below this many degrees off the view, the soundfield counts as arrived */
+const TRACKING_SETTLED_DEG = 0.05;
+
+/**
+ * The longest gap between frames the follower will take at face value. A tab
+ * returning from the background reports seconds; treating that as one step
+ * would read as an enormous speed.
+ */
+const TRACKING_MAX_FRAME = 0.1;
+
+/** The frame interval assumed before two frames have been seen */
+const TRACKING_FIRST_FRAME = 1 / 60;
+
+/**
+ * Bounds on each audio-thread glide between frames. A glide runs about as long
+ * as the frame it bridges, so one ends roughly as the next begins and the
+ * rotation is continuous rather than a staircase.
+ */
+const TRACKING_GLIDE_MIN = 1 / 240;
+const TRACKING_GLIDE_MAX = 0.05;
+
+/** Angle difference folded into [-180, 180), so a turn takes the short way */
+function wrapDegrees(degrees) {
+    return ((degrees + 180) % 360 + 360) % 360 - 180;
+}
+
+/** The follower's time constant, in seconds, for a view moving this fast */
+function trackingTimeConstant(speed) {
+    if (!(speed > TRACKING_SPEED_SLOW)) return TRACKING_TAU_SLOW;
+    if (speed >= TRACKING_SPEED_FAST) return TRACKING_TAU_FAST;
+
+    const t = Math.log(speed / TRACKING_SPEED_SLOW) / Math.log(TRACKING_SPEED_FAST / TRACKING_SPEED_SLOW);
+    return TRACKING_TAU_SLOW * Math.pow(TRACKING_TAU_FAST / TRACKING_TAU_SLOW, t);
+}
+
+/**
+ * A follower at rest facing forward, which is where the renderer starts and
+ * where stopping leaves it, so switching tracking on glides rather than jumps.
+ */
+function newSoundfieldFollower() {
+    return { yaw: 0, pitch: 0, speed: 0, target: null, time: null };
+}
+
+/**
+ * Moves a follower one frame towards a bearing, and returns it.
+ *
+ * Every step is scaled by the real time since the last frame, so the feel is
+ * the same at 30 frames a second as at 144, and a dropped frame is made up
+ * rather than lost.
+ *
+ * @param target { yaw, pitch } in degrees, relative to the recording's front
+ * @param dt     seconds since the previous frame
+ */
+function stepSoundfieldFollower(follower, target, dt) {
+    dt = Math.min(Math.max(dt, 0), TRACKING_MAX_FRAME);
+
+    // How fast the view moved, from the view itself rather than from how far
+    // behind the sound is: switching tracking on with the camera turned away
+    // is a long way to go at no speed, and should be a glide, not a snap
+    if (follower.target && dt > 0) {
+        const moved = Math.hypot(wrapDegrees(target.yaw - follower.target.yaw),
+                                 target.pitch - follower.target.pitch);
+        const speed = moved / dt;
+        const tau = speed > follower.speed ? TRACKING_SPEED_ATTACK : TRACKING_SPEED_RELEASE;
+        follower.speed += (speed - follower.speed) * (1 - Math.exp(-dt / tau));
+    }
+    follower.target = { yaw: target.yaw, pitch: target.pitch };
+
+    const share = 1 - Math.exp(-dt / trackingTimeConstant(follower.speed));
+    follower.yaw = wrapDegrees(follower.yaw + wrapDegrees(target.yaw - follower.yaw) * share);
+    follower.pitch += (target.pitch - follower.pitch) * share;
+    return follower;
+}
+
+/** How far a follower still is from its bearing, in degrees */
+function soundfieldFollowerError(follower, target) {
+    return Math.hypot(wrapDegrees(target.yaw - follower.yaw), target.pitch - follower.pitch);
+}
+
+/** The live follower, or null while nothing is being tracked */
+let soundfieldFollower = null;
+
+/**
+ * Whether the loop is easing the soundfield back to forward after tracking was
+ * switched off, rather than following the view
+ */
+let soundfieldReleasing = false;
+
 /** Runs the rotation loop only while it could do something */
 function syncSoundfieldTracking() {
     const wanted = soundfieldTracking && ambisonicEnabled && Boolean(foaRenderer);
-    if (wanted) startSoundfieldTracking();
-    else stopSoundfieldTracking();
+    if (wanted) {
+        startSoundfieldTracking();
+    } else if (soundfieldFrame !== null && ambisonicEnabled && foaRenderer) {
+        // The headphone render is still being heard, only no longer tracked:
+        // turn back to forward at the follower's own pace rather than in one
+        // step, which would be heard as the whole room lurching
+        soundfieldReleasing = true;
+    } else {
+        stopSoundfieldTracking();
+    }
 }
 
 function startSoundfieldTracking() {
+    soundfieldReleasing = false;
     if (soundfieldFrame !== null) return;
     if (typeof requestAnimationFrame !== 'function') return;
 
-    const step = () => {
+    if (!soundfieldFollower) soundfieldFollower = newSoundfieldFollower();
+
+    const step = (time) => {
         soundfieldFrame = requestAnimationFrame(step);
-        updateSoundfieldRotation();
+        updateSoundfieldRotation(time);
     };
     soundfieldFrame = requestAnimationFrame(step);
 }
 
+/**
+ * Stops the loop at once and squares the soundfield to forward. For when the
+ * headphone render is not being heard — playback stopped, another stage up —
+ * so there is nothing to glide for.
+ */
 function stopSoundfieldTracking() {
+    soundfieldReleasing = false;
+    soundfieldFollower = null;
+
     if (soundfieldFrame === null) return;
     if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(soundfieldFrame);
     soundfieldFrame = null;
 
     // Leave the soundfield where the head is pointing, not where it last was
-    if (foaRenderer) foaRenderer.setRotationMatrix4(rotationMatrix4(0, 0));
+    if (foaRenderer) applySoundfieldRotation(rotationMatrix4(0, 0), 0);
 }
 
 /**
@@ -364,17 +502,17 @@ function setSoundfieldOrientation(yawDegrees) {
 }
 
 /**
- * The rotation the view on screen calls for, or null where there is no view to
- * read one from.
+ * The bearing the view on screen calls for, relative to the recording's front,
+ * or null where there is no view to read one from.
  *
  * Nothing is cached: the viewer is replaced on every panorama change, so
  * holding a reference would rotate to the angles of a view no longer on screen.
  */
-function currentSoundfieldRotation() {
+function currentSoundfieldBearing() {
     if (typeof viewer === 'undefined' || !viewer) return null;
 
     try {
-        return rotationMatrix4(viewer.getYaw() - soundfieldYaw, viewer.getPitch());
+        return { yaw: wrapDegrees(viewer.getYaw() - soundfieldYaw), pitch: viewer.getPitch() };
     } catch (err) {
         // A viewer torn down mid-frame throws rather than returning an angle
         console.error(err);
@@ -382,12 +520,94 @@ function currentSoundfieldRotation() {
     }
 }
 
-/** Reads the panorama camera and turns the live soundfield to match */
-function updateSoundfieldRotation() {
-    if (!foaRenderer) return;
+/** The rotation the view on screen calls for, or null where there is no view */
+function currentSoundfieldRotation() {
+    const bearing = currentSoundfieldBearing();
+    return bearing ? rotationMatrix4(bearing.yaw, bearing.pitch) : null;
+}
 
-    const rotation = currentSoundfieldRotation();
-    if (rotation) foaRenderer.setRotationMatrix4(rotation);
+/**
+ * Advances the soundfield one animation frame towards the view, or towards
+ * forward while releasing.
+ *
+ * @param time the frame's timestamp in milliseconds, as requestAnimationFrame
+ *             hands it over
+ */
+function updateSoundfieldRotation(time) {
+    if (!foaRenderer || !soundfieldFollower) return;
+
+    const target = soundfieldReleasing ? { yaw: 0, pitch: 0 } : currentSoundfieldBearing();
+    if (!target) return;
+
+    const follower = soundfieldFollower;
+    const dt = Number.isFinite(time) && Number.isFinite(follower.time)
+        ? (time - follower.time) / 1000
+        : TRACKING_FIRST_FRAME;
+    if (Number.isFinite(time)) follower.time = time;
+
+    const before = { yaw: follower.yaw, pitch: follower.pitch };
+    stepSoundfieldFollower(follower, target, dt);
+
+    if (soundfieldReleasing && soundfieldFollowerError(follower, target) < TRACKING_SETTLED_DEG) {
+        stopSoundfieldTracking();   // squares it to exactly forward
+        return;
+    }
+
+    // A still view costs nothing: nothing is written once the sound has arrived
+    if (soundfieldFollowerError(follower, before) < TRACKING_SETTLED_DEG / 10) return;
+
+    const glide = Math.min(Math.max(dt, TRACKING_GLIDE_MIN), TRACKING_GLIDE_MAX);
+    applySoundfieldRotation(rotationMatrix4(follower.yaw, follower.pitch), glide);
+}
+
+/**
+ * The matrix entries Omnitone 1.3.0's rotator reads, in the order of its nine
+ * gains _m0…_m8: the upper-left 3×3 of the column-major 4×4.
+ */
+const ROTATOR_MATRIX_ENTRIES = [0, 1, 2, 4, 5, 6, 8, 9, 10];
+
+/**
+ * The nine gain parameters inside the live renderer's rotator, or null where
+ * they cannot be found.
+ *
+ * Reaching inside is deliberate. Omnitone's own setRotationMatrix4() assigns
+ * each gain's value outright, so a rotation lands as a step once per animation
+ * frame: a staircase on a slow turn, and on a fast one, steps big enough to be
+ * heard. Scheduling the same values as glides on the audio thread joins the
+ * frames up. The version is pinned in index.html, so these names are fixed;
+ * should they ever be missing, the public call is used instead.
+ */
+function rotatorGains(renderer) {
+    const rotator = renderer && renderer._foaRotator;
+    if (!rotator) return null;
+
+    const gains = ROTATOR_MATRIX_ENTRIES.map((_, i) => rotator['_m' + i] && rotator['_m' + i].gain);
+    return gains.every(Boolean) ? gains : null;
+}
+
+/**
+ * Turns the live soundfield to a rotation, gliding there over `seconds`, or
+ * at once for 0. Every change goes through here, including the snap back to
+ * forward: a value written outright beneath a glide still in flight would be
+ * overtaken by it.
+ */
+function applySoundfieldRotation(matrix, seconds) {
+    const gains = rotatorGains(foaRenderer);
+    if (!gains) {
+        foaRenderer.setRotationMatrix4(matrix);
+        return;
+    }
+
+    const now = ctx.currentTime;
+    gains.forEach((param, i) => {
+        const value = matrix[ROTATOR_MATRIX_ENTRIES[i]];
+        if (seconds > 0) {
+            rampGain(param, value, seconds);
+        } else {
+            param.cancelScheduledValues(now);
+            param.setValueAtTime(value, now);
+        }
+    });
 }
 
 /**
@@ -536,8 +756,15 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
     const irTrim = audioCtx.createGain();
     irTrim.gain.value = gainFromDb(irGainDb);
 
-    // A one-output splitter keeps channel 0 only, so a stereo source file is
-    // convolved as mono rather than folded into both ears.
+    // The trim also folds a stereo source down to mono, (L + R) / 2, which is
+    // the same downmix the dry path gets on its way into the mergers. Without
+    // it the one-output splitter below keeps channel 0 alone: the room would
+    // hear only the left of a stereo file, and nothing of one panned right.
+    irTrim.channelCount = 1;
+    irTrim.channelCountMode = 'explicit';
+    irTrim.channelInterpretation = 'speakers';
+
+    // Already mono by here; one output is the single tap every convolver shares
     const splitter = audioCtx.createChannelSplitter(1);
 
     const dryGain = audioCtx.createGain();
@@ -575,10 +802,10 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
     let ambiBus = null;
     let speakerStage = null;
 
-    if (bformatChannels && ambisonicRenderer) {
-        ambiMerger = audioCtx.createChannelMerger(AMBISONIC_CHANNELS);
-        ambisonicOut = audioCtx.createGain();
-
+    // The four B-format convolvers are shared by the headphone and speaker
+    // stages, so they are built for whichever of the two can be: the speaker
+    // decode is plain gains and does not need Omnitone to have loaded.
+    if (bformatChannels && (ambisonicRenderer || speakerOutput)) {
         // Before the convolvers rather than after the merger, so it scales the
         // room without reaching the dry signal the merger is about to sum in.
         ambiWet = audioCtx.createGain();
@@ -594,33 +821,38 @@ function buildConvolutionGraph(audioCtx, sourceNode, { irLeft, irRight, mix, irG
             convolver.normalize = false;
             convolver.buffer = bformatChannels[ch];
             ambiWet.connect(convolver);
-            convolver.connect(ambiMerger, 0, ch);
             ambiConvolvers.push(convolver);
         }
 
-        // Ambisonic channels are not speaker feeds, so the stream is declared
-        // discrete: read as a quad layout a 4-channel signal would be remapped,
-        // scrambling W/Y/Z/X into positions.
-        ambiBus = audioCtx.createGain();
-        ambiBus.channelCount = AMBISONIC_CHANNELS;
-        ambiBus.channelCountMode = 'explicit';
-        ambiBus.channelInterpretation = 'discrete';
+        if (ambisonicRenderer) {
+            ambiMerger = audioCtx.createChannelMerger(AMBISONIC_CHANNELS);
+            ambisonicOut = audioCtx.createGain();
+            ambiConvolvers.forEach((convolver, ch) => convolver.connect(ambiMerger, 0, ch));
 
-        ambiMerger.connect(ambiBus);
-        ambiBus.connect(ambisonicRenderer.input);
-        ambisonicRenderer.output.connect(ambisonicOut);
+            // Ambisonic channels are not speaker feeds, so the stream is declared
+            // discrete: read as a quad layout a 4-channel signal would be remapped,
+            // scrambling W/Y/Z/X into positions.
+            ambiBus = audioCtx.createGain();
+            ambiBus.channelCount = AMBISONIC_CHANNELS;
+            ambiBus.channelCountMode = 'explicit';
+            ambiBus.channelInterpretation = 'discrete';
 
-        // THE DRY DOES NOT GO THROUGH THE DECODER. Encoded as a plane wave it
-        // comes back still exactly mono, having spent 5.7 dB and picked up HRTF
-        // colouring on the way; sent straight out, as the stereo stage sends it,
-        // the two stages agree at a mix of 0%. The impulse response already
-        // carries the room's direct sound, so this path has none to lose.
-        ambiDryMerger = audioCtx.createChannelMerger(2);
-        dryGain.connect(ambiDryMerger, 0, 0);
-        dryGain.connect(ambiDryMerger, 0, 1);
-        ambiDryMerger.connect(ambisonicOut);
+            ambiMerger.connect(ambiBus);
+            ambiBus.connect(ambisonicRenderer.input);
+            ambisonicRenderer.output.connect(ambisonicOut);
 
-        ambisonicOut.connect(output);
+            // THE DRY DOES NOT GO THROUGH THE DECODER. Encoded as a plane wave it
+            // comes back still exactly mono, having spent 5.7 dB and picked up HRTF
+            // colouring on the way; sent straight out, as the stereo stage sends it,
+            // the two stages agree at a mix of 0%. The impulse response already
+            // carries the room's direct sound, so this path has none to lose.
+            ambiDryMerger = audioCtx.createChannelMerger(2);
+            dryGain.connect(ambiDryMerger, 0, 0);
+            dryGain.connect(ambiDryMerger, 0, 1);
+            ambiDryMerger.connect(ambisonicOut);
+
+            ambisonicOut.connect(output);
+        }
 
         if (speakerOutput) {
             speakerStage = buildSpeakerStage(audioCtx, {
@@ -758,6 +990,12 @@ function setPlaying(playing) {
     btn.classList.toggle('playing', playing);
 }
 
+/**
+ * Counts starts and stops, so a start still fetching can tell it has been
+ * superseded: by a pause pressed while it loaded, or by a newer start.
+ */
+let playbackTicket = 0;
+
 async function startPlayback() {
     if (!sourceBuffer) {
         showResourceError("error: source file has not finished loading", "");
@@ -765,33 +1003,47 @@ async function startPlayback() {
     }
     if (!currentIr.base) return;
 
+    const ticket = ++playbackTicket;
+    const ir = currentIr;
+
+    // Asked for before the first await, while this is still the click that
+    // started it. A context constructed before any user gesture starts out
+    // suspended, and Safari only lets it resume inside the gesture itself;
+    // after the fetches below the gesture is spent and the play is silent.
+    const resumed = ctx.resume().catch(err => console.error(err));
+
+    // The button shows pause from the click, not from when the files arrive,
+    // so a second press during a slow load reads as — and is — a cancel
+    setPlaying(true);
+
     let irLeft, irRight;
     try {
         [irLeft, irRight] = await Promise.all([
-            loadImpulseResponse(currentIr.base + "1.wav"),
-            loadImpulseResponse(currentIr.base + "2.wav")
+            loadImpulseResponse(ir.base + "1.wav"),
+            loadImpulseResponse(ir.base + "2.wav")
         ]);
     } catch (err) {
-        reportResourceFailure(err, "impulse response", currentIr.base + "1.wav");
+        if (ticket !== playbackTicket) return;
+        reportResourceFailure(err, "impulse response", ir.base + "1.wav");
         document.getElementById("play").disabled = true;
         setPlaying(false);
         return;
     }
+    if (ticket !== playbackTicket) return;
 
     // Loaded before the graph is built, not on demand, so the mode can be
     // toggled mid-playback without a rebuild that would restart the loop
     const [bformatChannels, ambisonicRenderer] = await Promise.all([
-        loadBformatChannels(ctx, currentIr.decodedBase),
+        loadBformatChannels(ctx, ir.decodedBase),
         ensureAmbisonicRenderer(),
     ]);
+    await resumed;
+    if (ticket !== playbackTicket) return;
 
-    // A context constructed before any user gesture starts out suspended
-    await ctx.resume();
-
-    // Switching receivers restarts playback, so a second start can arrive while
-    // this one was still fetching. Tear down anything already running rather
-    // than leaving two graphs feeding the destination at once.
-    stopPlayback();
+    // A receiver switch restarts playback, so a graph may still be running.
+    // Tear it down rather than leaving two feeding the destination at once.
+    releaseGraph();
+    stopSoundfieldTracking();
 
     source = ctx.createBufferSource();
     source.buffer = sourceBuffer;
@@ -800,7 +1052,7 @@ async function startPlayback() {
         irLeft,
         irRight,
         mix: convolutionMix,
-        irGainDb: currentIr.gainDb,
+        irGainDb: ir.gainDb,
         ambisonic: ambisonicEnabled,
         bformatChannels,
         ambisonicRenderer,
@@ -819,6 +1071,19 @@ async function startPlayback() {
 }
 
 function stopPlayback() {
+    playbackTicket++;   // calls off a start that is still fetching
+    releaseGraph();
+    stopSoundfieldTracking();
+    setPlaying(false);
+
+    // Availability is read off the graph while one is running, so the controls
+    // have to be asked again once it is gone or they keep reporting the last
+    // position's answer.
+    refreshModeButtons();
+}
+
+/** Stops the source and unhooks the running graph, if there is one */
+function releaseGraph() {
     if (source) {
         try {
             source.stop();
@@ -843,14 +1108,6 @@ function stopPlayback() {
 
         activeGraph = null;
     }
-
-    stopSoundfieldTracking();
-    setPlaying(false);
-
-    // Availability is read off the graph while one is running, so the controls
-    // have to be asked again once it is gone or they keep reporting the last
-    // position's answer.
-    refreshModeButtons();
 }
 
 async function playpause() {
@@ -951,11 +1208,14 @@ async function downloadConvolvedAudio() {
     });
 
     // A render is one fixed orientation, so a soundfield that is being turned is
-    // frozen where the view has it rather than reset: the file should hold what
-    // was in the ears when it was asked for. Left alone otherwise, which is the
-    // identity the renderer starts at.
+    // frozen where it is rather than reset: the file should hold what was in the
+    // ears when it was asked for, which is where the follower has got to, a
+    // little behind the view mid-turn. Without a live follower, the view. Left
+    // alone otherwise, which is the identity the renderer starts at.
     if (headphones && soundfieldTracking) {
-        const rotation = currentSoundfieldRotation();
+        const rotation = soundfieldFollower
+            ? rotationMatrix4(soundfieldFollower.yaw, soundfieldFollower.pitch)
+            : currentSoundfieldRotation();
         if (rotation) ambisonicRenderer.setRotationMatrix4(rotation);
     }
 

@@ -104,11 +104,11 @@ function showSourceModal(files) {
         list.appendChild(btn);
     });
 
-    document.getElementById('source-modal').classList.add('open');
+    openModal(document.getElementById('source-modal'));
 }
 
 function closeSourceModal() {
-    document.getElementById('source-modal').classList.remove('open');
+    closeModal(document.getElementById('source-modal'));
 }
 
 async function loadSourceFromServer(filename, label) {

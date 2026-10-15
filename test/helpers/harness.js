@@ -17,7 +17,7 @@ const vm = require('vm');
 const ROOT = path.join(__dirname, '..', '..');
 
 /** In the order index.html loads them */
-const APP_FILES = ['Features.js', 'ChurchData.js', 'Rooms.js', 'App.js', 'AudioEngine.js', 'SpeakerOutput.js', 'SettingsMenu.js', 'Landing.js'];
+const APP_FILES = ['NetworkLog.js', 'Features.js', 'ChurchData.js', 'Rooms.js', 'App.js', 'AudioEngine.js', 'SpeakerOutput.js', 'SettingsMenu.js', 'Landing.js'];
 
 const EPILOGUE = `
 ;globalThis.__state = {
@@ -36,6 +36,8 @@ const EPILOGUE = `
     get soundfieldTracking() { return soundfieldTracking; },
     get soundfieldYaw()   { return soundfieldYaw; },
     get foaRenderer()     { return foaRenderer; },
+    get soundfieldFollower() { return soundfieldFollower; },
+    get netlogActive()    { return netlogActive; },
     get bformatMissing()  { return bformatMissing; },
     get stageTrims()      { return stageTrims; },
     get speakersEnabled() { return speakersEnabled; },
@@ -50,6 +52,7 @@ const EPILOGUE = `
 };
 ;globalThis.__consts = {
     ROOMS, churchData, MissingResourceError, BUNDLED_SOURCE_FILES,
+    netlogEntries, NETLOG_MAX_ENTRIES,
     DEFAULT_PANORAMA, PANORAMA_HFOV, DEFAULT_SOURCE_FILE, DEFAULT_ERROR_MESSAGE,
     DRY_GAIN_AT_FULL_WET, IR_CACHE_LIMIT, ctx, MIX_GLIDE,
     STAGE_CROSSFADE,
@@ -112,7 +115,12 @@ function createApp(options = {}) {
                 },
             },
             appendChild(child) { (this.children ||= []).push(child); },
+            /** Takes keyboard focus, as document.activeElement reports it */
+            focus() { focusState.active = this; },
+            /** One stable stand-in per selector, scoped to this element */
+            querySelector(sel) { return el(id + ' ' + sel); },
             setAttribute(name, value) { this[name] = value; },
+            getAttribute(name) { return name in this ? this[name] : null; },
             removeAttribute(name) { delete this[name]; },
         };
     };
@@ -126,6 +134,9 @@ function createApp(options = {}) {
     };
 
     const listeners = {};
+
+    /** Where keyboard focus is; read through document.activeElement */
+    const focusState = { active: null };
 
     // ── timers (queued, never automatic, so tests control ordering) ───────
     const timerQueue = [];
@@ -144,31 +155,33 @@ function createApp(options = {}) {
     const edges = [];
     const allNodes = [];
     let nodeSeq = 0;
+    // An AudioParam that records its automation. `value` jumps straight to the
+    // target rather than being interpolated — tests assert what was scheduled,
+    // not what a ramp would sound like halfway through.
+    const makeParam = (value = 1) => ({
+        value,
+        _ramps: [],
+        /** Every automation call in order, as [method, ...args] */
+        _events: [],
+        setValueAtTime(v, t) {
+            this.value = v;
+            this._events.push(['set', v, t]);
+        },
+        cancelScheduledValues(t) {
+            this._events.push(['cancel', t]);
+        },
+        linearRampToValueAtTime(v, t) {
+            this.value = v;
+            this._ramps.push([v, t]);
+            this._events.push(['ramp', v, t]);
+        },
+    });
+
     const makeNode = (kind, ctxLabel) => {
         const node = {
             kind, ctxLabel, nodeId: ++nodeSeq,
             buffer: null, loop: false, started: false, stopped: false,
-            // An AudioParam that records its automation. `value` jumps straight
-            // to the target rather than being interpolated — tests assert what
-            // was scheduled, not what a ramp would sound like halfway through.
-            gain: {
-                value: 1,
-                _ramps: [],
-                /** Every automation call in order, as [method, ...args] */
-                _events: [],
-                setValueAtTime(v, t) {
-                    this.value = v;
-                    this._events.push(['set', v, t]);
-                },
-                cancelScheduledValues(t) {
-                    this._events.push(['cancel', t]);
-                },
-                linearRampToValueAtTime(v, t) {
-                    this.value = v;
-                    this._ramps.push([v, t]);
-                    this._events.push(['ramp', v, t]);
-                },
-            },
+            gain: makeParam(1),
             connect(dest, output = 0, input = 0) {
                 edges.push({ from: node, to: dest, output, input });
                 return dest;
@@ -209,7 +222,10 @@ function createApp(options = {}) {
         }),
         // Honours the channel count the responder asked for, so a test can serve
         // a 4-channel B-format file where everything else is mono
-        decodeAudioData: async (buf) => fakeAudioBuffer(4800, (buf && buf.channels) || 1, 48000),
+        // A body marked corrupt fails as an undecodable file does in a browser
+        decodeAudioData: async (buf) => (buf && buf.corrupt)
+            ? Promise.reject(new Error('EncodingError: unable to decode audio data'))
+            : fakeAudioBuffer(4800, (buf && buf.channels) || 1, 48000),
         createBuffer: (channels, length, sampleRate) => {
             const buffer = fakeAudioBuffer(length, channels, sampleRate);
             buffer.copyToChannel = (source, ch) => buffer.getChannelData(ch).set(source);
@@ -236,9 +252,26 @@ function createApp(options = {}) {
     // Present unless a test asks for it to be missing, so the engine's
     // "library did not load" path can be exercised too.
     const foaRenderers = [];
+
+    /**
+     * The nine gains Omnitone 1.3.0's FOARotator keeps as _m0…_m8, starting at
+     * the identity as its own do. Left out with noRotatorInternals, so the
+     * engine's fallback to the public call is exercised too.
+     */
+    const ROTATOR_ENTRIES = [0, 1, 2, 4, 5, 6, 8, 9, 10];
+    const IDENTITY_3 = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    const makeRotator = () => Object.fromEntries(
+        IDENTITY_3.map((v, i) => ['_m' + i, { gain: makeParam(v) }]));
+
     const omnitone = {
         createFOARenderer(context, config) {
+            const rotator = options.noRotatorInternals ? undefined : makeRotator();
             const renderer = {
+                _foaRotator: rotator,
+                /** The 3×3 the rotator holds now, in _m0…_m8 order */
+                get rotatorMatrix() {
+                    return rotator ? IDENTITY_3.map((_, i) => rotator['_m' + i].gain.value) : null;
+                },
                 context, config,
                 input: makeNode('foa-in', context.label),
                 output: makeNode('foa-out', context.label),
@@ -249,7 +282,11 @@ function createApp(options = {}) {
                     if (options.omnitoneFails) throw new Error('HRIR fetch failed');
                     this.initialized = true;
                 },
-                setRotationMatrix4(matrix) { this.rotations.push(Array.from(matrix)); },
+                // Writes the gains outright, as the real one does
+                setRotationMatrix4(matrix) {
+                    this.rotations.push(Array.from(matrix));
+                    if (rotator) ROTATOR_ENTRIES.forEach((e, i) => { rotator['_m' + i].gain.value = matrix[e]; });
+                },
                 setRenderingMode(mode) { this.mode = mode; },
             };
             foaRenderers.push(renderer);
@@ -392,14 +429,23 @@ function createApp(options = {}) {
     };
 
     // ── animation frames (queued, never automatic) ────────────────────────
+    // Each frame is handed a timestamp, as the browser's are, advancing by
+    // whatever interval the test asks for: 60 fps unless told otherwise.
     const frameQueue = [];
     const frames = {
         queue: frameQueue,
+        /** Timestamp of the last frame run, in milliseconds */
+        now: 0,
         get pending() { return frameQueue.length; },
-        /** Runs one frame's worth of callbacks, as the browser would */
-        tick() {
+        /** Runs one frame's worth of callbacks, `ms` after the last */
+        tick(ms = 1000 / 60) {
+            frames.now += ms;
             const due = frameQueue.splice(0, frameQueue.length);
-            for (const cb of due) cb.fn();
+            for (const cb of due) cb.fn(frames.now);
+        },
+        /** Runs `count` frames, `ms` apart */
+        run(count, ms = 1000 / 60) {
+            for (let i = 0; i < count; i++) frames.tick(ms);
         },
     };
 
@@ -468,7 +514,10 @@ function createApp(options = {}) {
 
     // ── sandbox ───────────────────────────────────────────────────────────
     const sandbox = {
-        console,
+        // A test can hand in its own to read what the app logged
+        console: options.console || console,
+        // Absent unless a test supplies one, as in a browser without the API
+        ...(options.PerformanceObserver ? { PerformanceObserver: options.PerformanceObserver } : {}),
         Math, JSON, Object, Array, Promise, Map, Set, Number, String, Error,
         ArrayBuffer, DataView, Float32Array, Uint8Array,
         AudioContext: AudioContextStub,
@@ -516,6 +565,10 @@ function createApp(options = {}) {
                 if (options.storageFails) throw new Error('storage blocked');
                 return k in this._data ? this._data[k] : null;
             },
+            removeItem(k) {
+                if (options.storageFails) throw new Error('storage blocked');
+                delete this._data[k];
+            },
             setItem(k, v) {
                 if (options.storageFails) throw new Error('storage blocked');
                 this._data[k] = String(v);
@@ -526,13 +579,15 @@ function createApp(options = {}) {
         // media queries at all is a real case the code has to survive, and
         // leaving it out by default is what keeps that path covered.
         ...(options.media ? { matchMedia: (query) => ({ media: query, matches: !!options.media[query] }) } : {}),
-        pannellum,
+        // Absent when a test asks with noPannellum, as when its CDN is blocked
+        ...(options.noPannellum ? {} : { pannellum }),
         ...(options.noOmnitone ? {} : { Omnitone: omnitone }),
         ...(options.noLeaflet ? {} : { L: leaflet }),
         document: {
             documentElement: el(':root'),
             body: el('body'),
             fullscreenElement: null,
+            get activeElement() { return focusState.active; },
             getElementById: el,
             querySelectorAll: (sel) => options.querySelectorAll ? options.querySelectorAll(sel) : [],
             createElement: (tag) => Object.assign(makeElement('<' + tag + '>'), {

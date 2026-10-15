@@ -202,12 +202,7 @@ function landingStates(churches) {
  * happening anyway rather than added in front of it.
  */
 function enterChurch(key) {
-    switchTab('main');
-
-    const dropdown = document.getElementById('roomDropdown');
-    if (dropdown) dropdown.value = key;
-
-    switchRoom(key);
+    openChurchInView(key);
     diveIntoChurch(key);
 }
 

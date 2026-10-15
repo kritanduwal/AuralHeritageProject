@@ -488,6 +488,31 @@ input, button, select, textarea {
     text-align: left;
 }
 
+/* Cards that open their church in the View tab (wireChurchCards in App.js) */
+.church-card--link {
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+.church-card--link:hover {
+    border-color: var(--belmont-blue);
+    box-shadow: var(--card-shadow);
+    transform: translateY(-2px);
+}
+
+.church-card--link:focus-visible {
+    outline: 2px solid var(--belmont-blue);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .church-card--link,
+    .church-card--link:hover {
+        transition: none;
+        transform: none;
+    }
+}
+
 /* ── Church Info Button (in view, top-left, beside Pannellum controls) ── */
 #church-info-btn {
     position: absolute;
