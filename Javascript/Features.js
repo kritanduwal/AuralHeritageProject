@@ -1,9 +1,8 @@
 /**
  * Which optional playback features this visit has access to.
  *
- * Two are gated today: /5, loudspeaker playback of the B-format, and
- * /binauralFix1, the rebuilt headphone render. To put another feature behind
- * an address:
+ * One is gated today: /5, loudspeaker playback of the B-format. To put another
+ * feature behind an address:
  *
  *   1. add its name to FEATURE_NAMES below
  *   2. list the controls it reveals in FEATURE_CONTROLS (App.js), and mark any
@@ -24,16 +23,9 @@
 /**
  * Feature names that can be switched on, and what each reveals.
  *
- *   5            — the Speakers toggle and its output routing (SpeakerOutput.js)
- *   binauralFix1 — the headphone render decodes the B-format rebuilt from the
- *                  two capsules the recovered sets captured, in place of the
- *                  four-capsule decode that leans 40° right. No controls; it
- *                  changes which files the render reads (decodedSourceOf in
- *                  Rooms.js)
- *
- * Matched without regard to case, so a name can be spelled the way it reads.
+ *   5 — the Speakers toggle and its output routing (SpeakerOutput.js)
  */
-const FEATURE_NAMES = ['5', 'binauralFix1'];
+const FEATURE_NAMES = ['5'];
 
 /**
  * Features that carry others with them, e.g. { full: ['basic'] }. Empty today;
@@ -47,6 +39,8 @@ const FEATURE_IMPLIES = {};
  *
  * Whole path segments rather than substrings, so a church name containing a
  * flag's word cannot switch it on. The query form takes an optional value.
+ * Case is ignored on both sides: the address is lowercased, so a name must be
+ * too, or one spelled with a capital could never match.
  */
 function readFeatures(location) {
     const segments = String(location.pathname || '').toLowerCase().split('/').filter(Boolean);

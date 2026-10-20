@@ -20,6 +20,16 @@ function recordingConsole() {
     };
 }
 
+/**
+ * Fetches through the app's fetch() and reads the body, as every call site in
+ * the app does: a download is logged when its body has been read
+ */
+async function fetched(app, url, init) {
+    const response = await app.g.fetch(url, init);
+    if (response.ok) await response.arrayBuffer();
+    return response;
+}
+
 /** An app with network logging on, and the console it writes to */
 function logging(options = {}) {
     const out = recordingConsole();
@@ -83,7 +93,7 @@ test('blocked storage costs the memory, not the logging', () => {
 test('switching it on twice wraps fetch once', async () => {
     const { app, entries } = logging();
     app.g.netlog(true);
-    await app.g.fetch('Source Files/Clarinet.wav');
+    await fetched(app, 'Source Files/Clarinet.wav');
     assert.equal(entries().length, 1, 'a doubled wrapper would log every request twice');
 });
 
@@ -94,12 +104,12 @@ test('an app request is logged with its method, status and readable path', async
     await app.g.impulseResponseExists('IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-');
 
     const [entry] = entries();
-    assert.equal(entry.kind, 'fetch');
+    assert.equal(entry.kind, 'probe', 'labelled for what it is');
     assert.equal(entry.method, 'HEAD', 'the availability probe is a HEAD, and the log should say so');
     assert.equal(entry.status, 200);
     assert.equal(entry.url, 'IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-1.wav');
     assert.ok(Number.isFinite(entry.ms));
-    assert.ok(out.lines.info.some(l => /\[net\] fetch 200 HEAD IR\/Cane Ridge/.test(l)));
+    assert.ok(out.lines.info.some(l => /\[net\] probe 200 HEAD IR\/Cane Ridge/.test(l)));
 });
 
 test('a HEAD is logged as headers only, not as a download of the file', async () => {
@@ -119,7 +129,7 @@ test('a HEAD is logged as headers only, not as a download of the file', async ()
 
 test('a percent-encoded request is shown decoded, as the error banner shows it', async () => {
     const { app, entries } = logging();
-    await app.g.fetch('/Source%20Files/Sermon_Dr.%20William%20Barber.wav');
+    await fetched(app, '/Source%20Files/Sermon_Dr.%20William%20Barber.wav');
     assert.equal(entries()[0].url, '/Source Files/Sermon_Dr. William Barber.wav');
 });
 
@@ -135,7 +145,7 @@ test('a 404 is logged as a warning, not lost among the rest', async () => {
 
     assert.equal(entries()[0].status, 404);
     assert.equal(entries()[0].failed, true);
-    assert.ok(out.lines.warn.some(l => /\[net\] fetch 404 HEAD IR\/Nowhere\/missing-1\.wav/.test(l)));
+    assert.ok(out.lines.warn.some(l => /\[net\] probe 404 HEAD IR\/Nowhere\/missing-1\.wav/.test(l)));
 });
 
 test('a request that never got an answer is logged with why, and still fails for the caller', async () => {
@@ -169,6 +179,122 @@ test('the size comes from Content-Length where the server sends one', async () =
     }));
     await logged('IR/x-1.wav');
     assert.equal(entries().at(-1).bytes, 1468006);
+});
+
+/** A clock the test moves by hand, and the Resource Timing entries it chooses */
+function fakePerformance(timings = []) {
+    const perf = {
+        t: 0,
+        now: () => perf.t,
+        getEntriesByName: (name) => timings.filter(e => e.name === name),
+    };
+    return perf;
+}
+
+test('a download is timed to its last byte, with its first response beside it', async () => {
+    // fetch() resolves on the headers; a 2.7 MB B-format is still on its way
+    const perf = fakePerformance();
+    const { app, out, entries } = logging({ performance: perf });
+    const logged = app.g.wrapFetchForLog(async () => {
+        perf.t = 40;
+        return {
+            ok: true, status: 200,
+            headers: { get: (h) => (h === 'Content-Length' ? '2831155' : null) },
+            arrayBuffer: async () => { perf.t = 640; return { byteLength: 2831155 }; },
+        };
+    });
+
+    const response = await logged('IR/x/Not Normalized/x_R3-Bformat.wav');
+    assert.equal(entries().length, 0, 'nothing yet: timed now, it would read as 40 ms');
+
+    await response.arrayBuffer();
+    const entry = entries().at(-1);
+    assert.equal(entry.ms, 640);
+    assert.match(entry.note, /first response 40 ms/);
+    assert.ok(out.lines.info.some(l => /\[net\] bformat 200 GET .*Bformat\.wav 2\.7 MB 640 ms — first response 40 ms/.test(l)));
+
+    await response.arrayBuffer();
+    assert.equal(entries().length, 1, 'a body read twice is still one request');
+});
+
+test('without a Content-Length, the size is the body that arrived', async () => {
+    const { app, entries } = logging();
+    const logged = app.g.wrapFetchForLog(async () => ({
+        ok: true, status: 200, headers: { get: () => null },
+        arrayBuffer: async () => ({ byteLength: 1234 }),
+    }));
+    await (await logged('Source Files/x.wav')).arrayBuffer();
+    assert.equal(entries().at(-1).bytes, 1234);
+});
+
+test('a download that breaks off is a warning with why, and still fails for the caller', async () => {
+    const { app, out, entries } = logging();
+    const logged = app.g.wrapFetchForLog(async () => ({
+        ok: true, status: 200, headers: { get: () => null },
+        arrayBuffer: async () => { throw new TypeError('network error'); },
+    }));
+    const response = await logged('IR/x-1.wav');
+    await assert.rejects(response.arrayBuffer(), /network error/, 'the caller sees the failure it would without the log');
+
+    const entry = entries().at(-1);
+    assert.equal(entry.failed, true);
+    assert.match(entry.note, /body failed: network error/);
+    assert.ok(out.lines.warn.some(l => /\[net\] ir 200 GET IR\/x-1\.wav .*body failed/.test(l)));
+});
+
+test('a failed download is logged at once, since nobody reads its body', async () => {
+    // loadAudioBuffer throws on the status without reading; waiting for a body
+    // would lose the one line that explains the error banner
+    const { app, out, entries } = logging();
+    await app.g.fetch('Source Files/Nowhere.wav');
+
+    assert.equal(entries().length, 1);
+    assert.equal(entries()[0].status, 404);
+    assert.ok(out.lines.warn.some(l => /\[net\] source 404 GET Source Files\/Nowhere\.wav/.test(l)));
+});
+
+test('each app request is labelled for what it is', () => {
+    const { app } = logging();
+    const kind = app.g.netlogKind;
+    assert.equal(kind('IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-1.wav', 'GET'), 'ir');
+    assert.equal(kind('IR/Cane Ridge Meeting House, KY/Not Normalized/Cane Ridge KY_R1-Bformat.wav', 'GET'), 'bformat');
+    assert.equal(kind('/Source Files/Clarinet.wav', 'GET'), 'source');
+    assert.equal(kind('/api/source-files', 'GET'), 'api');
+    assert.equal(kind('IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-1.wav', 'HEAD'), 'probe',
+        'a HEAD is the availability check, whatever file it names');
+    assert.equal(kind('https://example.com/elsewhere.wav', 'GET'), 'fetch', 'anything else is not guessed at');
+});
+
+test('a download the browser served from its cache says so', async () => {
+    const perf = fakePerformance([{
+        name: 'http://localhost:8000/IR/x/Not%20Normalized/x_R1-Bformat.wav',
+        initiatorType: 'fetch', transferSize: 0, decodedBodySize: 2831155,
+    }]);
+    const { app, out, entries } = logging({ performance: perf });
+    const logged = app.g.wrapFetchForLog(async () => ({
+        ok: true, status: 200, headers: { get: () => null },
+        arrayBuffer: async () => ({ byteLength: 2831155 }),
+    }));
+    await (await logged('IR/x/Not Normalized/x_R1-Bformat.wav')).arrayBuffer();
+
+    const entry = entries().at(-1);
+    assert.match(entry.note, /from cache/);
+    assert.equal(entry.bytes, 2831155, 'the size of the file, not the zero that crossed the wire');
+    assert.ok(out.lines.info.some(l => /bformat 200 GET .*from cache/.test(l)));
+});
+
+test('a download that crossed the network is not called cached', async () => {
+    const perf = fakePerformance([{
+        name: 'http://localhost:8000/IR/x/Not%20Normalized/x_R1-Bformat.wav',
+        initiatorType: 'fetch', transferSize: 2831455, decodedBodySize: 2831155,
+    }]);
+    const { app, entries } = logging({ performance: perf });
+    const logged = app.g.wrapFetchForLog(async () => ({
+        ok: true, status: 200, headers: { get: () => null },
+        arrayBuffer: async () => ({ byteLength: 2831155 }),
+    }));
+    await (await logged('IR/x/Not Normalized/x_R1-Bformat.wav')).arrayBuffer();
+    assert.doesNotMatch(entries().at(-1).note, /from cache/);
 });
 
 // ── what the page loads by other means ────────────────────────────────────
@@ -238,7 +364,7 @@ test('a resource the browser reports as missing is a warning', () => {
 
 test('a browser without Resource Timing still logs fetches', async () => {
     const { app, entries } = logging();          // the harness has no PerformanceObserver
-    await app.g.fetch('Source Files/Clarinet.wav');
+    await fetched(app, 'Source Files/Clarinet.wav');
     assert.equal(entries().length, 1);
 });
 
@@ -247,14 +373,16 @@ test('a browser without Resource Timing still logs fetches', async () => {
 test('netlogSummary totals the session by kind', async () => {
     const Observer = fakeObserverClass();
     const { app, out } = logging({ PerformanceObserver: Observer });
-    await app.g.fetch('Source Files/Clarinet.wav');
-    await app.g.fetch('Nowhere.wav');
+    await fetched(app, 'Source Files/Clarinet.wav');
+    await fetched(app, 'Source Files/Nowhere.wav');
+    await fetched(app, 'IR/Monastery Immaculate Conception, IN/Normalized/MIC_IN_R1-1.wav');
     Observer.deliver([{ name: 'http://localhost:8000/a.jpg', initiatorType: 'img',
         transferSize: 2048, decodedBodySize: 2048, duration: 10 }]);
 
     const table = app.g.netlogSummary();
-    assert.equal(table.fetch.requests, 2);
-    assert.equal(table.fetch.failed, 1);
+    assert.equal(table.source.requests, 2, 'split by what was asked for, not lumped as fetch');
+    assert.equal(table.source.failed, 1);
+    assert.equal(table.ir.requests, 1);
     assert.equal(table.img.requests, 1);
     assert.equal(table.img.size, '2.0 KB');
     assert.equal(out.lines.table.length, 1, 'shown as a table');
@@ -299,8 +427,8 @@ async function serverLog(requests, env = {}) {
             child.on('exit', code => reject(new Error(`server exited (${code}):\n${output}`)));
         });
 
-        for (const [method, url] of requests) {
-            const res = await fetch(`http://localhost:${port}${url}`, { method, redirect: 'manual' });
+        for (const [method, url, headers = {}] of requests) {
+            const res = await fetch(`http://localhost:${port}${url}`, { method, headers, redirect: 'manual' });
             await res.arrayBuffer().catch(() => {});
         }
         await new Promise(r => setTimeout(r, 100));   // let the last line flush
@@ -325,6 +453,22 @@ test('the dev server logs each request with its status, path, size and time', as
         'paths decoded, sizes readable');
     assert.match(output, /HEAD 404 {2}\/IR\/Nowhere\/missing-1\.wav .*<-- not found/, 'misses stand out');
     assert.match(output, /GET 301 {2}\/index\.html/, 'redirects are logged too');
+});
+
+test('the dev server says when the browser kept its cached copy, and names each error', async () => {
+    const output = await serverLog([
+        // A cached copy the server accepts as current: answered 304, with no
+        // body. Cache-Control as a browser revalidating sends it; without it,
+        // fetch() adds no-cache and the server never considers a 304.
+        ['GET', '/Source%20Files/Clarinet.wav', { 'If-None-Match': '*', 'Cache-Control': 'max-age=0' }],
+        // A range past the end of the file: 416, which is not a missing file
+        ['GET', '/Source%20Files/Clarinet.wav', { Range: 'bytes=999999999-' }],
+    ]);
+
+    assert.match(output, /GET 304 {2}\/Source Files\/Clarinet\.wav {2}not modified \(cached\)/,
+        'a 304 is the browser reusing its copy, not an empty download');
+    assert.match(output, /GET 416 {2}\/Source Files\/Clarinet\.wav .*<-- range not satisfiable/);
+    assert.doesNotMatch(output, /416 .*not found/, 'only a 404 is a missing file');
 });
 
 test('LOG_REQUESTS=0 keeps the dev server quiet', async () => {

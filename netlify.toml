@@ -13,9 +13,3 @@
   from = "/5"
   to = "/index.html"
   status = 200
-
-# The headphone render rebuilt from the two captured capsules
-[[redirects]]
-  from = "/binauralFix1"
-  to = "/index.html"
-  status = 200

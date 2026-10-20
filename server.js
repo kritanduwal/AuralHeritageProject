@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const { STATUS_CODES } = require('http');
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -45,9 +46,14 @@ if (LOG_REQUESTS) {
             // A HEAD carries the Content-Length of the file it describes but
             // sends none of it; printing that size bare reads as a download
             const length = formatBytes(Number(res.getHeader('Content-Length')));
-            const size = req.method === 'HEAD' ? `headers only (file ${length})` : length;
+            // A 304 sends no body: the browser revalidated its cached copy and
+            // keeps using it, which a bare "-" does not say
+            const size = req.method === 'HEAD' ? `headers only (file ${length})`
+                : status === 304 ? 'not modified (cached)' : length;
             const range = req.headers.range ? `  range ${req.headers.range}` : '';
-            const flag = typeof status === 'number' && status >= 400 ? '  <-- ' + (status >= 500 ? 'error' : 'not found') : '';
+            // Named by its status, so a 416 from a bad range is not read as a missing file
+            const flag = typeof status === 'number' && status >= 400
+                ? '  <-- ' + (STATUS_CODES[status] || 'error').toLowerCase() : '';
             console.log(`${time}  ${req.method} ${status}  ${readablePath(req.originalUrl)}  ${size}  ${ms.toFixed(0)} ms${range}${flag}`);
         };
 
@@ -79,7 +85,7 @@ app.use(express.static(path.join(__dirname)));
  * A flag added to FEATURE_NAMES wants its path here and a matching redirect
  * in netlify.toml.
  */
-const FEATURE_PATHS = ['/5', '/binauralFix1'];
+const FEATURE_PATHS = ['/5'];
 
 if (FEATURE_PATHS.length) {
     app.get(FEATURE_PATHS, (req, res) => {

@@ -114,7 +114,7 @@ test('an originals entry describes the files and never the room', () => {
     // change. Duplicating them would let the two sets disagree about the same
     // measurement. Only the three fields that are properties of the files
     // themselves may be restated.
-    const allowed = ['ir', 'soundfieldYaw', 'trim', ...app.data.DECODED_VARIANTS];
+    const allowed = ['ir', 'soundfieldYaw', 'trim'];
     for (const [key, cfg] of rooms) {
         if (!cfg.unnormalized) continue;
         for (const field of Object.keys(cfg.unnormalized)) {
@@ -265,50 +265,6 @@ test('every receiver distance is stated in a form the modal can show', () => {
         for (const [r, text] of Object.entries(data.receivers)) {
             assert.match(text, /^\d+(\.\d+)? ft$/,
                 `${key}.${r}: "${text}" is not a distance in feet`);
-        }
-    }
-});
-
-// ── /binauralFix1: the rebuilt render ─────────────────────────────────────
-
-const fixed = createApp({ path: '/binauralFix1' });
-const withVariant = rooms.filter(([, cfg]) => cfg.unnormalized && cfg.unnormalized.binauralFix1);
-
-test('every recovered set carries a binauralFix1 block, trimmed at every receiver', () => {
-    // A seat missing from the block would play the rebuild untrimmed, which is
-    // tens of dB off at the front rows
-    assert.equal(withVariant.length, rooms.filter(([, cfg]) => cfg.unnormalized).length);
-    for (const [key, cfg] of withVariant) {
-        const variant = cfg.unnormalized.binauralFix1;
-        assert.deepEqual(Object.keys(variant), ['trim'], `${key}: only its trims differ`);
-        assert.deepEqual(Object.keys(variant.trim.ambisonic).sort(), Object.keys(cfg.receivers).sort(),
-            `${key}: one trim per receiver`);
-    }
-});
-
-test('a plain visit decodes the original files at the original trims', () => {
-    // / is the published experience and must not move because the flag exists
-    const church = ROOMS.MonasteryImmaculateConception;
-    assert.equal(app.g.decodedResponseBase(church, 'R3'), ORIGINALS_BASE);
-    assert.equal(app.g.stageTrimsOf(church, 'R3').ambisonic, church.unnormalized.trim.ambisonic.R3);
-});
-
-test('/binauralFix1 decodes the rebuilt files at their own trims', () => {
-    const church = ROOMS.MonasteryImmaculateConception;
-    assert.equal(fixed.g.decodedResponseBase(church, 'R3'),
-        'IR/Monastery Immaculate Conception, IN/Not Normalized/binauralFix1/MIC_IN_R3-');
-    assert.equal(fixed.g.stageTrimsOf(church, 'R3').ambisonic,
-        church.unnormalized.binauralFix1.trim.ambisonic.R3);
-    assert.equal(fixed.g.soundfieldYawOf(church), church.unnormalized.soundfieldYaw,
-        'the orientation is the set\'s, which the rebuild keeps');
-});
-
-test('/binauralFix1 leaves stereo, and churches without originals, alone', () => {
-    // Stereo is the reference both renders are trimmed against
-    for (const [key, cfg] of rooms) {
-        for (const rid of Object.keys(cfg.receivers)) {
-            assert.equal(fixed.g.impulseResponseBase(cfg, rid), app.g.impulseResponseBase(cfg, rid), key);
-            if (!cfg.unnormalized) assert.equal(fixed.g.decodedResponseBase(cfg, rid), '', key);
         }
     }
 });

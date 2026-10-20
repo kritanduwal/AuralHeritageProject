@@ -9,9 +9,16 @@
  *
  * Two sources, because the page fetches in two ways:
  *
- *   fetch()        the app's own requests — impulse responses, the B-format,
- *                  source files, the HEAD probe, /api/source-files. Logged with
- *                  status, size and time, and failures with the reason.
+ *   fetch()        the app's own requests, labelled by what they are:
+ *                    ir       the stereo impulse response pair
+ *                    bformat  the B-format the headphone and speaker stages decode
+ *                    source   the audio being played into the room
+ *                    probe    the HEAD that checks a position has a recording
+ *                    api      /api/source-files
+ *                  Logged with status, size and time, failures with the reason.
+ *                  A download is timed to its last byte, when the app has read
+ *                  it, with the first response's time beside it, and marked
+ *                  "from cache" when nothing crossed the network.
  *   everything     panoramas (pannellum), map tiles (Leaflet), diagrams (CSS),
  *   else           scripts, fonts. Seen through the Resource Timing API, which
  *                  reports size and time; status only where the browser does.
@@ -77,40 +84,130 @@ function netlogRecord(entry) {
 }
 
 /**
- * Wraps fetch() so each call is logged when it settles. The response and any
- * error go back to the caller untouched; the log only watches.
+ * What an app request is for, read off its readable path. A HEAD is always the
+ * availability probe, whatever it asks about. Anything unrecognised stays
+ * plain "fetch" rather than being guessed at.
+ */
+function netlogKind(url, method) {
+    const path = String(url).replace(/^\//, '');
+    if (method === 'HEAD') return 'probe';
+    if (/-Bformat\.wav$/i.test(path)) return 'bformat';
+    if (/^IR\//.test(path)) return 'ir';
+    if (/^Source Files\//.test(path)) return 'source';
+    if (/^api\//.test(path)) return 'api';
+    return 'fetch';
+}
+
+/** The Resource Timing entry the browser kept for a fetch, if it kept one */
+function netlogTiming(input) {
+    if (typeof performance === 'undefined' || typeof performance.getEntriesByName !== 'function') return null;
+    try {
+        const raw = String(input && input.url ? input.url : input);
+        const base = typeof location !== 'undefined' ? (location.href || location.origin + '/') : undefined;
+        const entries = performance.getEntriesByName(new URL(raw, base).href)
+            .filter(e => e.initiatorType === 'fetch');
+        return entries.length ? entries[entries.length - 1] : null;
+    } catch {
+        return null;   // an address URL() cannot read is one the browser did not time either
+    }
+}
+
+/** A body's size once read: the bytes of a buffer or blob, the length of text */
+function netlogBodyBytes(body) {
+    if (body && Number.isFinite(body.byteLength)) return body.byteLength;
+    if (body && Number.isFinite(body.size)) return body.size;
+    if (typeof body === 'string') return body.length;
+    return NaN;
+}
+
+/** The ways a caller can read a response's body */
+const NETLOG_BODY_READERS = ['arrayBuffer', 'blob', 'json', 'text'];
+
+/**
+ * Wraps fetch() so each call is logged once, with the response and any error
+ * going back to the caller untouched; the log only watches.
+ *
+ * A download is logged when its body has been read, not when fetch() resolves.
+ * fetch() resolves on the response's headers, and the file itself is still on
+ * its way: timed then, a 2.7 MB B-format reads as however long the server took
+ * to answer. So the readers on the response are wrapped, and the line is
+ * written when the first of them finishes, carrying the full time and the time
+ * to first response beside it.
+ *
+ * Logged at once instead where there is no body to wait for: a HEAD, a failed
+ * status the caller throws on without reading, or a response with no readers.
+ * Every call site in the app reads the body of a successful GET, so none goes
+ * unlogged.
  */
 function wrapFetchForLog(realFetch) {
-    const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+    const now = () => (typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now() : Date.now());
 
     return async function loggedFetch(input, init) {
         const method = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
         const url = netlogUrl(input);
+        const kind = netlogKind(url, method);
         const started = now();
 
+        let response;
         try {
-            const response = await realFetch(input, init);
-            const length = response.headers && typeof response.headers.get === 'function'
-                ? Number(response.headers.get('Content-Length'))
-                : NaN;
-            // A HEAD reports the size of the file it asked about, none of
-            // which was transferred; logged bare it would look like a download
-            const head = method === 'HEAD';
-            netlogRecord({
-                kind: 'fetch', method, url, status: response.status,
-                bytes: head ? 0 : length, ms: now() - started,
-                failed: !response.ok,
-                note: head ? 'headers only' + (Number.isFinite(length) ? `, file is ${netlogBytes(length)}` : '') : '',
-            });
-            return response;
+            response = await realFetch(input, init);
         } catch (err) {
             netlogRecord({
-                kind: 'fetch', method, url, status: 'failed',
+                kind, method, url, status: 'failed',
                 bytes: NaN, ms: now() - started,
                 failed: true, note: (err && err.message) || String(err),
             });
             throw err;
         }
+
+        const firstResponse = now() - started;
+        // A missing header is unknown, not empty: Number(null) is 0
+        const header = response.headers && typeof response.headers.get === 'function'
+            ? response.headers.get('Content-Length') : null;
+        const length = header === null || header === '' ? NaN : Number(header);
+        const entry = { kind, method, url, status: response.status, failed: !response.ok };
+
+        // A HEAD reports the size of the file it asked about, none of which was
+        // transferred; logged bare it would look like a download
+        if (method === 'HEAD') {
+            netlogRecord({
+                ...entry, bytes: 0, ms: firstResponse,
+                note: 'headers only' + (Number.isFinite(length) ? `, file is ${netlogBytes(length)}` : ''),
+            });
+            return response;
+        }
+
+        const readers = NETLOG_BODY_READERS.filter(name => typeof response[name] === 'function');
+        if (!response.ok || !readers.length) {
+            netlogRecord({ ...entry, bytes: length, ms: firstResponse, note: '' });
+            return response;
+        }
+
+        let logged = false;
+        const finish = (body, err) => {
+            if (logged) return;
+            logged = true;
+            const notes = [`first response ${Math.round(firstResponse)} ms`];
+            let bytes = Number.isFinite(length) ? length : netlogBodyBytes(body);
+
+            const timing = netlogTiming(input);
+            if (timing && timing.transferSize === 0 && timing.decodedBodySize > 0) {
+                bytes = timing.decodedBodySize;   // the file's size, not the zero that crossed the wire
+                notes.push('from cache');
+            }
+            if (err) notes.push('body failed: ' + ((err && err.message) || String(err)));
+
+            netlogRecord({ ...entry, bytes, ms: now() - started, failed: Boolean(err), note: notes.join(', ') });
+        };
+
+        for (const name of readers) {
+            const read = response[name];
+            response[name] = (...args) => read.apply(response, args).then(
+                body => { finish(body); return body; },
+                err => { finish(undefined, err); throw err; });
+        }
+        return response;
     };
 }
 

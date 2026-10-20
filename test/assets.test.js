@@ -425,19 +425,72 @@ test('a recovered church has the B-format the headphone render decodes', () => {
     assert.deepEqual(missing, [], 'originals referenced by ROOMS but not present');
 });
 
-test('/binauralFix1 has its rebuilt B-format at every recovered receiver', () => {
-    // Same failure as above, but only at the flagged address, where nobody
-    // checking / would notice it
-    const fixed = createApp({ path: '/binauralFix1' });
-    const missing = [];
+/**
+ * The format and the first `frames` frames of a float WAV, without decoding the
+ * whole file: 47 of them in full would cost the suite seconds for nothing.
+ */
+function wavHead(file, frames) {
+    const buf = fs.readFileSync(file);
+    let format = null, pos = 12;
+    while (pos + 8 <= buf.length) {
+        const id = buf.toString('ascii', pos, pos + 4);
+        const size = buf.readUInt32LE(pos + 4);
+        if (id === 'fmt ') {
+            format = {
+                code: buf.readUInt16LE(pos + 8), channels: buf.readUInt16LE(pos + 10),
+                rate: buf.readUInt32LE(pos + 12), bits: buf.readUInt16LE(pos + 22),
+            };
+        } else if (id === 'data' && format) {
+            const n = Math.min(frames, Math.floor(size / (4 * format.channels)));
+            const data = Array.from({ length: format.channels }, () => new Float64Array(n));
+            for (let f = 0; f < n; f++) {
+                for (let c = 0; c < format.channels; c++) {
+                    data[c][f] = buf.readFloatLE(pos + 8 + (f * format.channels + c) * 4);
+                }
+            }
+            return { format, data };
+        }
+        pos += 8 + size + (size % 2);
+    }
+    return { format, data: null };
+}
+
+test('every recovered receiver plays the two-capsule rebuild, not the four-capsule decode', () => {
+    // The rebuild leaves Y and Z silent through the direct sound, so it decodes
+    // straight ahead; the four-capsule decode carries them from the first sample
+    // and leans 40° right. A green existence check cannot tell the two apart,
+    // and the trims in Rooms.js were measured against the rebuild.
+    const RATE = 48000, ms = (m) => Math.round(m * RATE / 1000);
+    const energy = (s, a, b) => { let e = 0; for (let i = Math.max(0, a); i < b; i++) e += s[i] * s[i]; return e; };
+    const wrong = [];
+
     for (const key of withOriginals) {
         for (const rid of receiversOf(key)) {
-            const url = fixed.g.decodedResponseBase(ROOMS[key], rid) + 'Bformat.wav';
-            assert.ok(url.includes('/binauralFix1/'), `${key} ${rid}: ${url}`);
-            if (!existsExactly(url)) missing.push(url);
+            const url = decodedResponseBase(ROOMS[key], rid) + 'Bformat.wav';
+            const { format, data } = wavHead(path.join(ROOT, url), ms(200));
+            if (!format || format.code !== 3 || format.bits !== 32 || format.channels !== 4 || format.rate !== RATE) {
+                wrong.push(`${url}: want 4-channel 48 kHz 32-bit float, got ${JSON.stringify(format)}`);
+                continue;
+            }
+            const [w, y, z, x] = data;   // AmbiX: W, Y, Z, X
+            const peakW = w.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+            let onset = 0;
+            while (Math.abs(w[onset]) < 0.25 * peakW) onset++;
+
+            const direct = energy(w, 0, onset + ms(2));
+            if (energy(y, 0, onset + ms(2)) > 1e-12 * direct || energy(z, 0, onset + ms(2)) > 1e-12 * direct) {
+                wrong.push(`${url}: Y or Z carries the direct sound`);
+            }
+            if (energy(x, onset - ms(0.5), onset + ms(2.5)) < 0.05 * energy(w, onset - ms(0.5), onset + ms(2.5))) {
+                wrong.push(`${url}: X carries almost none of the direct sound`);
+            }
+            const room = energy(w, onset + ms(5), w.length);
+            for (const [name, c] of [['Y', y], ['Z', z]]) {
+                if (energy(c, onset + ms(5), c.length) < 1e-3 * room) wrong.push(`${url}: ${name} is silent after the direct sound`);
+            }
         }
     }
-    assert.deepEqual(missing, [], 'rebuilt files referenced by ROOMS but not present');
+    assert.deepEqual(wrong, [], 'regenerate with tools/aformat-to-bformat.js (its default is the rebuild)');
 });
 
 test('a church without originals offers no decoded base at all', () => {
