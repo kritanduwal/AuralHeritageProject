@@ -9,11 +9,13 @@
  * order, SN3D normalization — resampled to 48 kHz and written as
  * <stem>-Bformat.wav, ready to hand to Omnitone.
  *
- * Offline tool. It reads IR/ and writes new files beside them; it does not touch
- * the app, and nothing in the app reads its output.
+ * Offline tool. It reads IR/ and writes new files beside them, and those files
+ * are what the app's headphone and speaker stages play: re-running it over a
+ * set replaces what visitors hear, and leaves that set's trims in Rooms.js to be
+ * re-measured (tools/measure-loudness.js --write).
  *
  *   node tools/aformat-to-bformat.js --dry-run
- *   node tools/aformat-to-bformat.js "IR/Cane Ridge Meeting House, KY/Normalized"
+ *   node tools/aformat-to-bformat.js --gain auto "IR/Cane Ridge Meeting House, KY/Not Normalized"
  *
  * ── READ THIS BEFORE TRUSTING THE OUTPUT ─────────────────────────────────────
  *
@@ -52,10 +54,12 @@
  *      matched cardioids span four dimensions; these span two. The matrix then
  *      sees one horizontal axis, FRD−BLD at −45°, projects every frontal
  *      sound onto it, and reads the source at −40°. That is a missing axis,
- *      not a rotation, so no yaw offset fixes it. --pair rebuilds the
- *      B-format from the two capsules that were captured — see
- *      rebuildFromPair(). The report prints how much of FLU and BRU the pair
- *      explains at every position, in either mode.
+ *      not a rotation, so no yaw offset fixes it. So by default this script
+ *      rebuilds the B-format from the two capsules that were captured — see
+ *      rebuildFromPair() and docs/binaural-balance.md. --four-capsule decodes
+ *      all four instead, and only writes elsewhere (--out) or not at all
+ *      (--dry-run), never over the files the app plays. The report prints how
+ *      much of FLU and BRU the pair explains at every position, in either mode.
  *
  * @author Kritan Duwal
  */
@@ -163,7 +167,7 @@ const NORMALIZED_PEAK_EPSILON = 1e-4;
 const SET_GAIN_TARGET_PEAK_DB = 0;
 
 /**
- * The two capsules --pair rebuilds from: the pair the library actually
+ * The two capsules the rebuild is made from: the pair the library actually
  * captured. They face opposite ways, so their difference is a figure-8 along
  * the FR–BL horizontal diagonal and their sum is nearly omni.
  */
@@ -190,6 +194,13 @@ const NATURAL_LAG_SAMPLES = 3;
 
 /** How far either way to search for a recording-chain offset */
 const MAX_CHAIN_LAG_MS = 25;
+
+/**
+ * The tails' correlation at the best lag must reach this before the lag is
+ * believed. The library's pairs peak at 0.45–0.5, St Francis's shifted ones
+ * included.
+ */
+const MIN_LAG_CORRELATION = 0.2;
 
 /**
  * Length of the decorrelators that fill Y and Z: 1024 taps is 21 ms at 48 kHz,
@@ -687,13 +698,25 @@ function chainLag(a, b, sampleRate, onset) {
     const maxLag = Math.round(MAX_CHAIN_LAG_MS / 1000 * sampleRate);
     const { start, end } = tailWindow(onset, x.length - maxLag, sampleRate);
 
+    // Normalized per lag by the stretch of `b` it actually compares: a decaying
+    // tail is louder earlier, so the raw sum would favour any lag that reaches
+    // back toward the direct sound
+    const yEnergy = new Float64Array(y.length + 1);
+    for (let i = 0; i < y.length; i++) yEnergy[i + 1] = yEnergy[i] + y[i] * y[i];
+
     let best = 0, bestValue = -Infinity;
     for (let lag = -maxLag; lag <= maxLag; lag++) {
-        let acc = 0;
-        for (let i = Math.max(start, -lag); i < end; i++) acc += x[i] * y[i + lag];
-        if (acc > bestValue) { bestValue = acc; best = lag; }
+        const from = Math.max(start, -lag);
+        let acc = 0, xx = 0;
+        for (let i = from; i < end; i++) { acc += x[i] * y[i + lag]; xx += x[i] * x[i]; }
+        const yy = yEnergy[end + lag] - yEnergy[from + lag];
+        const value = xx > 0 && yy > 0 ? acc / Math.sqrt(xx * yy) : 0;
+        if (value > bestValue) { bestValue = value; best = lag; }
     }
-    return best;
+
+    // A peak only means something if the tails really are one signal; without
+    // this, tails with nothing in common hand back whichever lag won by a hair
+    return bestValue >= MIN_LAG_CORRELATION ? best : 0;
 }
 
 /** `signal` advanced by `lag` samples, zero-filled */
@@ -1124,7 +1147,7 @@ function parseArgs(argv) {
         radius: CAPSULE_RADIUS_M,
         rate: DEFAULT_OUTPUT_RATE,
         eq: true,
-        pair: false,
+        pair: true,
         gain: 0,
         dryRun: false,
         warnings: [],
@@ -1151,7 +1174,8 @@ function parseArgs(argv) {
             }
         }
         else if (arg === '--no-eq') options.eq = false;
-        else if (arg === '--pair') options.pair = true;
+        else if (arg === '--pair') options.pair = true;   // the default; kept for old commands
+        else if (arg === '--four-capsule') options.pair = false;
         else if (arg === '--dry-run') options.dryRun = true;
         else if (arg === '--help' || arg === '-h') options.help = true;
         else if (arg.startsWith('--')) throw new Error(`unknown option ${arg}`);
@@ -1160,6 +1184,12 @@ function parseArgs(argv) {
 
     if (!Number.isFinite(options.radius) || options.radius <= 0) {
         throw new Error('--radius must be a positive number of metres');
+    }
+    // Beside the sources is where the app reads from, and every recovered set
+    // there is a two-capsule set the four-capsule decode pulls 40° right
+    if (!options.pair && !options.out && !options.dryRun) {
+        throw new Error('--four-capsule would overwrite the files the app plays; ' +
+            'pass --out <dir> or --dry-run');
     }
     return options;
 }
@@ -1180,9 +1210,10 @@ A-format → B-format (AmbiX) converter for the NT-SF1 IRs in IR/
                    ${SET_GAIN_TARGET_PEAK_DB} dBFS. Ratios are untouched — this is not the
                    per-channel normalization described above. Needed for the
                    un-normalized originals, which sit far too low to be heard.
-  --pair           rebuild from ${PAIR.join(' and ')} alone, for sets where the other two
-                   capsules are crosstalk of them (header, point 5)
-  --no-eq          matrix only, no non-coincidence correction
+  --four-capsule   decode all four capsules with the matrix instead of rebuilding
+                   from ${PAIR.join(' and ')} (the default; header, point 5). Needs
+                   --out or --dry-run: it never writes over the files the app plays
+  --no-eq          no non-coincidence correction
   --dry-run        measure and report, write nothing
   --help
 
@@ -1213,9 +1244,9 @@ function main() {
         `   [estimate, not published by RØDE]`);
     console.log(`  correction         ${options.eq
         ? `ideal-tetrahedron model, capped at ±${MAX_CORRECTION_DB} dB` : 'DISABLED (--no-eq)'}`);
-    if (options.pair) {
-        console.log(`  build              from ${PAIR.join(' + ')} only; Y and Z diffuse after the direct sound`);
-    }
+    console.log(`  build              ${options.pair
+        ? `from ${PAIR.join(' + ')} only; Y and Z diffuse after the direct sound`
+        : 'all four capsules, matrix (--four-capsule)'}`);
     console.log(`  output             ${options.rate} Hz, 32-bit float, 4ch`);
     if (options.dryRun) console.log(`  dry run — nothing will be written`);
 
@@ -1270,8 +1301,8 @@ function summarize(results, options) {
 ${twoCapsule.length} position(s) carry only two capsules: ${CAPSULE_ORDER
             .filter(n => !PAIR.includes(n)).join(' and ')} are explained by ${PAIR.join(' and ')}
 to better than ${DEPENDENT_RESIDUAL_DB} dB. The matrix decodes those with one horizontal
-axis and pulls frontal sound toward -45°. --pair rebuilds them from the
-two capsules that were captured (header, point 5).`);
+axis and pulls frontal sound toward -45°. Without --four-capsule they are
+rebuilt from the two capsules that were captured (header, point 5).`);
     }
 
     const suspect = converted.filter(r => r.normalized.length);
@@ -1317,5 +1348,7 @@ module.exports = {
     readWav, matrixAtoB, designCorrection, convolve,
     resample, peak, db, fft, findPositions, ambisonicBlock,
     rebuildFromPair, directionOf, designDecorrelator, fftConvolve, chainLag,
+    residualDb, onsetOf, shiftSignal, parseArgs,
     CAPSULE_ORDER, CAPSULE_AXES, CAPSULE_RADIUS_M, PAIR,
+    DIRECT_WINDOW_MS, EARLY_DIFFUSE_GAIN_DB, EARLY_WINDOW_MS,
 };

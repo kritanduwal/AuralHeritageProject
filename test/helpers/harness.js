@@ -51,7 +51,7 @@ const EPILOGUE = `
     get landingViewBeforeDive() { return landingViewBeforeDive; },
 };
 ;globalThis.__consts = {
-    ROOMS, DECODED_VARIANTS, churchData, MissingResourceError, BUNDLED_SOURCE_FILES,
+    ROOMS, churchData, MissingResourceError, BUNDLED_SOURCE_FILES,
     netlogEntries, NETLOG_MAX_ENTRIES,
     DEFAULT_PANORAMA, PANORAMA_HFOV, DEFAULT_SOURCE_FILE, DEFAULT_ERROR_MESSAGE,
     DRY_GAIN_AT_FULL_WET, IR_CACHE_LIMIT, ctx, MIX_GLIDE,
@@ -518,15 +518,18 @@ function createApp(options = {}) {
         console: options.console || console,
         // Absent unless a test supplies one, as in a browser without the API
         ...(options.PerformanceObserver ? { PerformanceObserver: options.PerformanceObserver } : {}),
+        // Likewise: a test supplies its own clock and Resource Timing entries
+        ...(options.performance ? { performance: options.performance } : {}),
         Math, JSON, Object, Array, Promise, Map, Set, Number, String, Error,
         ArrayBuffer, DataView, Float32Array, Uint8Array,
         AudioContext: AudioContextStub,
         OfflineAudioContext: OfflineAudioContextStub,
         Blob: BlobStub,
-        URL: {
+        // A real URL to parse with, its blob statics replaced by recorders
+        URL: Object.assign(class extends URL {}, {
             createObjectURL(b) { const u = 'blob:' + objectUrls.created.length; objectUrls.created.push({ u, b }); return u; },
             revokeObjectURL(u) { objectUrls.revoked.push(u); },
-        },
+        }),
         Image: function () {
             const img = { onerror: null, onload: null };
             Object.defineProperty(img, 'src', {

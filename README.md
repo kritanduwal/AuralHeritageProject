@@ -40,19 +40,34 @@ as-is with no build command.
 ```
 14:02:31.118  GET 200  /IR/Cane Ridge Meeting House, KY/Normalized/Cane Ridge KY_R1-1.wav  1.4 MB  38 ms
 14:02:31.140  HEAD 404  /IR/Nowhere/missing-1.wav  -  2 ms  <-- not found
+14:02:35.402  GET 304  /Source Files/Clarinet.wav  not modified (cached)  1 ms
 ```
 
-Requests the browser abandons, such as a superseded impulse response, show as
-`aborted`. `LOG_REQUESTS=0 npm start` silences it.
+A `304` is the browser checking its cached copy and keeping it. Errors are
+named by their status (`<-- not found`, `<-- range not satisfiable`). Requests
+the browser abandons before they are answered, such as on a page reload, show
+as `aborted`. A superseded impulse response is not one of them: the app ignores
+its result, but the download itself runs to the end. `LOG_REQUESTS=0 npm start`
+silences the log.
 
 **Browser.** This works on any host, Netlify included. Add `?netlog` to the
 address (`/?netlog`, `/5?netlog`), or run `netlog(true)` in the console to
 switch it on and keep it on across visits; `netlog(false)` turns it off. Each
 request is logged as `[net] …`:
 
-- **`fetch` lines** are the app's own requests: impulse responses, B-format
-  files, source files, the availability probe and `/api/source-files`. They show
-  method, status, size and time. Failures appear as warnings, with the reason.
+- **The app's own requests** are labelled for what they are: `ir` (the stereo
+  impulse response pair), `bformat`, `source`, `probe` (the HEAD that checks a
+  position has a recording) and `api`. Anything else they fetch stays `fetch`.
+  Each line shows method, status, size and time. A download is timed to its
+  last byte, with the time to its first response beside it, and is marked
+  `from cache` when nothing crossed the network:
+
+  ```
+  [net] bformat 200 GET IR/…/Not Normalized/MIC_IN_R3-Bformat.wav 2.7 MB 640 ms — first response 40 ms
+  ```
+
+  Failures appear as warnings, with the reason, including a download that
+  breaks off partway.
 - **Other lines** are panoramas, map tiles, diagrams, scripts and fonts, taken
   from the browser's Resource Timing. They show size and time, plus status in
   browsers that report it, and are marked `from cache` when nothing crossed the
@@ -83,6 +98,7 @@ rather than copies of them.
 | `test/assets.test.js` | Every path in `ROOMS`, the markup and the CSS resolve to real files; the playback controls do not overlap; the rules that keep the page inside a narrow window are still there |
 | `test/speakers.test.js` | The loudspeaker stage behind `/5`: the decode, routing each speaker to a device output, soloing one speaker, and that a plain visit gets none of it |
 | `test/landing.test.js` | The landing map: church coordinates, the pins and how they split by zoom, the list, entering a church from either, and the animation that takes the landing away |
+| `test/tools.test.js` | The two-capsule rebuild in `tools/aformat-to-bformat.js`, on a synthetic room: the direct sound's B-format, the diffuse fill, realigning and turning round the pair, the decorrelators, and the default that keeps the four-capsule decode off the shipped files |
 | `test/helpers/harness.js` | The sandbox the other files use |
 
 ---
@@ -393,7 +409,9 @@ can do, so the image collapses to a line drawn between your ears.
 
 **Headphones** convolves the same mono wet signal against the four channels of
 that position's B-format impulse response, reassembles them into a first-order
-soundfield, and hands it to Omnitone to decode to binaural in the browser. Every
+soundfield, and hands it to Omnitone to decode to binaural in the browser. (The
+B-format is rebuilt from the two capsules that captured anything; see
+[Why the four-capsule decode leans 40° right](#why-the-four-capsule-decode-leans-40-right).) Every
 direction in the recorded soundfield reaches *both* ears with the delay, level
 difference and spectral shaping a head introduces — the cue stereo cannot supply,
 and what puts the church around you rather than inside your head. The dry signal
@@ -464,7 +482,8 @@ which was the whole audible difference between the two stages with the room
 dialled out.
 
 Measured as interaural cross-correlation over the first 80 ms, the standard proxy
-for how solid a centre image is:
+for how solid a centre image is. These figures date from the four-capsule decode
+and were not re-taken after the rebuild:
 
 | Church | Stereo | Trim on the whole stage | Now |
 | --- | --- | --- | --- |
@@ -491,15 +510,17 @@ response carries already — but it does mean the room turns around it.
 **It is stated per receiver, not per church**, and the spread inside one room is
 large:
 
-| Church | Front row | Back row | Spread |
+| Church | Nearest seat | Farthest seat | Spread |
 | --- | --- | --- | --- |
-| Basilica St. Francis | −18.7 dB (R1) | −4.0 dB (R4) | 14.7 dB |
-| St Augustine Isleta | −16.6 dB (R1) | −5.2 dB (R4) | 11.5 dB |
-| Monastery Immaculate Conception | −5.1 dB (R1) | +4.4 dB (R4) | 9.5 dB |
-| Cane Ridge Meeting House | −12.2 dB (R1) | +6.1 dB (R5) | 18.3 dB |
-| Our Lady of Guadalupe | −13.7 dB (R1) | −8.4 dB (R6) | 5.3 dB |
-| Church Street UMC | −7.1 dB (R1) | +1.9 dB (R4) | 9.0 dB |
-| First Presbyterian KY | −6.1 dB (R1) | −0.1 dB (R6) | 6.0 dB |
+| Basilica St. Francis | −8.8 dB (R1, 14 ft) | −0.9 dB (R8, 50 ft) | 7.9 dB |
+| St Augustine Isleta | −16.1 dB (R1, 15 ft) | −7.9 dB (R5, 90 ft) | 8.2 dB |
+| Monastery Immaculate Conception | −4.7 dB (R1, 13 ft) | +4.0 dB (R4, 72 ft) | 8.7 dB |
+| Cane Ridge Meeting House | −11.6 dB (R1, 9 ft) | +6.5 dB (R5, 42 ft) | 18.1 dB |
+| Our Lady of Guadalupe | −13.4 dB (R1, 12 ft) | −9.5 dB (R4, 55 ft) | 3.9 dB |
+| Church Street UMC | −7.6 dB (R1, 20 ft) | −0.1 dB (R4, 80 ft) | 7.5 dB |
+| First Presbyterian KY | −5.2 dB (R1, 17 ft) | −1.3 dB (R9, 48 ft) | 3.9 dB |
+
+Seats and distances are the ones `ChurchData.js` lists.
 
 Cane Ridge's spread is not distance. R5 and R6 want about +6 dB where every seat
 around them wants −2 to −12, so their originals arrive some 15 dB below the rest
@@ -513,8 +534,8 @@ position's stereo IR sits at full scale however far back it was recorded —
 **stereo does not get quieter as you move away from the source.** The unnormalized
 set was scaled by a single factor for the whole church, so it keeps the real level
 relationships between seats and does get quieter. The gap therefore grows with
-distance, and one figure per church cannot close a gap that changes by 14 dB
-across the room: averaging leaves the front rows loud enough to clip and the back
+distance, and one figure per church cannot close a gap that changes by 4–9 dB
+across the room, and by 18 at Cane Ridge: averaging leaves the front rows loud enough to clip and the back
 rows nearly inaudible, which is exactly what it did before these were measured per
 position.
 
@@ -695,7 +716,8 @@ directions are invalid, so it records whatever offset made a broken soundfield s
 least wrong — not where the array was facing. A set that decodes correctly cannot
 inherit it.
 
-Taking the active intensity vector `W·[X, Y, Z]` over the direct sound:
+Taking the active intensity vector `W·[X, Y, Z]` over the direct sound, with all
+four capsules decoded by the plain matrix:
 
 | Set | Direct-sound azimuth, by position |
 | --- | --- |
@@ -709,11 +731,12 @@ Taking the active intensity vector `W·[X, Y, Z]` over the direct sound:
 | Church Street UMC — originals | −41°, −42°, −34°, −34° |
 
 The published figures scatter over 97° and put the source *above* the array. The
-recovered sets agree to within a few degrees across every position, which is what
-one would hope from the same microphone on the same wiring, and is the decode
-working. The one exception is Our Lady of Guadalupe R6, which reads half a turn
-from its own church even at the first arrival; it is unexplained, and a single
-`soundfieldYaw` per set cannot correct one position.
+recovered sets agree to within a few degrees across every position, as the same
+microphone on the same wiring should. The shared −40° is not where the array
+faced. It is the [two missing capsules](#why-the-four-capsule-decode-leans-40-right),
+which the files the app now plays are rebuilt around: in those, the direct sound
+reads 0° at every seat. The one exception above, Our Lady of Guadalupe R6, is an
+array that faced away from the source, and the rebuild turns it round.
 
 Read the azimuth at the *first arrival*, not at the loudest sample. At the Cane
 Ridge balcony and First Presbyterian R6 the loudest peak is a floor reflection a
@@ -726,15 +749,23 @@ set. That is not a cosmetic error: it renders the source **behind** the listener
 and behind you the lateral motion runs backwards — drag the view left and the
 source moves further left instead of handing over to the right ear. Every
 recovered set therefore carries `soundfieldYaw: 0`, stated rather than omitted.
-The first three were confirmed by ear; the four added since rest on the
-measurement alone until they are.
+Three were confirmed by ear against the four-capsule decode. The rebuilt files
+have not been confirmed by ear yet at any church.
 
 `soundfieldYawOf()` in `Rooms.js` resolves it, falling back to the church where a
-recovered set agrees. The measurement narrows the answer to one of two; only
-listening settles it, so check by ear for each set you add — turn the view and
-confirm a source crosses to the *opposite* ear rather than following you.
+recovered set agrees.
 
-### Why the originals lean 40° right
+**Only listening can check it now.** The rebuild places the direct sound at 0° by
+construction, and turns round any seat whose array faced away, so measuring the
+rebuilt files reads 0° whether or not their front matches the panorama's. A set
+half a turn out would still measure perfectly, and would play the source behind
+you. So check by ear for each set you add: turn the view and confirm a source
+crosses to the *opposite* ear rather than following you.
+
+### Why the four-capsule decode leans 40° right
+
+The full investigation, and how the rebuild works, is in
+[docs/binaural-balance.md](docs/binaural-balance.md). In short:
 
 The four capsules are not level-matched. Over the reverberant tail, which is
 diffuse and so should read nearly equal on all four, channels 3 and 6 (`FLU`,
@@ -772,18 +803,29 @@ Two sets carry one more fault each:
 - **Our Lady of Guadalupe R6** has `BLD` over `FRD` in the direct sound: the
   array faced away from the source. This is the "136°" in the table above.
 
-Nothing on `/` compensates for any of this. The rebuild from the two capsules
-that were captured is behind [`/binauralFix1`](#the-rebuilt-render-behind-binauralfix1).
+**So the headphone render does not decode all four capsules.** Its B-format is
+rebuilt from `FRD` and `BLD` alone, which is what `aformat-to-bformat.js` does by
+default:
+
+- `W` is their sum. `X` is their difference, the measured figure-8, turned from
+  the diagonal onto front/back.
+- The direct sound is placed exactly ahead: `Y` and `Z` are silent for its first
+  2.5 ms, and its `X` is raised by √2 to undo the 45° projection.
+- After the direct sound, `Y` and `Z` carry the figure-8 through two unrelated
+  decorrelators. That gives a diffuse field, with the energy a reverberant room
+  has and no direction; it runs 2 dB higher through the first 80 ms.
+- St Francis's `BLD` is realigned, and Guadalupe R6 is turned round.
+
+Through Omnitone the ears now balance to within 0.5 dB at all 47 seats. The
+cost is that early reflections have no left/right direction. They never had a
+measured one, but the four-capsule decode handed them a false one.
 
 ---
 
 ## Feature flags
 
-**Two features are gated today.** `/5` adds loudspeaker playback of the B-format;
-see [Speakers](#speakers-behind-5). `/binauralFix1` swaps the headphone render
-onto the B-format rebuilt from two capsules; see
-[The rebuilt render](#the-rebuilt-render-behind-binauralfix1). Everything else
-ships to every visitor. Flag names are matched without regard to case. The
+**One feature is gated today: `/5`**, loudspeaker playback of the B-format — see
+[Speakers](#speakers-behind-5). Everything else ships to every visitor. The
 mechanism reads optional features out of the address, so a build can be shared
 without a separate deployment. To put another behind a flag, three declarations:
 
@@ -874,73 +916,12 @@ Things to know before relying on it:
   four B-format convolvers: the same seven churches. It does not need Omnitone,
   which only the binaural decode uses, so a CDN that failed costs the
   headphones and leaves the speakers.
+- **It plays the rebuilt B-format**, as the headphones do, so the same limits
+  apply: after the direct sound, the side and height channels are a diffuse
+  fill, and early reflections reach the speakers with no left/right direction.
+  See [Why the four-capsule decode leans 40° right](#why-the-four-capsule-decode-leans-40-right).
 - **The offline render does not carry it.** `downloadConvolvedAudio()` writes
   stereo while Speakers is on.
-
-### The rebuilt render (behind `/binauralFix1`)
-
-At `/binauralFix1` (or `?binauralFix1`), the headphone render decodes a B-format
-rebuilt from the two capsules the recovered sets actually captured, in place of
-the four-capsule decode that [leans 40° right](#why-the-originals-lean-40-right).
-Nothing else changes: stereo, the controls and the dry path are as on `/`, and a
-plain visit plays exactly what it did before the flag existed.
-
-```
-IR/<Church>/Not Normalized/<stem>-Bformat.wav                 the original decode, on /
-IR/<Church>/Not Normalized/binauralFix1/<stem>-Bformat.wav    the rebuild, on /binauralFix1
-```
-
-Same file names, one folder down, so the engine is untouched: `decodedSourceOf()`
-in `Rooms.js` points the set at the subfolder while the flag is on, and takes
-the trims from that set's `binauralFix1` block, since the rebuild sits at a level
-of its own. `DECODED_VARIANTS` lists the variants; another one is a folder, a
-block per set, and a flag.
-
-**What the rebuild does** (`aformat-to-bformat.js --pair`):
-
-- **W** is `FRD + BLD`. **X** is the measured figure-8, `√(3/2)·(FRD − BLD)`,
-  turned from the diagonal onto front/back so a frontal source decodes frontal.
-- **The direct sound's X is raised by √2.** A frontal source reaches the
-  diagonal axis at cos 45° of its strength, and the source is known to be in
-  front. Without it the image is narrower and head tracking barely moves it.
-  The boost is on the direct sound only: in a diffuse field every axis carries
-  the same energy, so the tail needs no correction.
-- **Y and Z are silent through the direct sound**, which therefore decodes
-  straight ahead and level. After it they carry the measured figure-8 through
-  two unrelated decorrelators: a diffuse field, with the energy a reverberant
-  room has and no direction. Through the first 80 ms they run 2 dB above it,
-  because early on the measured axis is quiet against W and filling Y at its
-  level left the early field narrower than the four-capsule decode. **That 2 dB
-  is set by ear, not measured**, since these files hold no early lateral
-  energy to measure.
-- St Francis's `BLD` is shifted back into line, and Guadalupe R6 is turned
-  round.
-
-**Measured against `/`**, through Omnitone's own decode, at Monastery R3, St
-Francis R4, Cane Ridge R2 and Isleta R3:
-
-| | `/` | `/binauralFix1` |
-| --- | --- | --- |
-| Ear balance, direct sound (R − L) | +2 to +6.5 dB | 0 dB |
-| Horizontal directivity, direct sound (vs W) | −5.6 to −7.5 dB | −5.7 to −9 dB |
-| Lateral energy (Y), 2.5–80 ms (vs W) | −7.0 to −8.5 dB | −6.9 to −7.7 dB |
-| Interaural correlation, 2.5–80 ms | 0.54–0.68 | 0.57–0.62 |
-
-Head tracking turns about as much as it does on `/`, and the early field is as
-wide, without the lean. Ear balance stays within ±0.4 dB across all 47 seats.
-
-**What it gives up.** Early reflections have no left/right direction. They
-were never in the files, but on `/` the broken decode handed them a false one,
-which counted as width. Like every recovered set, the front should be confirmed
-by ear: turn the view and the source should cross to the opposite ear.
-
-At `/5/binauralFix1` the speaker decode reads the rebuilt files too, since it
-taps the same convolvers.
-
-```bash
-node tools/aformat-to-bformat.js --pair --gain auto --out "IR/<Church>/Not Normalized/binauralFix1" "IR/<Church>/Not Normalized"
-node tools/measure-loudness.js --variant binauralFix1 --write
-```
 
 ---
 
@@ -988,7 +969,11 @@ Where the un-normalized originals of a church already in the table are recovered
    node tools/aformat-to-bformat.js --dry-run "IR/<Church Name>/Not Normalized"
    ```
 2. **Derive** the B-format beside them. `--gain auto` is not optional here: the
-   originals sit far too low to be heard without it.
+   originals sit far too low to be heard without it. The tool rebuilds from the
+   two capsules that captured anything, as every set in the library needs. Only
+   if the dry run above shows all four capsules independent should you decode
+   them all with `--four-capsule`: its report gives how much of `FLU` and `BRU`
+   the pair explains, and about −3 dB means independent.
 
    ```bash
    node tools/aformat-to-bformat.js --gain auto "IR/<Church Name>/Not Normalized"
