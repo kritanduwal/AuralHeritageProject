@@ -1,8 +1,9 @@
 /**
  * Which optional playback features this visit has access to.
  *
- * One is gated today: /5, loudspeaker playback of the B-format. To put another
- * feature behind an address:
+ * Two are gated today: /5, loudspeaker playback of the B-format, and
+ * /binauralFix1, the rebuilt headphone render. To put another feature behind
+ * an address:
  *
  *   1. add its name to FEATURE_NAMES below
  *   2. list the controls it reveals in FEATURE_CONTROLS (App.js), and mark any
@@ -23,9 +24,16 @@
 /**
  * Feature names that can be switched on, and what each reveals.
  *
- *   5 — the Speakers toggle and its output routing (SpeakerOutput.js)
+ *   5            — the Speakers toggle and its output routing (SpeakerOutput.js)
+ *   binauralFix1 — the headphone render decodes the B-format rebuilt from the
+ *                  two capsules the recovered sets captured, in place of the
+ *                  four-capsule decode that leans 40° right. No controls; it
+ *                  changes which files the render reads (decodedSourceOf in
+ *                  Rooms.js)
+ *
+ * Matched without regard to case, so a name can be spelled the way it reads.
  */
-const FEATURE_NAMES = ['5'];
+const FEATURE_NAMES = ['5', 'binauralFix1'];
 
 /**
  * Features that carry others with them, e.g. { full: ['basic'] }. Empty today;
@@ -46,8 +54,9 @@ function readFeatures(location) {
 
     const enabled = {};
     for (const name of FEATURE_NAMES) {
-        enabled[name] = segments.includes(name) ||
-            new RegExp('[?&]' + name + '(=|&|$)').test(query);
+        const key = name.toLowerCase();
+        enabled[name] = segments.includes(key) ||
+            new RegExp('[?&]' + key + '(=|&|$)').test(query);
     }
     return enabled;
 }

@@ -51,7 +51,7 @@ const EPILOGUE = `
     get landingViewBeforeDive() { return landingViewBeforeDive; },
 };
 ;globalThis.__consts = {
-    ROOMS, churchData, MissingResourceError, BUNDLED_SOURCE_FILES,
+    ROOMS, DECODED_VARIANTS, churchData, MissingResourceError, BUNDLED_SOURCE_FILES,
     netlogEntries, NETLOG_MAX_ENTRIES,
     DEFAULT_PANORAMA, PANORAMA_HFOV, DEFAULT_SOURCE_FILE, DEFAULT_ERROR_MESSAGE,
     DRY_GAIN_AT_FULL_WET, IR_CACHE_LIMIT, ctx, MIX_GLIDE,

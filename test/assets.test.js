@@ -425,6 +425,21 @@ test('a recovered church has the B-format the headphone render decodes', () => {
     assert.deepEqual(missing, [], 'originals referenced by ROOMS but not present');
 });
 
+test('/binauralFix1 has its rebuilt B-format at every recovered receiver', () => {
+    // Same failure as above, but only at the flagged address, where nobody
+    // checking / would notice it
+    const fixed = createApp({ path: '/binauralFix1' });
+    const missing = [];
+    for (const key of withOriginals) {
+        for (const rid of receiversOf(key)) {
+            const url = fixed.g.decodedResponseBase(ROOMS[key], rid) + 'Bformat.wav';
+            assert.ok(url.includes('/binauralFix1/'), `${key} ${rid}: ${url}`);
+            if (!existsExactly(url)) missing.push(url);
+        }
+    }
+    assert.deepEqual(missing, [], 'rebuilt files referenced by ROOMS but not present');
+});
+
 test('a church without originals offers no decoded base at all', () => {
     // Those capsules were each peak-normalized, so a decode would be wrong
     for (const key of roomKeys.filter(k => !ROOMS[k].unnormalized)) {

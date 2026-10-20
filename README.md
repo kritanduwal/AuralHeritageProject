@@ -734,29 +734,56 @@ recovered set agrees. The measurement narrows the answer to one of two; only
 listening settles it, so check by ear for each set you add — turn the view and
 confirm a source crosses to the *opposite* ear rather than following you.
 
-### One thing the originals do not settle
+### Why the originals lean 40° right
 
-The four capsules are not level-matched. Over the reverberant tail — which is
-diffuse, and so should read nearly equal on all four — they spread **16.7 dB**,
-with channels 3 and 6 some 15 dB below 4 and 5. A coincident tetrahedral array
-cannot do that; on-axis to one capsule is worth about 9.5 dB even for the direct
-sound, and the tail should be flatter still.
+The four capsules are not level-matched. Over the reverberant tail, which is
+diffuse and so should read nearly equal on all four, channels 3 and 6 (`FLU`,
+`BRU`) sit 12–14 dB below 4 and 5 (`FRD`, `BLD`), in all seven churches.
 
-That imbalance, not the room, is likely what puts the measured direction at −39°
-azimuth and −39° elevation — within a few degrees of the `FRD` capsule axis
-itself, `(1, −1, −1)`. Two candidates, and the files cannot distinguish them: the
-capsules were recorded at unequal gain, or `CAPSULE_ORDER` in
-`aformat-to-bformat.js` does not match how this session was wired. Resolving it
-needs the session notes, which is exactly what that script's header warns about.
-Nothing here compensates for it, because compensating on a guess would bake a
-second unknown into the output.
+The level is the smaller problem. **Channels 3 and 6 carry nothing of their
+own.** Regressed onto channels 4 and 5 over the tail, they leave 20–25 dB of
+residual, where an independent cardioid would leave about 3. The mix is the same
+in every church (`FLU ≈ 0.12·FRD + 0.09·BLD`, `BRU ≈ 0.05·FRD + 0.12·BLD`), so it
+is one fault in the recording chain for the whole tour, not anything about the
+rooms. The capsules' correlation matrix has eigenvalues of about
+`[3.65, 0.35, 0, 0]`, where four working capsules give `[3.0, 0.33, 0.33, 0.33]`.
+Correlations do not depend on gain or capsule order, so neither of the earlier
+candidates, unequal gain or a wrong `CAPSULE_ORDER`, can produce this.
+
+Two opposite cardioids measure an omni and one figure-8, here along the
+front-right/back-left diagonal. The four-capsule matrix keeps that axis where it
+lies and projects every frontal sound onto it, so the source reads at −40°, and
+the down-tilt of both capsules reads as −39° elevation. That is a missing axis,
+not a rotation: turning the soundfield back by 40° would not balance it.
+Through Omnitone's decode the right ear runs 2–6.5 dB louder on the direct sound,
+and 0.5–1.8 dB louder in the tail, at nearly every seat.
+
+The direct sound itself agrees the source is in front. `FRD` sits 3–12 dB over
+`BLD`, where a frontal source gives 11.4 dB and a source on the −45° diagonal
+would give about 20.
+
+Two sets carry one more fault each:
+
+- **Basilica St. Francis.** `BLD` is shifted in time against `FRD`, by 7–20
+  samples at most seats and by 12–19 ms at R5–R7. The leak in channels 3 and 6
+  carries `BLD`'s original timing, and once `BLD` is shifted back it explains
+  them to −20 to −26 dB, as everywhere else. So the shift is in the file, not
+  the room.
+- **Our Lady of Guadalupe R6** has `BLD` over `FRD` in the direct sound: the
+  array faced away from the source. This is the "136°" in the table above.
+
+Nothing on `/` compensates for any of this. The rebuild from the two capsules
+that were captured is behind [`/binauralFix1`](#the-rebuilt-render-behind-binauralfix1).
 
 ---
 
 ## Feature flags
 
-**One feature is gated today: `/5`**, loudspeaker playback of the B-format — see
-[Speakers](#speakers-behind-5). Everything else ships to every visitor. The
+**Two features are gated today.** `/5` adds loudspeaker playback of the B-format;
+see [Speakers](#speakers-behind-5). `/binauralFix1` swaps the headphone render
+onto the B-format rebuilt from two capsules; see
+[The rebuilt render](#the-rebuilt-render-behind-binauralfix1). Everything else
+ships to every visitor. Flag names are matched without regard to case. The
 mechanism reads optional features out of the address, so a build can be shared
 without a separate deployment. To put another behind a flag, three declarations:
 
@@ -849,6 +876,71 @@ Things to know before relying on it:
   headphones and leaves the speakers.
 - **The offline render does not carry it.** `downloadConvolvedAudio()` writes
   stereo while Speakers is on.
+
+### The rebuilt render (behind `/binauralFix1`)
+
+At `/binauralFix1` (or `?binauralFix1`), the headphone render decodes a B-format
+rebuilt from the two capsules the recovered sets actually captured, in place of
+the four-capsule decode that [leans 40° right](#why-the-originals-lean-40-right).
+Nothing else changes: stereo, the controls and the dry path are as on `/`, and a
+plain visit plays exactly what it did before the flag existed.
+
+```
+IR/<Church>/Not Normalized/<stem>-Bformat.wav                 the original decode, on /
+IR/<Church>/Not Normalized/binauralFix1/<stem>-Bformat.wav    the rebuild, on /binauralFix1
+```
+
+Same file names, one folder down, so the engine is untouched: `decodedSourceOf()`
+in `Rooms.js` points the set at the subfolder while the flag is on, and takes
+the trims from that set's `binauralFix1` block, since the rebuild sits at a level
+of its own. `DECODED_VARIANTS` lists the variants; another one is a folder, a
+block per set, and a flag.
+
+**What the rebuild does** (`aformat-to-bformat.js --pair`):
+
+- **W** is `FRD + BLD`. **X** is the measured figure-8, `√(3/2)·(FRD − BLD)`,
+  turned from the diagonal onto front/back so a frontal source decodes frontal.
+- **The direct sound's X is raised by √2.** A frontal source reaches the
+  diagonal axis at cos 45° of its strength, and the source is known to be in
+  front. Without it the image is narrower and head tracking barely moves it.
+  The boost is on the direct sound only: in a diffuse field every axis carries
+  the same energy, so the tail needs no correction.
+- **Y and Z are silent through the direct sound**, which therefore decodes
+  straight ahead and level. After it they carry the measured figure-8 through
+  two unrelated decorrelators: a diffuse field, with the energy a reverberant
+  room has and no direction. Through the first 80 ms they run 2 dB above it,
+  because early on the measured axis is quiet against W and filling Y at its
+  level left the early field narrower than the four-capsule decode. **That 2 dB
+  is set by ear, not measured**, since these files hold no early lateral
+  energy to measure.
+- St Francis's `BLD` is shifted back into line, and Guadalupe R6 is turned
+  round.
+
+**Measured against `/`**, through Omnitone's own decode, at Monastery R3, St
+Francis R4, Cane Ridge R2 and Isleta R3:
+
+| | `/` | `/binauralFix1` |
+| --- | --- | --- |
+| Ear balance, direct sound (R − L) | +2 to +6.5 dB | 0 dB |
+| Horizontal directivity, direct sound (vs W) | −5.6 to −7.5 dB | −5.7 to −9 dB |
+| Lateral energy (Y), 2.5–80 ms (vs W) | −7.0 to −8.5 dB | −6.9 to −7.7 dB |
+| Interaural correlation, 2.5–80 ms | 0.54–0.68 | 0.57–0.62 |
+
+Head tracking turns about as much as it does on `/`, and the early field is as
+wide, without the lean. Ear balance stays within ±0.4 dB across all 47 seats.
+
+**What it gives up.** Early reflections have no left/right direction. They
+were never in the files, but on `/` the broken decode handed them a false one,
+which counted as width. Like every recovered set, the front should be confirmed
+by ear: turn the view and the source should cross to the opposite ear.
+
+At `/5/binauralFix1` the speaker decode reads the rebuilt files too, since it
+taps the same convolvers.
+
+```bash
+node tools/aformat-to-bformat.js --pair --gain auto --out "IR/<Church>/Not Normalized/binauralFix1" "IR/<Church>/Not Normalized"
+node tools/measure-loudness.js --variant binauralFix1 --write
+```
 
 ---
 

@@ -79,7 +79,7 @@ app.use(express.static(path.join(__dirname)));
  * A flag added to FEATURE_NAMES wants its path here and a matching redirect
  * in netlify.toml.
  */
-const FEATURE_PATHS = ['/5'];
+const FEATURE_PATHS = ['/5', '/binauralFix1'];
 
 if (FEATURE_PATHS.length) {
     app.get(FEATURE_PATHS, (req, res) => {
