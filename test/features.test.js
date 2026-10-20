@@ -2,9 +2,9 @@
 /**
  * Features.js — the URL feature flags, and the controls each one reveals.
  *
- * One feature is gated today, /5. The suite declares flags of its own to keep
- * the mechanism covered independently of it, then checks that the shipped
- * roster is exactly that one and nothing else has been left half-gated.
+ * Two features are gated today, /5 and /binauralFix1. The suite declares flags
+ * of its own to keep the mechanism covered independently of them, then checks
+ * that the shipped roster is exactly those and nothing is left half-gated.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -157,9 +157,11 @@ test('help text describing a hidden feature is hidden with it', () => {
 /** Everything /5 reveals */
 const SPEAKER_CONTROLS = ['speakers', 'speaker-routing'];
 
-test('the roster is one flag, and it gates the speaker controls alone', () => {
+test('the roster is two flags, and only /5 gates controls', () => {
+    // /binauralFix1 changes which files the headphone render reads; it has no
+    // control of its own to reveal
     const app = createApp();
-    assert.deepEqual(plain(app.data.FEATURE_NAMES), ['5']);
+    assert.deepEqual(plain(app.data.FEATURE_NAMES), ['5', 'binauralFix1']);
     assert.deepEqual(plain(app.data.FEATURE_CONTROLS), { '5': SPEAKER_CONTROLS });
     assert.deepEqual(plain(app.data.FEATURE_IMPLIES), {});
 });
@@ -186,6 +188,19 @@ test('/5 reveals the speaker controls, by path or by query', () => {
             assert.ok(!hidden(app, id), `${id} should come with ${JSON.stringify(where)}`);
         }
     }
+});
+
+test('/binauralFix1 is read whatever its case, by path or by query', () => {
+    // The address is lowercased before it is read, so a mixed-case name has to
+    // be lowercased too or it can never match
+    for (const [pathname, search] of [
+        ['/binauralFix1', ''], ['/binauralfix1', ''], ['/BINAURALFIX1', ''],
+        ['/', '?binauralFix1'], ['/', '?binauralfix1'],
+    ]) {
+        assert.equal(flagsFor(app0, pathname, search).binauralFix1, true, `${pathname}${search}`);
+    }
+    assert.equal(flagsFor(app0, '/').binauralFix1, false, 'a plain visit stays on the original render');
+    assert.equal(flagsFor(app0, '/binauralFix12').binauralFix1, false, 'whole segments only');
 });
 
 test('a number elsewhere in the address does not switch /5 on', () => {

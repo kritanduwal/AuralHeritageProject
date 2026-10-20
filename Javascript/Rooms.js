@@ -36,6 +36,12 @@
  *            Corrected here rather than in the files, which would destroy the
  *            between-seat relationships the set exists for. Derived by
  *            tools/measure-loudness.js --write.
+ *
+ *     binauralFix1  { trim } — the rebuild from the two capsules the set
+ *            actually captured (tools/aformat-to-bformat.js --pair), played
+ *            instead at /binauralFix1. Its files are in a binauralFix1/
+ *            subfolder of the set; see DECODED_VARIANTS. Derived by
+ *            tools/measure-loudness.js --variant binauralFix1 --write.
  * receivers[id].pitch / .yaw
  *     pannellum lookAt() angles in degrees, zeroes spelled out so a
  *     straight-ahead view reads as a decision rather than a missing value.
@@ -116,6 +122,9 @@ const ROOMS = {
             // Direct sound at -34 to -42° across all four, as the recovered
             // sets elsewhere; the half turn would put the source behind.
             soundfieldYaw: 0,
+            binauralFix1: {
+                trim: { ambisonic: { R1: -7.6, R2: -2.5, R3: -1.1, R4: -0.1 } },
+            },
         },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
@@ -135,6 +144,9 @@ const ROOMS = {
             // Direct sound at -35 to -41° across all nine, taken at the first
             // arrival: the balcony's loudest peak is the floor reflection.
             soundfieldYaw: 0,
+            binauralFix1: {
+                trim: { ambisonic: { R1: -11.6, R2: -9, R3: -8.2, R4: -8.3, R5: 6.5, R6: 6.6, R7: -6.1, R8: -2, R9: -3.6 } },
+            },
         },
         receivers: {
             R1: { pitch:   0, yaw: 4 },
@@ -158,6 +170,9 @@ const ROOMS = {
             trim: { ambisonic: { R1: -6.1, R2: -3.7, R3: -2.5, R4: -4, R5: -1.2, R6: -0.1, R7: -4.7, R8: -2.2, R9: -1.8 } },
             // Direct sound at -40 to -44° across all nine, as above.
             soundfieldYaw: 0,
+            binauralFix1: {
+                trim: { ambisonic: { R1: -5.2, R2: -2.8, R3: -2.1, R4: -3.4, R5: -0.7, R6: 0.2, R7: -3.6, R8: -1.7, R9: -1.3 } },
+            },
         },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
@@ -182,6 +197,9 @@ const ROOMS = {
             // Direct sound at -39 to -43° across all eight: the fronts already
             // agree. Confirmed by ear.
             soundfieldYaw: 0,
+            binauralFix1: {
+                trim: { ambisonic: { R1: -8.8, R2: -4.6, R3: -2.5, R4: -1.9, R5: -1.3, R6: -0.4, R7: -1.3, R8: -0.9 } },
+            },
         },
         receivers: {
             R1: { pitch:   0, yaw: 1 },
@@ -207,6 +225,9 @@ const ROOMS = {
             // church's half turn on top would put the source behind the
             // listener, where lateral motion runs backwards.
             soundfieldYaw: 0,
+            binauralFix1: {
+                trim: { ambisonic: { R1: -4.7, R2: 1.5, R3: 3, R4: 4, R5: 2, R6: 3 } },
+            },
         },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
@@ -228,6 +249,9 @@ const ROOMS = {
             // Direct sound at -37 to -41° at R1–R5. R6 reads 136° even at the
             // first arrival, half a turn from the rest; not confirmed by ear.
             soundfieldYaw: 0,
+            binauralFix1: {
+                trim: { ambisonic: { R1: -13.4, R2: -10.4, R3: -10.6, R4: -9.5, R5: -9.6, R6: -8.1 } },
+            },
         },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
@@ -248,6 +272,9 @@ const ROOMS = {
             trim: { ambisonic: { R1: -16.3, R2: -11.5, R3: -10.5, R4: -8.8, R5: -7.8 } },
             // Direct sound at -40 to -41° across all five, as above.
             soundfieldYaw: 0,
+            binauralFix1: {
+                trim: { ambisonic: { R1: -16.1, R2: -11.2, R3: -10.4, R4: -8.2, R5: -7.9 } },
+            },
         },
         receivers: {
             R1: { pitch: 0, yaw: 0 },
@@ -271,7 +298,31 @@ function receiverIdOf(elementId) {
  * spatial, point sound in directions nobody recorded, and not sound broken.
  */
 function decodedSourceOf(config) {
-    return config.unnormalized || null;
+    const decoded = config.unnormalized;
+    if (!decoded) return null;
+
+    const variant = DECODED_VARIANTS.find(name => decoded[name] && variantEnabled(name));
+    if (!variant) return decoded;
+
+    // Same names one folder down, and the variant's own trims and orientation
+    return {
+        ...decoded,
+        ...decoded[variant],
+        ir: { ...decoded.ir, dir: `${decoded.ir.dir}/${variant}` },
+    };
+}
+
+/**
+ * Rebuilt B-format sets, each behind the feature flag of the same name. A
+ * variant's files sit in a subfolder of that name inside the recovered set,
+ * under the same file names; its entry carries its own trims, since its level
+ * is its own. Without the flag the set plays exactly as it always has.
+ */
+const DECODED_VARIANTS = ['binauralFix1'];
+
+/** Read live, and false where Features.js is absent (the offline tools) */
+function variantEnabled(name) {
+    return typeof featureEnabled === 'function' && featureEnabled(name);
 }
 
 /**

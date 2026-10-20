@@ -17,6 +17,7 @@
  *
  *   node tools/measure-loudness.js --dry-run
  *   node tools/measure-loudness.js --write
+ *   node tools/measure-loudness.js --variant binauralFix1 --write
  *
  * Loudness is ITU-R BS.1770 / EBU R128 integrated LUFS: K-weighting, mean
  * square per channel, the -70 LUFS absolute gate and the -10 LU relative gate.
@@ -516,9 +517,10 @@ function receiverOf(stem) {
  * source is a fact about the room, so both sets of its files carry it.
  */
 /** The trim Rooms.js holds for a position today, or null where it has none */
-function storedTrimDb(rooms, dir, stem) {
+function storedTrimDb(rooms, dir, stem, variant = null) {
     const found = setFor(rooms, dir);
-    const trims = found && found.source.trim && found.source.trim.ambisonic;
+    const owner = found && (variant ? found.source[variant] : found.source);
+    const trims = owner && owner.trim && owner.trim.ambisonic;
     const db = trims && trims[receiverOf(stem)];
     return Number.isFinite(db) ? db : null;
 }
@@ -538,8 +540,11 @@ function gainDbFor(rooms, dir, stem) {
  * and each is found the same way: locate the `ir:` line naming that set's
  * directory, then take the first `trim:` line below it. Only sets that were
  * actually measured in this run are touched.
+ *
+ * With a variant, the line rewritten is the one inside that variant's block,
+ * `binauralFix1: { trim: … }`, rather than the set's own.
  */
-function writeTrims(rooms, suggested) {
+function writeTrims(rooms, suggested, variant = null) {
     const file = path.join(__dirname, '..', 'Javascript', 'Rooms.js');
     const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
     const written = [];
@@ -564,9 +569,14 @@ function writeTrims(rooms, suggested) {
         const irLine = lines.findIndex(l => l.includes('ir:') && l.includes(source.ir.dir));
         if (irLine < 0) continue;
 
-        const trimLine = lines.findIndex((l, i) =>
-            i > irLine && l.trimStart().startsWith('trim:'));
         const nextChurch = lines.findIndex((l, i) => i > irLine && /^\s{4}\w+: \{/.test(l));
+        const blockLine = variant
+            ? lines.findIndex((l, i) => i > irLine && l.trimStart().startsWith(variant + ':'))
+            : irLine;
+        if (blockLine < 0 || (nextChurch >= 0 && blockLine > nextChurch)) continue;
+
+        const trimLine = lines.findIndex((l, i) =>
+            i > blockLine && l.trimStart().startsWith('trim:'));
         if (trimLine < 0 || (nextChurch >= 0 && trimLine > nextChurch)) continue;
 
         // Everything up to the brace is kept as found, so a line is rewritten
@@ -576,7 +586,8 @@ function writeTrims(rooms, suggested) {
         const levels = Object.entries(trims.ambisonic)
             .map(([receiver, db]) => `${receiver}: ${round(db)}`).join(', ');
         lines[trimLine] = `${prefix}{ ambisonic: { ${levels} } },`;
-        written.push(`${key.padEnd(34)} ${Object.keys(trims.ambisonic).length} position(s)`);
+        const label = variant ? `${key}.${variant}` : key;
+        written.push(`${label.padEnd(34)} ${Object.keys(trims.ambisonic).length} position(s)`);
     }
 
     fs.writeFileSync(file, lines.join('\r\n'));
@@ -588,7 +599,7 @@ function writeTrims(rooms, suggested) {
 function parseArgs(argv) {
     const options = {
         dirs: [], sources: [], seconds: null,
-        write: false, positions: 0, pink: false,
+        write: false, positions: 0, pink: false, variant: null,
     };
     for (let i = 0; i < argv.length; i++) {
         const arg = argv[i];
@@ -597,6 +608,7 @@ function parseArgs(argv) {
         else if (arg === '--positions') options.positions = Number(argv[++i]);
         else if (arg === '--pink') options.pink = true;
         else if (arg === '--write') options.write = true;
+        else if (arg === '--variant') options.variant = argv[++i];
         else if (arg === '--dry-run') options.write = false;
         else if (arg === '--help' || arg === '-h') options.help = true;
         else if (arg.startsWith('--')) throw new Error(`unknown option ${arg}`);
@@ -631,6 +643,9 @@ Measure the headphone render's loudness and derive the trim that matches it to s
                      report each trim against the one stored in Rooms.js.
                      Fast and repeatable; cannot be used with --write
   --positions <n>    measure only the first n positions per set (0 = all)
+  --variant <name>   measure a rebuilt set instead: the B-format in the <name>/
+                     subfolder of each recovered set, against the trims in its
+                     <name> block in Rooms.js (e.g. binauralFix1)
   --write            update the trim values in Rooms.js
   --dry-run          report only (default)
   --help
@@ -714,7 +729,7 @@ function main() {
             const block = ambisonicBlock(channels);
             if (!block) continue;
             const base = path.join(publishedDir, stem + '-');
-            const decodedBase = path.join(dir, stem + '-');
+            const decodedBase = path.join(dir, options.variant || '', stem + '-');
             let ir;
             try {
                 ir = loadPosition(base, decodedBase);
@@ -766,7 +781,7 @@ function main() {
 
             rows.push({
                 stem, receiver: receiverOf(stem), trim, wanted, residuals, peak,
-                stored: storedTrimDb(rooms, dir, stem),
+                stored: storedTrimDb(rooms, dir, stem, options.variant),
             });
         }
 
@@ -777,7 +792,7 @@ function main() {
 
     const suggested = summarize(perChurch, options);
     if (options.write) {
-        const written = writeTrims(rooms, suggested);
+        const written = writeTrims(rooms, suggested, options.variant);
         console.log(`\nWrote ${written.length} trim row(s) into Rooms.js:`);
         for (const row of written) console.log('  ' + row);
     }

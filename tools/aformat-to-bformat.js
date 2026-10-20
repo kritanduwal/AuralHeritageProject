@@ -45,6 +45,18 @@
  *      directions are not the measured ones. The script tests for this and says
  *      so loudly. See "Why not an ambisonic decode" in README.md.
  *
+ *   5. ONLY TWO CAPSULES WERE CAPTURED. Across every recovered set, channels
+ *      3 and 6 (FLU, BRU) are an attenuated mix of channels 4 and 5 (FRD, BLD):
+ *      regressed onto that pair over the diffuse tail they leave 20–25 dB of
+ *      residual, where an independent cardioid would leave about 3. Four
+ *      matched cardioids span four dimensions; these span two. The matrix then
+ *      sees one horizontal axis, FRD−BLD at −45°, projects every frontal
+ *      sound onto it, and reads the source at −40°. That is a missing axis,
+ *      not a rotation, so no yaw offset fixes it. --pair rebuilds the
+ *      B-format from the two capsules that were captured — see
+ *      rebuildFromPair(). The report prints how much of FLU and BRU the pair
+ *      explains at every position, in either mode.
+ *
  * @author Kritan Duwal
  */
 
@@ -149,6 +161,54 @@ const NORMALIZED_PEAK_EPSILON = 1e-4;
  * anchoring to the same place keeps the figure meaningful if one ever is.
  */
 const SET_GAIN_TARGET_PEAK_DB = 0;
+
+/**
+ * The two capsules --pair rebuilds from: the pair the library actually
+ * captured. They face opposite ways, so their difference is a figure-8 along
+ * the FR–BL horizontal diagonal and their sum is nearly omni.
+ */
+const PAIR = ['FRD', 'BLD'];
+
+/**
+ * A capsule explained by the pair to better than this, over the diffuse tail,
+ * carries nothing of its own. An independent cardioid sits near −3 dB.
+ */
+const DEPENDENT_RESIDUAL_DB = -10;
+
+/** End of the direct sound, after its onset; Y and Z stay silent until then */
+const DIRECT_WINDOW_MS = 2.5;
+
+/** Raised-cosine fade from the direct window into the rebuilt field */
+const DIRECT_FADE_MS = 1;
+
+/**
+ * Lag between the two capsules, in samples, that capsule spacing alone can
+ * explain. Opposite capsules on a 12 mm array are some 20 mm apart, under 3
+ * samples at 48 kHz; anything larger is an offset in the recording chain.
+ */
+const NATURAL_LAG_SAMPLES = 3;
+
+/** How far either way to search for a recording-chain offset */
+const MAX_CHAIN_LAG_MS = 25;
+
+/**
+ * Length of the decorrelators that fill Y and Z: 1024 taps is 21 ms at 48 kHz,
+ * against reverb tails of one to five seconds.
+ */
+const DECORRELATOR_TAPS = 1024;
+
+/** Gain on the direct sound's X: the cos 45° the diagonal axis lost, given back */
+const DIRECT_AXIS_GAIN = Math.SQRT2;
+
+/**
+ * How far above the measured axis Y and Z run through the early reflections,
+ * in dB. Set by ear rather than measured — see rebuildFromPair().
+ */
+const EARLY_DIFFUSE_GAIN_DB = 2;
+
+/** The early reflections, from the direct sound, and the fade out of them */
+const EARLY_WINDOW_MS = 80;
+const EARLY_FADE_MS = 20;
 
 // ── WAV reading ───────────────────────────────────────────────────────────
 
@@ -543,6 +603,262 @@ function peak(signal) {
 const db = (x) => (x > 0 ? 20 * Math.log10(x) : -Infinity);
 const fmtDb = (x) => (x > 0 ? db(x).toFixed(2).padStart(8) + ' dB' : '     -inf dB');
 
+/** Zero-phase brick-wall band-pass, for measurement only */
+function bandpass(signal, sampleRate, lo, hi) {
+    const size = 1 << Math.ceil(Math.log2(signal.length));
+    const re = new Float64Array(size), im = new Float64Array(size);
+    re.set(signal);
+    fft(re, im);
+    for (let bin = 0; bin <= size / 2; bin++) {
+        const freq = bin * sampleRate / size;
+        if (freq >= lo && freq <= hi) continue;
+        re[bin] = im[bin] = 0;
+        if (bin > 0 && bin < size / 2) re[size - bin] = im[size - bin] = 0;
+    }
+    fft(re, im, true);
+    return re.subarray(0, signal.length);
+}
+
+/** First sample at a quarter of the peak: the direct sound, not its loudest reflection */
+function onsetOf(signal) {
+    const threshold = 0.25 * peak(signal);
+    let i = 0;
+    while (i < signal.length - 1 && Math.abs(signal[i]) < threshold) i++;
+    return i;
+}
+
+/** The diffuse tail an IR is judged on: 80–500 ms after the direct sound */
+function tailWindow(onset, frames, sampleRate) {
+    return {
+        start: Math.min(frames, onset + Math.round(0.08 * sampleRate)),
+        end: Math.min(frames, onset + Math.round(0.5 * sampleRate)),
+    };
+}
+
+/**
+ * How much of `target` is left once the best mix of `a` and `b` is taken out,
+ * in dB of its own energy. 300 Hz–3 kHz, over the diffuse tail.
+ *
+ * An independent cardioid regressed on two others leaves about −3 dB in a
+ * diffuse field. A channel that is only crosstalk of the other two leaves
+ * almost nothing.
+ */
+function residualDb(target, a, b, sampleRate, onset) {
+    const [t, x, y] = [target, a, b].map(s => bandpass(s, sampleRate, 300, 3000));
+    const { start, end } = tailWindow(onset, t.length, sampleRate);
+    let xx = 0, yy = 0, xy = 0, xt = 0, yt = 0, tt = 0;
+    for (let i = start; i < end; i++) {
+        xx += x[i] * x[i]; yy += y[i] * y[i]; xy += x[i] * y[i];
+        xt += x[i] * t[i]; yt += y[i] * t[i]; tt += t[i] * t[i];
+    }
+    const det = xx * yy - xy * xy;
+    if (!(tt > 0) || !(det > 0)) return 0;
+    const wa = (xt * yy - yt * xy) / det;
+    const wb = (yt * xx - xt * xy) / det;
+    return 10 * Math.log10(Math.max(tt - wa * xt - wb * yt, 1e-30) / tt);
+}
+
+/**
+ * Azimuth and elevation of the direct sound, from the active intensity
+ * W·[X, Y, Z] over its first 2.5 ms. Degrees; azimuth positive to the left.
+ */
+function directionOf({ W, X, Y, Z }, sampleRate) {
+    const onset = onsetOf(W);
+    const start = Math.max(0, onset - Math.round(0.0005 * sampleRate));
+    const end = Math.min(W.length, onset + Math.round(DIRECT_WINDOW_MS / 1000 * sampleRate));
+    let ix = 0, iy = 0, iz = 0;
+    for (let i = start; i < end; i++) {
+        ix += W[i] * X[i]; iy += W[i] * Y[i]; iz += W[i] * Z[i];
+    }
+    return {
+        azimuth: Math.atan2(iy, ix) * 180 / Math.PI,
+        elevation: Math.atan2(iz, Math.hypot(ix, iy)) * 180 / Math.PI,
+    };
+}
+
+// ── Two-capsule rebuild ───────────────────────────────────────────────────
+
+/**
+ * Lag of `b` against `a` in samples, by cross-correlating their tails.
+ * Positive means `b` arrives late.
+ */
+function chainLag(a, b, sampleRate, onset) {
+    const [x, y] = [a, b].map(s => bandpass(s, sampleRate, 200, 4000));
+    const maxLag = Math.round(MAX_CHAIN_LAG_MS / 1000 * sampleRate);
+    const { start, end } = tailWindow(onset, x.length - maxLag, sampleRate);
+
+    let best = 0, bestValue = -Infinity;
+    for (let lag = -maxLag; lag <= maxLag; lag++) {
+        let acc = 0;
+        for (let i = Math.max(start, -lag); i < end; i++) acc += x[i] * y[i + lag];
+        if (acc > bestValue) { bestValue = acc; best = lag; }
+    }
+    return best;
+}
+
+/** `signal` advanced by `lag` samples, zero-filled */
+function shiftSignal(signal, lag) {
+    const out = new Float64Array(signal.length);
+    for (let i = 0; i < signal.length; i++) {
+        const j = i + lag;
+        if (j >= 0 && j < signal.length) out[i] = signal[j];
+    }
+    return out;
+}
+
+/** Small seeded PRNG, so a rebuild is the same file every time it runs */
+function mulberry32(seed) {
+    return () => {
+        seed = (seed + 0x6D2B79F5) | 0;
+        let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+/**
+ * A random-phase all-pass FIR: flat magnitude, so it moves no energy between
+ * frequencies, and random phase, so its output is uncorrelated with its input
+ * and with any other seed's output. Unit energy by Parseval.
+ */
+function designDecorrelator(seed, taps = DECORRELATOR_TAPS) {
+    const random = mulberry32(seed);
+    const re = new Float64Array(taps), im = new Float64Array(taps);
+    re[0] = 1;
+    re[taps / 2] = random() < 0.5 ? -1 : 1;
+    for (let bin = 1; bin < taps / 2; bin++) {
+        const phase = 2 * Math.PI * random();
+        re[bin] = Math.cos(phase); im[bin] = Math.sin(phase);
+        re[taps - bin] = re[bin]; im[taps - bin] = -im[bin];
+    }
+    fft(re, im, true);
+    return re;
+}
+
+/**
+ * Causal FFT convolution, trimmed to the signal's length. Causal because
+ * what it carries must not arrive before the gate that opened it, and FFT
+ * because a 1024-tap kernel over a five-second IR is too slow done directly.
+ */
+function fftConvolve(signal, kernel) {
+    const size = 1 << Math.ceil(Math.log2(signal.length + kernel.length));
+    const sRe = new Float64Array(size), sIm = new Float64Array(size);
+    const kRe = new Float64Array(size), kIm = new Float64Array(size);
+    sRe.set(signal); kRe.set(kernel);
+    fft(sRe, sIm); fft(kRe, kIm);
+    for (let i = 0; i < size; i++) {
+        const r = sRe[i] * kRe[i] - sIm[i] * kIm[i];
+        sIm[i] = sRe[i] * kIm[i] + sIm[i] * kRe[i];
+        sRe[i] = r;
+    }
+    fft(sRe, sIm, true);
+    return sRe.slice(0, signal.length);
+}
+
+/**
+ * Builds first-order B-format from the two capsules the library captured.
+ *
+ * WHAT TWO OPPOSITE CARDIOIDS MEASURE
+ *
+ * FRD and BLD face (1, −1, −1) and (−1, 1, −1). For a unit plane wave from u,
+ *
+ *     FRD + BLD           = 1 − u_z/√3       ≈ W, a slightly downward omni
+ *     √(3/2)·(FRD − BLD)  = u·(1, −1, 0)/√2  a figure-8 along the FR–BL diagonal
+ *
+ * which is two of the four components. The FL–BR figure-8 and Z were never
+ * captured, and nothing in these files can recover them.
+ *
+ * WHAT THIS DOES WITH THAT
+ *
+ *   · The figure-8 goes to X. Every receiver's camera, and the array, face the
+ *     source, and the direct sound agrees: FRD sits 3–12 dB over BLD, where a
+ *     source on the diagonal would put it near 20. The plain matrix keeps the
+ *     axis where it lies and pulls everything frontal 45° right; on X, a
+ *     frontal source decodes frontal. What a side reflection loses is its
+ *     side, which was never measured either way.
+ *   · Y and Z are silent through the direct sound, so it decodes straight
+ *     ahead and level. After it, they carry the measured figure-8 through two
+ *     unrelated decorrelators. That is a diffuse field: it gives the room the
+ *     lateral and vertical energy a reverberant field has, at the level the
+ *     measured axis shows, and points nowhere. A diffuse tail has no
+ *     direction to get wrong. Early reflections lose their lateral
+ *     direction, which these files do not have to give.
+ *   · The direct sound's X is raised by √2. The measured axis lies 45° off
+ *     the source, so a frontal source reaches it at cos 45° of its strength;
+ *     the source is known to be frontal, so that much is given back. Without
+ *     it the direct sound decodes 3 dB less directional than it was measured,
+ *     which is heard as a narrower image and head tracking that barely moves
+ *     it. It is the direct sound only: in a diffuse field every axis carries
+ *     the same energy, so the tail's projection needs no correction.
+ *   · Y and Z run EARLY_DIFFUSE_GAIN_DB above the measured axis through the
+ *     first 80 ms, easing back to it over 20 ms. Early on the axis is quiet
+ *     against W, and filling Y at its level left the early field 1.5–2.5 dB
+ *     less lateral than the four-capsule decode. The figure is set by ear,
+ *     not measured: these files hold no early lateral energy to measure.
+ *   · A chain lag between the capsules (St Francis: up to 19 ms) is taken out
+ *     first, and an array that faced backwards (Guadalupe R6) is turned round,
+ *     read off the sign of the figure-8 in the direct sound.
+ *
+ * The non-coincidence correction is applied as in the four-capsule path, W
+ * through the W filter and the figure-8 through the XYZ one, before Y and Z
+ * are derived from it.
+ */
+function rebuildFromPair(capsules, sampleRate, options) {
+    const first = capsules[PAIR[0]];
+    let second = capsules[PAIR[1]];
+    const onset = onsetOf(first);
+
+    let lag = chainLag(first, second, sampleRate, onset);
+    if (Math.abs(lag) > NATURAL_LAG_SAMPLES) second = shiftSignal(second, lag);
+    else lag = 0;
+
+    const frames = first.length;
+    let W = new Float64Array(frames);
+    let X = new Float64Array(frames);
+    const axisScale = Math.sqrt(3 / 2);
+    for (let i = 0; i < frames; i++) {
+        W[i] = first[i] + second[i];
+        X[i] = axisScale * (first[i] - second[i]);
+    }
+
+    if (options.eq) {
+        const correction = designCorrection(sampleRate, options.radius);
+        W = convolve(W, correction.w);
+        X = convolve(X, correction.xyz);
+    }
+
+    // Facing the source, the figure-8's direct sound has the sign of W's
+    const direct = onsetOf(W);
+    const directEnd = Math.min(frames, direct + Math.round(DIRECT_WINDOW_MS / 1000 * sampleRate));
+    let agreement = 0;
+    for (let i = Math.max(0, direct - Math.round(0.0005 * sampleRate)); i < directEnd; i++) {
+        agreement += W[i] * X[i];
+    }
+    const reversed = agreement < 0;
+    if (reversed) for (let i = 0; i < frames; i++) X[i] = -X[i];
+
+    const fade = Math.max(1, Math.round(DIRECT_FADE_MS / 1000 * sampleRate));
+    const rise = (t, span) => (t >= span ? 1 : t <= 0 ? 0 : 0.5 - 0.5 * Math.cos(Math.PI * t / span));
+
+    const earlyBoost = Math.pow(10, EARLY_DIFFUSE_GAIN_DB / 20);
+    const earlyEnd = direct + Math.round(EARLY_WINDOW_MS / 1000 * sampleRate);
+    const earlyFade = Math.max(1, Math.round(EARLY_FADE_MS / 1000 * sampleRate));
+    const diffuse = new Float64Array(frames);
+    for (let i = directEnd; i < frames; i++) {
+        const early = 1 + (earlyBoost - 1) * (1 - rise(i - earlyEnd, earlyFade));
+        diffuse[i] = X[i] * rise(i - directEnd, fade) * early;
+    }
+    const Y = fftConvolve(diffuse, designDecorrelator(1));
+    const Z = fftConvolve(diffuse, designDecorrelator(2));
+
+    // After the diffuse feed is taken, so the boost stays on the direct sound
+    for (let i = 0; i < Math.min(frames, directEnd + fade); i++) {
+        X[i] *= 1 + (DIRECT_AXIS_GAIN - 1) * (1 - rise(i - directEnd, fade));
+    }
+
+    return { W, X, Y, Z, lag, reversed };
+}
+
 // ── Position discovery ────────────────────────────────────────────────────
 
 /**
@@ -657,19 +973,33 @@ function convertPosition(stem, channels, options) {
 
     const capsules = {};
     CAPSULE_ORDER.forEach((name, i) => { capsules[name] = raw[i]; });
-    let { W, X, Y, Z } = matrixAtoB(capsules);
 
-    // The correction goes after the matrix, not before it. Every capsule feeds
-    // both the sum and the differences, so the two corrections have nowhere to
-    // live upstream — W and XYZ only exist as separate signals once the matrix
-    // has run, and it is W and XYZ that drifted apart, not the capsules.
-    if (options.eq) {
-        const correction = designCorrection(inputRate, options.radius);
-        W = convolve(W, correction.w);
-        X = convolve(X, correction.xyz);
-        Y = convolve(Y, correction.xyz);
-        Z = convolve(Z, correction.xyz);
+    // How much of each capsule outside the pair the pair already explains
+    const pairOnset = onsetOf(capsules[PAIR[0]]);
+    const dependence = CAPSULE_ORDER.filter(name => !PAIR.includes(name)).map(name => ({
+        name,
+        residualDb: residualDb(capsules[name], capsules[PAIR[0]], capsules[PAIR[1]], inputRate, pairOnset),
+    }));
+
+    let W, X, Y, Z, pair = null;
+    if (options.pair) {
+        ({ W, X, Y, Z, ...pair } = rebuildFromPair(capsules, inputRate, options));
+    } else {
+        ({ W, X, Y, Z } = matrixAtoB(capsules));
+
+        // The correction goes after the matrix, not before it. Every capsule feeds
+        // both the sum and the differences, so the two corrections have nowhere to
+        // live upstream — W and XYZ only exist as separate signals once the matrix
+        // has run, and it is W and XYZ that drifted apart, not the capsules.
+        if (options.eq) {
+            const correction = designCorrection(inputRate, options.radius);
+            W = convolve(W, correction.w);
+            X = convolve(X, correction.xyz);
+            Y = convolve(Y, correction.xyz);
+            Z = convolve(Z, correction.xyz);
+        }
     }
+    const direction = directionOf({ W, X, Y, Z }, inputRate);
 
     // AmbiX: ACN order is W, Y, Z, X — not W, X, Y, Z. Omnitone reads ACN, so
     // a file written in the intuitive order decodes with front and left swapped.
@@ -681,7 +1011,7 @@ function convertPosition(stem, channels, options) {
 
     return {
         stem, before, out, normalized, sourceDir: path.dirname(block[0].file),
-        inputRate, outputRate: options.rate, frames,
+        inputRate, outputRate: options.rate, frames, dependence, direction, pair,
     };
 }
 
@@ -770,6 +1100,18 @@ function reportPosition(result) {
             `   (diffuse field ≈ -4.8 dB each)`);
     }
 
+    const { azimuth, elevation } = result.direction;
+    console.log(`    direct sound          azimuth ${azimuth.toFixed(0)}°, elevation ${elevation.toFixed(0)}°`);
+    console.log(`    left by ${PAIR.join('+')}:     ` + result.dependence
+        .map(d => `${d.name} ${d.residualDb.toFixed(1)} dB`).join('   ') +
+        `   (independent ≈ -3 dB)`);
+    if (result.pair) {
+        const notes = [];
+        if (result.pair.lag) notes.push(`${PAIR[1]} realigned by ${result.pair.lag} samples`);
+        if (result.pair.reversed) notes.push('array faced away from the source; turned round');
+        if (notes.length) console.log(`    pair                  ${notes.join('; ')}`);
+    }
+
     if (result.written) console.log(`    wrote ${path.basename(result.written)}`);
 }
 
@@ -782,6 +1124,7 @@ function parseArgs(argv) {
         radius: CAPSULE_RADIUS_M,
         rate: DEFAULT_OUTPUT_RATE,
         eq: true,
+        pair: false,
         gain: 0,
         dryRun: false,
         warnings: [],
@@ -808,6 +1151,7 @@ function parseArgs(argv) {
             }
         }
         else if (arg === '--no-eq') options.eq = false;
+        else if (arg === '--pair') options.pair = true;
         else if (arg === '--dry-run') options.dryRun = true;
         else if (arg === '--help' || arg === '-h') options.help = true;
         else if (arg.startsWith('--')) throw new Error(`unknown option ${arg}`);
@@ -836,6 +1180,8 @@ A-format → B-format (AmbiX) converter for the NT-SF1 IRs in IR/
                    ${SET_GAIN_TARGET_PEAK_DB} dBFS. Ratios are untouched — this is not the
                    per-channel normalization described above. Needed for the
                    un-normalized originals, which sit far too low to be heard.
+  --pair           rebuild from ${PAIR.join(' and ')} alone, for sets where the other two
+                   capsules are crosstalk of them (header, point 5)
   --no-eq          matrix only, no non-coincidence correction
   --dry-run        measure and report, write nothing
   --help
@@ -867,6 +1213,9 @@ function main() {
         `   [estimate, not published by RØDE]`);
     console.log(`  correction         ${options.eq
         ? `ideal-tetrahedron model, capped at ±${MAX_CORRECTION_DB} dB` : 'DISABLED (--no-eq)'}`);
+    if (options.pair) {
+        console.log(`  build              from ${PAIR.join(' + ')} only; Y and Z diffuse after the direct sound`);
+    }
     console.log(`  output             ${options.rate} Hz, 32-bit float, 4ch`);
     if (options.dryRun) console.log(`  dry run — nothing will be written`);
 
@@ -914,6 +1263,17 @@ function summarize(results, options) {
 
     for (const w of options.warnings) console.log(`  warning: ${w}`);
 
+    const twoCapsule = converted.filter(r =>
+        r.dependence.every(d => d.residualDb < DEPENDENT_RESIDUAL_DB));
+    if (twoCapsule.length && !options.pair) {
+        console.log(`
+${twoCapsule.length} position(s) carry only two capsules: ${CAPSULE_ORDER
+            .filter(n => !PAIR.includes(n)).join(' and ')} are explained by ${PAIR.join(' and ')}
+to better than ${DEPENDENT_RESIDUAL_DB} dB. The matrix decodes those with one horizontal
+axis and pulls frontal sound toward -45°. --pair rebuilds them from the
+two capsules that were captured (header, point 5).`);
+    }
+
     const suspect = converted.filter(r => r.normalized.length);
     if (suspect.length) {
         const total = suspect.reduce((n, r) => n + r.normalized.length, 0);
@@ -956,5 +1316,6 @@ if (require.main === module) main();
 module.exports = {
     readWav, matrixAtoB, designCorrection, convolve,
     resample, peak, db, fft, findPositions, ambisonicBlock,
-    CAPSULE_ORDER, CAPSULE_AXES, CAPSULE_RADIUS_M,
+    rebuildFromPair, directionOf, designDecorrelator, fftConvolve, chainLag,
+    CAPSULE_ORDER, CAPSULE_AXES, CAPSULE_RADIUS_M, PAIR,
 };
